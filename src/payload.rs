@@ -1,6 +1,26 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::concierge::ClientType;
+use crate::clients::ClientType;
+
+pub const ERROR_PAYLOAD_UNKNOWN: Payload = Payload::Error {
+    code: 4000,
+    data: "Unknown error",
+};
+
+pub const ERROR_PAYLOAD_UNSUPPORTED: Payload = Payload::Error {
+    code: 4001,
+    data: "Unsupported payload",
+};
+
+pub const ERROR_PAYLOAD_DECODE: Payload = Payload::Error {
+    code: 4002,
+    data: "Decode error",
+};
+
+pub const ERROR_PAYLOAD_INVALID_TARGET: Payload = Payload::Error {
+    code: 4003,
+    data: "Invalid target",
+};
 
 /// Packets sent from the client to the Gateway API are encapsulated within a
 /// gateway payload object and must have the proper operation and data object set.
@@ -20,7 +40,7 @@ use crate::concierge::ClientType;
 /// ```json
 /// { "operation": "HELLO", "data": { "foo": "bar" }}
 /// ```
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(tag = "operation", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Payload<'a> {
     // PAYLOADS TO CONCIERGE
@@ -115,7 +135,7 @@ pub enum Payload<'a> {
 }
 
 /// Data field for an identify payload.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct IdentifyData {
     /// Identification of the client.
     pub id: String,

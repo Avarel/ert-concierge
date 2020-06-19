@@ -11,7 +11,7 @@ futures = "0.3.5"
 tokio = { version = "0.2", default-features = false, features = ["io-std", "macros", "stream", "time"] }
 # WebSocket implementation
 tokio-tungstenite = "0.10.1"
-# Concurrent map
+# Concurrent map, deadlock free for multithreaded peace of mind
 dashmap = "4.0.0-rc6"
 # Fast multithreaded MPSC channels
 flume = "0.7.1"

@@ -1,10 +1,12 @@
-use crate::payload::{IdentifyData, Payload};
+use crate::{
+    clients::{Client, ClientType},
+    payload::{IdentifyData, Payload},
+};
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use dashmap::DashMap;
-use futures::{future, pin_mut, stream::TryStreamExt, Sink, SinkExt, Stream, StreamExt};
+use futures::{future, pin_mut, stream::TryStreamExt, Sink, SinkExt, StreamExt};
 use log::{debug, info, warn};
-use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpStream, time::timeout};
 use tokio_tungstenite::{
@@ -12,116 +14,12 @@ use tokio_tungstenite::{
     WebSocketStream,
 };
 
-use flume::{unbounded, Receiver, Sender};
-
-pub struct Client {
-    /// Client id.
-    id: String,
-    /// Client type.
-    client_type: ClientType,
-    /// Client address.
-    addr: SocketAddr,
-    /// Sender channel.
-    tx: Sender<Message>,
-}
-
-#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum ClientType {
-    PLUGIN,
-    USER,
-}
-
-impl Client {
-    /// Create a new client.
-    fn new(id: String, client_type: ClientType, addr: SocketAddr) -> (Self, Receiver<Message>) {
-        // This is our channels for messages.
-        // rx: (receive) where messages are received
-        // tx: (transmit) where we send messages
-        let (tx, rx) = unbounded();
-        (
-            Self {
-                id,
-                client_type,
-                addr,
-                tx,
-            },
-            rx,
-        )
-    }
-
-    /// Send a payload.
-    fn send(&self, payload: Payload) -> Result<()> {
-        self.send_ws_msg(Message::binary(serde_json::to_vec(&payload)?))
-    }
-
-    /// Send a WebSocket message.
-    fn send_ws_msg(&self, msg: Message) -> Result<()> {
-        self.tx.send(msg).map_err(|_| anyhow!("Send error"))
-    }
-
-    async fn handle_incoming_messages(
-        &self,
-        server: &Arc<Concierge>,
-        mut incoming: impl Stream<Item = Result<Message>> + Unpin,
-    ) -> Result<()> {
-        while let Some(Ok(msg)) = incoming.next().await {
-            if let Ok(payload) = serde_json::from_slice::<Payload>(&msg.into_data()) {
-                match payload {
-                    Payload::Message {
-                        target_type,
-                        target,
-                        data,
-                        ..
-                    } => {
-                        if let Some(target_client) =
-                            server.clients.get(&target_type).unwrap().get(target)
-                        {
-                            // Relay the message and rewrite the origin fields.
-                            target_client.send(Payload::Message {
-                                origin_type: Some(self.client_type),
-                                origin: Some(&self.id),
-                                target_type,
-                                target,
-                                data,
-                            })?;
-                        } else {
-                            self.send(Payload::Error {
-                                code: 4005,
-                                data: "Invalid target",
-                            })?;
-                        }
-                    }
-                    Payload::FetchClients { client_type } => {
-                        let data = server
-                            .clients
-                            .get(&client_type)
-                            .unwrap()
-                            .iter()
-                            .map(|e| e.key().to_owned())
-                            .collect::<Vec<_>>();
-                        self.send(Payload::ClientsData { client_type, data })?;
-                    }
-                    _ => self.send(Payload::Error {
-                        code: 4002,
-                        data: "Unsupported payload",
-                    })?,
-                }
-            } else {
-                self.send(Payload::Error {
-                    code: 4001,
-                    data: "Unknown payload",
-                })?;
-            }
-        }
-
-        Ok(())
-    }
-}
+use flume::Receiver;
 
 type ClientTable = DashMap<String, Client>;
 
 pub struct Concierge {
-    clients: DashMap<ClientType, ClientTable>,
+    pub clients: DashMap<ClientType, ClientTable>,
 }
 
 impl Concierge {
@@ -135,7 +33,7 @@ impl Concierge {
 
     /// Broadcast a payload to all connected client of `client_type`.
     pub fn broadcast(self: Arc<Self>, client_type: ClientType, payload: Payload) -> Result<()> {
-        let message = Message::binary(serde_json::to_vec(&payload)?);
+        let message = Message::text(serde_json::to_string(&payload)?);
         for client in self.clients.get(&client_type).unwrap().iter() {
             client.send_ws_msg(message.clone())?;
         }
@@ -167,12 +65,13 @@ impl Concierge {
                     "Client failed to identify properly or in time. (ip: {})",
                     addr
                 );
-                Ok(ws_stream
+                ws_stream
                     .close(Some(CloseFrame {
                         code: CloseCode::Library(close_code),
                         reason: "Identification failed".into(),
                     }))
-                    .await?)
+                    .await?;
+                Ok(())
             }
         }
     }
@@ -204,16 +103,16 @@ impl Concierge {
         id: String,
         mut ws_stream: WebSocketStream<TcpStream>,
     ) -> Result<()> {
-        let map = self.clients.get(&client_type).unwrap();
-        if map.contains_key(&id) {
-            // Duplicate identification, close the stream.
+        let clients = self.clients.get(&client_type).unwrap();
+        // Duplicate identification, close the stream.
+        if clients.contains_key(&id) {
             warn!(
                 "User attempted to join with existing identification. (ip: {}, id: {})",
                 addr, id
             );
             ws_stream
                 .close(Some(CloseFrame {
-                    code: CloseCode::Library(3),
+                    code: CloseCode::Library(4001),
                     reason: "Identification failed".into(),
                 }))
                 .await?;
@@ -221,7 +120,7 @@ impl Concierge {
         }
 
         let (client, rx) = Client::new(id.clone(), client_type, addr);
-        let client = map.insert_and_get(id.clone(), client);
+        let client = clients.insert_and_get(id.clone(), client);
 
         info!("New client joined. (ip: {}, id: {})", addr, id);
 
@@ -230,12 +129,15 @@ impl Concierge {
         // outgoing: where the websocket send messages
         let (outgoing, incoming) = ws_stream.split();
 
+        // Have the client handle incoming messages.
         let incoming_handler =
             client.handle_incoming_messages(&self, incoming.map_err(|e| e.into()));
         // Forward our sent messages (from tx) to the outgoing sink.
+        // This is because the client acts upon channels and doesn't know what the websocket is.
         let receive_from_others =
-            Self::forward_messages(&id, rx, outgoing.sink_map_err(|e| e.into()));
+            Self::forward_message(&id, rx, outgoing.sink_map_err(|e| e.into()));
 
+        // Setup complete, send the Hello payload.
         client.send(Payload::Hello)?;
 
         // Irrelevant implementation detail: pinning prevents pointer invalidation
@@ -252,18 +154,19 @@ impl Concierge {
         Ok(())
     }
 
-    async fn forward_messages(
+    /// Forward messages from a client's receiver to the websocket outgoing stream.
+    async fn forward_message(
         id: &str,
         mut rx: Receiver<Message>,
         mut outgoing: impl Sink<Message, Error = anyhow::Error> + Unpin,
     ) -> Result<()> {
-        while let Some(m) = rx.next().await {
-            debug!(
-                "Sending message (ip: id: {}): {}",
-                &id,
-                m.to_text().unwrap_or("Unable to decode text")
-            );
-            outgoing.send(m).await?;
+        while let Some(message) = rx.next().await {
+            if let Message::Text(ref string) = message {
+                debug!("Sending text (id: {}): {}", &id, string);
+            } else if let Message::Binary(ref bin) = message {
+                debug!("Sending binary (id: {}): bin length = {}", &id, bin.len())
+            }
+            outgoing.send(message).await?;
         }
         Ok(())
     }
