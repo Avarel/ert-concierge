@@ -1,0 +1,26 @@
+[package]
+name = "concierge"
+version = "0.1.0"
+authors = ["An Tran <avarelpm@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+# Async support
+futures = "0.3.5"
+# Async runtime
+tokio = { version = "0.2", default-features = false, features = ["io-std", "macros", "stream", "time"] }
+# WebSocket implementation
+tokio-tungstenite = "0.10.1"
+# Concurrent map
+dashmap = "4.0.0-rc6"
+# Fast multithreaded MPSC channels
+flume = "0.7.1"
+# Ergonomic error handling
+anyhow = "1.0.31"
+# Serialization framework
+serde_json = "1.0.55"
+serde = { version = "1.0.112", features = ["derive"] }
+
+# Developer dependences, not present in src code
+[dev-dependencies]
+url = "2.0.0"
