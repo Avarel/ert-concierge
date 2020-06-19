@@ -23,6 +23,8 @@ serde = { version = "1.0.112", features = ["derive"] }
 # Logging capabilities
 log = "0.4.8"
 env_logger = "0.7.1"
+# Static file server
+hyper = "0.13.6"
 
 # Developer dependences, not present in src code
 [dev-dependencies]

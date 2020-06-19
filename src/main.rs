@@ -4,11 +4,11 @@ mod payload;
 
 use anyhow::Result;
 use concierge::Concierge;
-use std::{env, sync::Arc};
+use std::{sync::Arc, net::SocketAddr};
 use tokio::net::TcpListener;
 use log::{info, debug};
 
-const DEFAULT_IP: &str = "127.0.0.1";
+const IP: [u8; 4] = [127, 0, 0, 1];
 const PORT: u16 = 8080;
 
 #[tokio::main]
@@ -17,11 +17,13 @@ async fn main() -> Result<()> {
         .filter_level(log::LevelFilter::Debug)
         .init();
 
-    info!("Starting up the server.");
+    ws_server().await
+}
 
-    let addr = env::args()
-        .nth(1)
-        .unwrap_or_else(|| format!("{}:{}", DEFAULT_IP, PORT));
+async fn ws_server() -> Result<()> {
+    info!("Starting up the socket server.");
+
+    let addr = SocketAddr::from((IP, PORT));
 
     debug!("Attempting to bind the server. (ip: {})", addr);
 

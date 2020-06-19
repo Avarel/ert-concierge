@@ -32,7 +32,7 @@ impl Concierge {
     }
 
     /// Broadcast a payload to all connected client of `client_type`.
-    pub fn broadcast(self: Arc<Self>, client_type: ClientType, payload: Payload) -> Result<()> {
+    pub fn broadcast(&self, client_type: ClientType, payload: Payload) -> Result<()> {
         let message = Message::text(serde_json::to_string(&payload)?);
         for client in self.clients.get(&client_type).unwrap().iter() {
             client.send_ws_msg(message.clone())?;
@@ -107,7 +107,7 @@ impl Concierge {
         // Duplicate identification, close the stream.
         if clients.contains_key(&id) {
             warn!(
-                "User attempted to join with existing identification. (ip: {}, id: {})",
+                "User attempted to join with existing id. (ip: {}, id: {})",
                 addr, id
             );
             ws_stream

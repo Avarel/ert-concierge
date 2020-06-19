@@ -58,11 +58,15 @@ impl Client {
     /// Handle incoming payloads with the client information.
     pub async fn handle_incoming_messages(
         &self,
-        server: &Arc<Concierge>,
+        server: &Concierge,
         mut incoming: impl Stream<Item = Result<Message>> + Unpin,
     ) -> Result<()> {
+        // let mut file_mode = false;
         while let Some(Ok(msg)) = incoming.next().await {
             match msg {
+                Message::Ping(_) => {
+                    self.send_ws_msg(Message::Pong(vec![]))?;
+                }
                 Message::Text(ref string) => {
                     if let Ok(payload) = serde_json::from_str::<Payload>(string) {
                         match payload {
