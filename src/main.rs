@@ -5,14 +5,23 @@ use anyhow::Result;
 use concierge::Concierge;
 use std::{env, sync::Arc};
 use tokio::net::TcpListener;
+use log::{info, debug};
+
+const DEFAULT_IP: &str = "127.0.0.1:8080";
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    env_logger::Builder::new()
+        .filter_level(log::LevelFilter::Debug)
+        .init();
+
+    info!("Starting up the server.");
+
     let addr = env::args()
         .nth(1)
-        .unwrap_or_else(|| String::from("127.0.0.1:8080"));
+        .unwrap_or_else(|| String::from(DEFAULT_IP));
 
-    println!("Attempting to bind the server. (ip: {})", addr);
+    debug!("Attempting to bind the server. (ip: {})", addr);
 
     // Wrap the server in an atomic ref-counter, to make it safe to work with in between threads.
     let server = Arc::new(Concierge::new());
@@ -21,7 +30,7 @@ async fn main() -> Result<()> {
     let mut listener = TcpListener::bind(&addr)
         .await
         .expect("Failed to bind to address.");
-    println!("Listening. (ip: {})", addr);
+    info!("Listening for new connections. (ip: {})", addr);
 
     // Listen to new incoming connections.
     while let Ok((stream, addr)) = listener.accept().await {

@@ -37,7 +37,7 @@ pub enum Payload<'a> {
     Identify {
         data: IdentifyData,
     },
-    /// Message payloads. These payloads have special fields for targetting
+    /// Message payloads. These payloads have special fields for targeting
     /// other users or plugins. The origin fields are ignored if they are
     /// sent to the concierge, since the identification process happens
     /// per socket. The data field is transmitted verbatim.
@@ -80,16 +80,12 @@ pub enum Payload<'a> {
         target: &'a str,
         data: Value,
     },
-    /// Fetch plugins payload. This payload lists all the plugin ids.
+    /// Fetch payload. This payload lists all the clients of the connection
+    /// type specified in the data field.
     /// ```json
-    /// {"operation":"FETCH_PLUGINS"}
+    /// {"operation":"FETCH_CLIENTS", "client_type": "USER"}
     /// ```
-    FetchPlugins,
-    /// Fetch plugins payload. This payload lists all the user ids.
-    /// ```json
-    /// {"operation":"FETCH_PLUGINS"}
-    /// ```
-    FetchUsers,
+    FetchClients { client_type: ClientType },
 
     // PAYLOADS FROM CONCIERGE
 
@@ -98,21 +94,15 @@ pub enum Payload<'a> {
     /// {"operation":"HELLO"}
     /// ```
     Hello,
-    /// Plugins data payload. Returns all the plugins IDs as a array of strings.
+    /// Plugins data payload. Returns all the client IDs as an array of strings.
     /// ```json
-    /// {"operation":"PLUGINS_DATA", "data": ["simulation1", "simulation2"]}
+    /// {"operation":"CLIENTS_DATA", "client_type": "PLUGIN", "data": ["simulation1", "simulation2"]}
     /// ```
-    PluginsData {
+    ClientsData {
+        client_type: ClientType,
         data: Vec<String>,
     },
-    /// Users data payload. Returns all the users IDs as a array of strings.
-    /// ```json
-    /// {"operation":"USERS_DATA", "data": ["anthony", "brendan"]}
-    /// ```
-    UsersData {
-        data: Vec<String>,
-    },
-    /// Error payload. Contains a error code and message.
+    /// Error payload. 
     /// ```json
     /// {"operation":"ERROR", "data": "The cake was a lie."}
     /// ```
@@ -125,7 +115,9 @@ pub enum Payload<'a> {
 /// Data field for an identify payload.
 #[derive(Serialize, Deserialize)]
 pub struct IdentifyData {
+    /// Identification of the client.
     pub id: String,
+    /// Type of the client.
     #[serde(rename = "type")]
     pub t: ClientType,
 }

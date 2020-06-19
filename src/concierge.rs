@@ -3,6 +3,7 @@ use crate::payload::{IdentifyData, Payload};
 use anyhow::{anyhow, Result};
 use dashmap::DashMap;
 use futures::{future, pin_mut, stream::TryStreamExt, StreamExt};
+use log::{debug, info, trace, warn};
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpStream, time::timeout};
@@ -22,7 +23,7 @@ pub struct Client {
     tx: Sender<Message>,
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum ClientType {
     PLUGIN,
     USER,
@@ -36,9 +37,7 @@ impl Client {
 
     /// Send a payload.
     fn send(&self, payload: Payload) -> Result<()> {
-        self.tx
-            .send(Message::binary(serde_json::to_vec(&payload)?))
-            .map_err(|_| anyhow!("Send error"))
+        self.send_ws_msg(Message::binary(serde_json::to_vec(&payload)?))
     }
 
     /// Send a WebSocket message.
@@ -50,19 +49,28 @@ impl Client {
 type ClientTable = DashMap<String, Client>;
 
 pub struct Concierge {
-    /// Users map.
-    users: ClientTable,
-    /// Plugins map.
-    plugins: ClientTable,
+    clients: DashMap<ClientType, ClientTable>,
 }
 
 impl Concierge {
     /// Creates a new server.
     pub fn new() -> Self {
-        Self {
-            users: DashMap::new(),
-            plugins: DashMap::new(),
+        let map = DashMap::new();
+        map.insert(ClientType::PLUGIN, ClientTable::new());
+        map.insert(ClientType::USER, ClientTable::new());
+        Self { clients: map }
+    }
+
+    pub fn broadcast(
+        self: Arc<Concierge>,
+        client_type: ClientType,
+        payload: Payload,
+    ) -> Result<()> {
+        let message = Message::binary(serde_json::to_vec(&payload)?);
+        for client in self.clients.get(&client_type).unwrap().iter() {
+            client.send_ws_msg(message.clone())?;
         }
+        Ok(())
     }
 
     pub async fn handle_connection(
@@ -70,25 +78,23 @@ impl Concierge {
         raw_stream: TcpStream,
         addr: SocketAddr,
     ) -> Result<()> {
-        println!("Incoming TCP connection. (addr: {})", addr);
+        debug!("Incoming TCP connection. (addr: {})", addr);
 
         // Transform a raw TcpStream into a WebSocketStream.
-        let mut ws_stream = tokio_tungstenite::accept_async(raw_stream)
-            .await
-            .expect("Error during the websocket handshake occurred");
-        println!("WebSocket connection established (addr: {})", addr);
+        let mut ws_stream = tokio_tungstenite::accept_async(raw_stream).await?;
+        debug!("Websocket connection established. (ip: {})", addr);
 
         // Protocol: Expect a payload that identifies the client within 5 seconds.
         match Self::handle_identification(&mut ws_stream).await {
             // Got the identification data successfully.
             Ok(data) => {
-                println!("Identification successful. (addr: {})", addr);
+                debug!("Identification successful. (ip: {})", addr);
                 self.handle_client(data.t, addr, data.id, ws_stream).await
             }
             // Failure: send close code to the client and drop the connection.
             Err(close_code) => {
-                println!(
-                    "Client failed to identify properly or in time. (addr: {})",
+                warn!(
+                    "Client failed to identify properly or in time. (ip: {})",
                     addr
                 );
                 Ok(ws_stream
@@ -135,20 +141,24 @@ impl Concierge {
 
         let client = Client::new(id.clone(), addr, tx);
         client.send(Payload::Hello)?;
-        let map = match t {
-            ClientType::USER => &self.users,
-            ClientType::PLUGIN => &self.plugins
-        };
+        let map = self.clients.get(&t).unwrap();
 
         if map.contains_key(&id) {
+            // Duplicate identification, kick the user!
             client.send_ws_msg(Message::Close(Some(CloseFrame {
                 code: CloseCode::Library(3),
                 reason: "Identification failed".into(),
             })))?;
+            warn!(
+                "User attempted to join with existing identification. (ip: {}, id: {})",
+                addr, id
+            );
             return Ok(());
         } else {
             map.insert(id.clone(), client);
         }
+
+        info!("New client joined. (ip: {}, id: {})", addr, id);
 
         // This is the WebSocket channels for messages.
         // incoming: where we receive messages
@@ -157,72 +167,65 @@ impl Concierge {
 
         // Handle incoming messages
         let incoming_handler = incoming.map_err(|e| e.into()).try_for_each(|msg| {
-            println!("Received a message (id: {}): {:?}", &id, msg.to_text());
+            debug!("Received a message (id: {}): {:?}", &id, msg.to_text());
 
-            let client = match t {
-                ClientType::USER => self.users.get(&id),
-                ClientType::PLUGIN => self.plugins.get(&id),
-            }
-            .unwrap();
+            let client = self.clients.get(&t).unwrap().get(&id).unwrap();
 
-            if let Ok(payload) = serde_json::from_slice::<Payload>(&msg.into_data()) {
-                let result = match payload {
-                    Payload::Message {
-                        target_type,
-                        target,
-                        data,
-                        ..
-                    } => {
-                        if let Some(target_client) = match target_type {
-                            ClientType::USER => self.users.get(target),
-                            ClientType::PLUGIN => self.plugins.get(target),
-                        } {
-                            // Relay the message and rewrite the origin fields.
-                            target_client.send(Payload::Message {
-                                origin_type: Some(t),
-                                origin: Some(&id),
-                                target_type,
-                                target,
-                                data,
-                            })
-                        } else {
-                            client.send(Payload::Error {
-                                code: 4005,
-                                data: "Invalid target",
-                            })
+            future::ready(
+                if let Ok(payload) = serde_json::from_slice::<Payload>(&msg.into_data()) {
+                    match payload {
+                        Payload::Message {
+                            target_type,
+                            target,
+                            data,
+                            ..
+                        } => {
+                            if let Some(target_client) =
+                                self.clients.get(&target_type).unwrap().get(target)
+                            {
+                                // Relay the message and rewrite the origin fields.
+                                target_client.send(Payload::Message {
+                                    origin_type: Some(t),
+                                    origin: Some(&id),
+                                    target_type,
+                                    target,
+                                    data,
+                                })
+                            } else {
+                                client.send(Payload::Error {
+                                    code: 4005,
+                                    data: "Invalid target",
+                                })
+                            }
                         }
+                        Payload::FetchClients { client_type } => {
+                            let data = self
+                                .clients
+                                .get(&client_type)
+                                .unwrap()
+                                .iter()
+                                .map(|e| e.key().to_owned())
+                                .collect::<Vec<_>>();
+                            client.send(Payload::ClientsData { client_type, data })
+                        }
+                        _ => Ok(()),
                     }
-                    Payload::FetchPlugins => {
-                        let data = self
-                            .plugins
-                            .iter()
-                            .map(|e| e.key().to_owned())
-                            .collect::<Vec<_>>();
-                        client.send(Payload::PluginsData { data })
-                    }
-                    Payload::FetchUsers => {
-                        let data = self
-                            .users
-                            .iter()
-                            .map(|e| e.key().to_owned())
-                            .collect::<Vec<_>>();
-                        client.send(Payload::UsersData { data })
-                    }
-                    _ => Ok(()),
-                };
-                future::ready(result)
-            } else {
-                future::ok(())
-            }
+                } else {
+                    client.send(Payload::Error {
+                        code: 4001,
+                        data: "Unknown payload",
+                    })
+                },
+            )
         });
 
         // Forward our sent messages (from tx) to the outgoing sink.
         let receive_from_others = rx
             .map(|z| {
-                println!(
-                    "Sending to (id: {}), {}",
+                debug!(
+                    "Sending message (ip: id: {}): {}",
                     &id,
-                    z.to_text().unwrap_or("Unable to decode message")
+                    z.to_text().unwrap_or("Unable to decode text")
                 );
                 Ok(z)
             })
@@ -236,8 +239,8 @@ impl Concierge {
         future::select(incoming_handler, receive_from_others).await;
 
         // Connection has been destroyed by this stage.
-        println!("Client disconnected. (ip: {}, id: {})", &addr, &id);
-        self.users.remove(&id);
+        info!("Client disconnected. (ip: {}, id: {})", &addr, &id);
+        self.clients.get(&t).unwrap().remove(&id);
 
         Ok(())
     }

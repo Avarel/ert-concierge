@@ -20,6 +20,9 @@ anyhow = "1.0.31"
 # Serialization framework
 serde_json = "1.0.55"
 serde = { version = "1.0.112", features = ["derive"] }
+# Logging capabilities
+log = "0.4.8"
+env_logger = "0.7.1"
 
 # Developer dependences, not present in src code
 [dev-dependencies]
