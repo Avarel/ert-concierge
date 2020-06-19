@@ -17,6 +17,8 @@ use flume::{unbounded, Receiver, Sender};
 pub struct Client {
     /// Client id.
     id: String,
+    /// Client type.
+    client_type: ClientType,
     /// Client address.
     addr: SocketAddr,
     /// Sender channel.
@@ -31,8 +33,20 @@ pub enum ClientType {
 
 impl Client {
     /// Create a new client.
-    fn new(id: String, addr: SocketAddr, tx: Sender<Message>) -> Self {
-        Self { id, addr, tx }
+    fn new(id: String, client_type: ClientType, addr: SocketAddr) -> (Self, Receiver<Message>) {
+        // This is our channels for messages.
+        // rx: (receive) where messages are received
+        // tx: (transmit) where we send messages
+        let (tx, rx) = unbounded();
+        (
+            Self {
+                id,
+                client_type,
+                addr,
+                tx,
+            },
+            rx,
+        )
     }
 
     /// Send a payload.
@@ -43,6 +57,64 @@ impl Client {
     /// Send a WebSocket message.
     fn send_ws_msg(&self, msg: Message) -> Result<()> {
         self.tx.send(msg).map_err(|_| anyhow!("Send error"))
+    }
+
+    async fn handle_incoming_messages(
+        &self,
+        server: &Arc<Concierge>,
+        mut incoming: impl Stream<Item = Result<Message>> + Unpin,
+    ) -> Result<()> {
+        while let Some(Ok(msg)) = incoming.next().await {
+            if let Ok(payload) = serde_json::from_slice::<Payload>(&msg.into_data()) {
+                match payload {
+                    Payload::Message {
+                        target_type,
+                        target,
+                        data,
+                        ..
+                    } => {
+                        if let Some(target_client) =
+                            server.clients.get(&target_type).unwrap().get(target)
+                        {
+                            // Relay the message and rewrite the origin fields.
+                            target_client.send(Payload::Message {
+                                origin_type: Some(self.client_type),
+                                origin: Some(&self.id),
+                                target_type,
+                                target,
+                                data,
+                            })?;
+                        } else {
+                            self.send(Payload::Error {
+                                code: 4005,
+                                data: "Invalid target",
+                            })?;
+                        }
+                    }
+                    Payload::FetchClients { client_type } => {
+                        let data = server
+                            .clients
+                            .get(&client_type)
+                            .unwrap()
+                            .iter()
+                            .map(|e| e.key().to_owned())
+                            .collect::<Vec<_>>();
+                        self.send(Payload::ClientsData { client_type, data })?;
+                    }
+                    _ => self.send(Payload::Error {
+                        code: 4002,
+                        data: "Unsupported payload",
+                    })?,
+                }
+            } else {
+                self.send(Payload::Error {
+                    code: 4001,
+                    data: "Unknown payload",
+                })?;
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -62,11 +134,7 @@ impl Concierge {
     }
 
     /// Broadcast a payload to all connected client of `client_type`.
-    pub fn broadcast(
-        self: Arc<Concierge>,
-        client_type: ClientType,
-        payload: Payload,
-    ) -> Result<()> {
+    pub fn broadcast(self: Arc<Self>, client_type: ClientType, payload: Payload) -> Result<()> {
         let message = Message::binary(serde_json::to_vec(&payload)?);
         for client in self.clients.get(&client_type).unwrap().iter() {
             client.send_ws_msg(message.clone())?;
@@ -76,7 +144,7 @@ impl Concierge {
 
     /// Handle incoming TCP connections and upgrade them to a Websocket connection.
     pub async fn handle_connection(
-        self: Arc<Concierge>,
+        self: Arc<Self>,
         raw_stream: TcpStream,
         addr: SocketAddr,
     ) -> Result<()> {
@@ -130,177 +198,45 @@ impl Concierge {
 
     /// Handle new client WebSocket connections.
     async fn handle_client(
-        self: Arc<Concierge>,
-        t: ClientType,
+        self: Arc<Self>,
+        client_type: ClientType,
         addr: SocketAddr,
         id: String,
-        ws_stream: WebSocketStream<TcpStream>,
+        mut ws_stream: WebSocketStream<TcpStream>,
     ) -> Result<()> {
-        // This is our channels for messages.
-        // rx: (receive) where messages are received
-        // tx: (transmit) where we send messages
-        let (tx, mut rx) = unbounded();
-
-        let client = Client::new(id.clone(), addr, tx);
-        client.send(Payload::Hello)?;
-        let map = self.clients.get(&t).unwrap();
-
+        let map = self.clients.get(&client_type).unwrap();
         if map.contains_key(&id) {
-            // Duplicate identification, kick the user!
-            client.send_ws_msg(Message::Close(Some(CloseFrame {
-                code: CloseCode::Library(3),
-                reason: "Identification failed".into(),
-            })))?;
+            // Duplicate identification, close the stream.
             warn!(
                 "User attempted to join with existing identification. (ip: {}, id: {})",
                 addr, id
             );
+            ws_stream
+                .close(Some(CloseFrame {
+                    code: CloseCode::Library(3),
+                    reason: "Identification failed".into(),
+                }))
+                .await?;
             return Ok(());
-        } else {
-            map.insert(id.clone(), client);
         }
+
+        let (client, rx) = Client::new(id.clone(), client_type, addr);
+        let client = map.insert_and_get(id.clone(), client);
 
         info!("New client joined. (ip: {}, id: {})", addr, id);
 
         // This is the WebSocket channels for messages.
         // incoming: where we receive messages
         // outgoing: where the websocket send messages
-        let (mut outgoing, incoming) = ws_stream.split();
+        let (outgoing, incoming) = ws_stream.split();
 
         let incoming_handler =
-            self.handle_incoming_messages(t, id.clone(), incoming.map_err(|e| e.into()));
-        // async {
-        //     let client = self.clients.get(&t).unwrap().get(&id).unwrap();
-
-        //     while let Some(Ok(msg)) = incoming.next().await {
-        //         if let Ok(payload) = serde_json::from_slice::<Payload>(&msg.into_data()) {
-        //             match payload {
-        //                 Payload::Message {
-        //                     target_type,
-        //                     target,
-        //                     data,
-        //                     ..
-        //                 } => {
-        //                     if let Some(target_client) =
-        //                         self.clients.get(&target_type).unwrap().get(target)
-        //                     {
-        //                         // Relay the message and rewrite the origin fields.
-        //                         target_client.send(Payload::Message {
-        //                             origin_type: Some(t),
-        //                             origin: Some(&id),
-        //                             target_type,
-        //                             target,
-        //                             data,
-        //                         })?;
-        //                     } else {
-        //                         client.send(Payload::Error {
-        //                             code: 4005,
-        //                             data: "Invalid target",
-        //                         })?;
-        //                     }
-        //                 }
-        //                 Payload::FetchClients { client_type } => {
-        //                     let data = self
-        //                         .clients
-        //                         .get(&client_type)
-        //                         .unwrap()
-        //                         .iter()
-        //                         .map(|e| e.key().to_owned())
-        //                         .collect::<Vec<_>>();
-        //                     client.send(Payload::ClientsData { client_type, data })?;
-        //                 }
-        //                 _ => {}
-        //             }
-        //         } else {
-        //             client.send(Payload::Error {
-        //                 code: 4001,
-        //                 data: "Unknown payload",
-        //             })?;
-        //         }
-        //     }
-
-        //     Ok::<(), anyhow::Error>(())
-        // };
-
-        // Handle incoming messages
-        // let incoming_handler = incoming.map_err(|e| e.into()).try_for_each(|msg| {
-        //     debug!("Received a message (id: {}): {:?}", &id, msg.to_text());
-
-        //     let client = self.clients.get(&t).unwrap().get(&id).unwrap();
-
-        //     future::ready(
-        //         if let Ok(payload) = serde_json::from_slice::<Payload>(&msg.into_data()) {
-        //             match payload {
-        //                 Payload::Message {
-        //                     target_type,
-        //                     target,
-        //                     data,
-        //                     ..
-        //                 } => {
-        //                     if let Some(target_client) =
-        //                         self.clients.get(&target_type).unwrap().get(target)
-        //                     {
-        //                         // Relay the message and rewrite the origin fields.
-        //                         target_client.send(Payload::Message {
-        //                             origin_type: Some(t),
-        //                             origin: Some(&id),
-        //                             target_type,
-        //                             target,
-        //                             data,
-        //                         })
-        //                     } else {
-        //                         client.send(Payload::Error {
-        //                             code: 4005,
-        //                             data: "Invalid target",
-        //                         })
-        //                     }
-        //                 }
-        //                 Payload::FetchClients { client_type } => {
-        //                     let data = self
-        //                         .clients
-        //                         .get(&client_type)
-        //                         .unwrap()
-        //                         .iter()
-        //                         .map(|e| e.key().to_owned())
-        //                         .collect::<Vec<_>>();
-        //                     client.send(Payload::ClientsData { client_type, data })
-        //                 }
-        //                 _ => Ok(()),
-        //             }
-        //         } else {
-        //             client.send(Payload::Error {
-        //                 code: 4001,
-        //                 data: "Unknown payload",
-        //             })
-        //         }
-        //     )
-        // });
-
+            client.handle_incoming_messages(&self, incoming.map_err(|e| e.into()));
         // Forward our sent messages (from tx) to the outgoing sink.
-        let receive_from_others = Self::forward_message(id.clone(), rx, outgoing);
-        // async {
-        //     while let Some(m) = rx.next().await {
-        //         debug!(
-        //             "Sending message (ip: id: {}): {}",
-        //             &id,
-        //             m.to_text().unwrap_or("Unable to decode text")
-        //         );
-        //         outgoing.send(m).await?;
-        //     }
-        //     Ok::<(), anyhow::Error>(())
-        // };
-        
-        //Self::forward_message(id.clone(), rx, outgoing);
-        // let receive_from_others = rx
-        //     .inspect(|m| {
-        //         debug!(
-        //             "Sending message (ip: id: {}): {}",
-        //             &id,
-        //             m.to_text().unwrap_or("Unable to decode text")
-        //         )
-        //     })
-        //     .map(Ok)
-        //     .forward(outgoing);
+        let receive_from_others =
+            Self::forward_messages(&id, rx, outgoing.sink_map_err(|e| e.into()));
+
+        client.send(Payload::Hello)?;
 
         // Irrelevant implementation detail: pinning prevents pointer invalidation
         pin_mut!(incoming_handler, receive_from_others);
@@ -311,73 +247,15 @@ impl Concierge {
 
         // Connection has been destroyed by this stage.
         info!("Client disconnected. (ip: {}, id: {})", &addr, &id);
-        self.clients.get(&t).unwrap().remove(&id);
+        self.clients.get(&client_type).unwrap().remove(&id);
 
         Ok(())
     }
 
-    async fn handle_incoming_messages(
-        self: &Arc<Concierge>,
-        t: ClientType,
-        id: String,
-        mut incoming: impl Stream<Item = Result<Message>> + Unpin,
-    ) -> Result<()> {
-        let client = self.clients.get(&t).unwrap().get(&id).unwrap();
-
-        while let Some(Ok(msg)) = incoming.next().await {
-            if let Ok(payload) = serde_json::from_slice::<Payload>(&msg.into_data()) {
-                match payload {
-                    Payload::Message {
-                        target_type,
-                        target,
-                        data,
-                        ..
-                    } => {
-                        if let Some(target_client) =
-                            self.clients.get(&target_type).unwrap().get(target)
-                        {
-                            // Relay the message and rewrite the origin fields.
-                            target_client.send(Payload::Message {
-                                origin_type: Some(t),
-                                origin: Some(&id),
-                                target_type,
-                                target,
-                                data,
-                            })?;
-                        } else {
-                            client.send(Payload::Error {
-                                code: 4005,
-                                data: "Invalid target",
-                            })?;
-                        }
-                    }
-                    Payload::FetchClients { client_type } => {
-                        let data = self
-                            .clients
-                            .get(&client_type)
-                            .unwrap()
-                            .iter()
-                            .map(|e| e.key().to_owned())
-                            .collect::<Vec<_>>();
-                        client.send(Payload::ClientsData { client_type, data })?;
-                    }
-                    _ => {}
-                }
-            } else {
-                client.send(Payload::Error {
-                    code: 4001,
-                    data: "Unknown payload",
-                })?;
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn forward_message(
-        id: String,
+    async fn forward_messages(
+        id: &str,
         mut rx: Receiver<Message>,
-        mut outgoing: impl Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
+        mut outgoing: impl Sink<Message, Error = anyhow::Error> + Unpin,
     ) -> Result<()> {
         while let Some(m) = rx.next().await {
             debug!(
