@@ -47,7 +47,7 @@ pub enum Payload<'a> {
     /// ```json
     /// {
     ///     "operation":"MESSAGE",
-    ///     "target_type":"CLIENT",
+    ///     "target_type":"USER",
     ///     "target":"brendan",
     ///     "data":{
     ///         "foo": "bar"
@@ -59,9 +59,9 @@ pub enum Payload<'a> {
     /// ```json
     /// {
     ///     "operation":"MESSAGE",
-    ///     "origin_type":"CLIENT",
+    ///     "origin_type":"USER",
     ///     "origin":"anthony",
-    ///     "target_type":"CLIENT",
+    ///     "target_type":"USER",
     ///     "target":"brendan",
     ///     "data":{
     ///         "foo": "bar"
@@ -78,6 +78,8 @@ pub enum Payload<'a> {
         /// Target of the message.
         target_type: ClientType,
         target: &'a str,
+
+        // Data field.
         data: Value,
     },
     /// Fetch payload. This payload lists all the clients of the connection
@@ -104,7 +106,7 @@ pub enum Payload<'a> {
     },
     /// Error payload. 
     /// ```json
-    /// {"operation":"ERROR", "data": "The cake was a lie."}
+    /// {"operation":"ERROR", "code": 420, "data": "The cake was a lie."}
     /// ```
     Error {
         code: u16,

@@ -7,7 +7,8 @@ use std::{env, sync::Arc};
 use tokio::net::TcpListener;
 use log::{info, debug};
 
-const DEFAULT_IP: &str = "127.0.0.1:8080";
+const DEFAULT_IP: &str = "127.0.0.1";
+const PORT: u16 = 8080;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -19,7 +20,7 @@ async fn main() -> Result<()> {
 
     let addr = env::args()
         .nth(1)
-        .unwrap_or_else(|| String::from(DEFAULT_IP));
+        .unwrap_or_else(|| format!("{}:{}", DEFAULT_IP, PORT));
 
     debug!("Attempting to bind the server. (ip: {})", addr);
 

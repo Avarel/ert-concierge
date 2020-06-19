@@ -2,8 +2,8 @@ use crate::payload::{IdentifyData, Payload};
 
 use anyhow::{anyhow, Result};
 use dashmap::DashMap;
-use futures::{future, pin_mut, stream::TryStreamExt, StreamExt};
-use log::{debug, info, trace, warn};
+use futures::{future, pin_mut, stream::TryStreamExt, Sink, SinkExt, Stream, StreamExt};
+use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpStream, time::timeout};
@@ -12,7 +12,7 @@ use tokio_tungstenite::{
     WebSocketStream,
 };
 
-use flume::{unbounded, Sender};
+use flume::{unbounded, Receiver, Sender};
 
 pub struct Client {
     /// Client id.
@@ -61,6 +61,7 @@ impl Concierge {
         Self { clients: map }
     }
 
+    /// Broadcast a payload to all connected client of `client_type`.
     pub fn broadcast(
         self: Arc<Concierge>,
         client_type: ClientType,
@@ -73,6 +74,7 @@ impl Concierge {
         Ok(())
     }
 
+    /// Handle incoming TCP connections and upgrade them to a Websocket connection.
     pub async fn handle_connection(
         self: Arc<Concierge>,
         raw_stream: TcpStream,
@@ -137,7 +139,7 @@ impl Concierge {
         // This is our channels for messages.
         // rx: (receive) where messages are received
         // tx: (transmit) where we send messages
-        let (tx, rx) = unbounded();
+        let (tx, mut rx) = unbounded();
 
         let client = Client::new(id.clone(), addr, tx);
         client.send(Payload::Hello)?;
@@ -163,73 +165,142 @@ impl Concierge {
         // This is the WebSocket channels for messages.
         // incoming: where we receive messages
         // outgoing: where the websocket send messages
-        let (outgoing, incoming) = ws_stream.split();
+        let (mut outgoing, incoming) = ws_stream.split();
+
+        let incoming_handler =
+            self.handle_incoming_messages(t, id.clone(), incoming.map_err(|e| e.into()));
+        // async {
+        //     let client = self.clients.get(&t).unwrap().get(&id).unwrap();
+
+        //     while let Some(Ok(msg)) = incoming.next().await {
+        //         if let Ok(payload) = serde_json::from_slice::<Payload>(&msg.into_data()) {
+        //             match payload {
+        //                 Payload::Message {
+        //                     target_type,
+        //                     target,
+        //                     data,
+        //                     ..
+        //                 } => {
+        //                     if let Some(target_client) =
+        //                         self.clients.get(&target_type).unwrap().get(target)
+        //                     {
+        //                         // Relay the message and rewrite the origin fields.
+        //                         target_client.send(Payload::Message {
+        //                             origin_type: Some(t),
+        //                             origin: Some(&id),
+        //                             target_type,
+        //                             target,
+        //                             data,
+        //                         })?;
+        //                     } else {
+        //                         client.send(Payload::Error {
+        //                             code: 4005,
+        //                             data: "Invalid target",
+        //                         })?;
+        //                     }
+        //                 }
+        //                 Payload::FetchClients { client_type } => {
+        //                     let data = self
+        //                         .clients
+        //                         .get(&client_type)
+        //                         .unwrap()
+        //                         .iter()
+        //                         .map(|e| e.key().to_owned())
+        //                         .collect::<Vec<_>>();
+        //                     client.send(Payload::ClientsData { client_type, data })?;
+        //                 }
+        //                 _ => {}
+        //             }
+        //         } else {
+        //             client.send(Payload::Error {
+        //                 code: 4001,
+        //                 data: "Unknown payload",
+        //             })?;
+        //         }
+        //     }
+
+        //     Ok::<(), anyhow::Error>(())
+        // };
 
         // Handle incoming messages
-        let incoming_handler = incoming.map_err(|e| e.into()).try_for_each(|msg| {
-            debug!("Received a message (id: {}): {:?}", &id, msg.to_text());
+        // let incoming_handler = incoming.map_err(|e| e.into()).try_for_each(|msg| {
+        //     debug!("Received a message (id: {}): {:?}", &id, msg.to_text());
 
-            let client = self.clients.get(&t).unwrap().get(&id).unwrap();
+        //     let client = self.clients.get(&t).unwrap().get(&id).unwrap();
 
-            future::ready(
-                if let Ok(payload) = serde_json::from_slice::<Payload>(&msg.into_data()) {
-                    match payload {
-                        Payload::Message {
-                            target_type,
-                            target,
-                            data,
-                            ..
-                        } => {
-                            if let Some(target_client) =
-                                self.clients.get(&target_type).unwrap().get(target)
-                            {
-                                // Relay the message and rewrite the origin fields.
-                                target_client.send(Payload::Message {
-                                    origin_type: Some(t),
-                                    origin: Some(&id),
-                                    target_type,
-                                    target,
-                                    data,
-                                })
-                            } else {
-                                client.send(Payload::Error {
-                                    code: 4005,
-                                    data: "Invalid target",
-                                })
-                            }
-                        }
-                        Payload::FetchClients { client_type } => {
-                            let data = self
-                                .clients
-                                .get(&client_type)
-                                .unwrap()
-                                .iter()
-                                .map(|e| e.key().to_owned())
-                                .collect::<Vec<_>>();
-                            client.send(Payload::ClientsData { client_type, data })
-                        }
-                        _ => Ok(()),
-                    }
-                } else {
-                    client.send(Payload::Error {
-                        code: 4001,
-                        data: "Unknown payload",
-                    })
-                },
-            )
-        });
+        //     future::ready(
+        //         if let Ok(payload) = serde_json::from_slice::<Payload>(&msg.into_data()) {
+        //             match payload {
+        //                 Payload::Message {
+        //                     target_type,
+        //                     target,
+        //                     data,
+        //                     ..
+        //                 } => {
+        //                     if let Some(target_client) =
+        //                         self.clients.get(&target_type).unwrap().get(target)
+        //                     {
+        //                         // Relay the message and rewrite the origin fields.
+        //                         target_client.send(Payload::Message {
+        //                             origin_type: Some(t),
+        //                             origin: Some(&id),
+        //                             target_type,
+        //                             target,
+        //                             data,
+        //                         })
+        //                     } else {
+        //                         client.send(Payload::Error {
+        //                             code: 4005,
+        //                             data: "Invalid target",
+        //                         })
+        //                     }
+        //                 }
+        //                 Payload::FetchClients { client_type } => {
+        //                     let data = self
+        //                         .clients
+        //                         .get(&client_type)
+        //                         .unwrap()
+        //                         .iter()
+        //                         .map(|e| e.key().to_owned())
+        //                         .collect::<Vec<_>>();
+        //                     client.send(Payload::ClientsData { client_type, data })
+        //                 }
+        //                 _ => Ok(()),
+        //             }
+        //         } else {
+        //             client.send(Payload::Error {
+        //                 code: 4001,
+        //                 data: "Unknown payload",
+        //             })
+        //         }
+        //     )
+        // });
 
         // Forward our sent messages (from tx) to the outgoing sink.
-        let receive_from_others = rx
-            .map(|z| {
-                debug!(
-                    "Sending message (ip: id: {}): {}",
-                    &id,
-                    z.to_text().unwrap_or("Unable to decode text")
-                );
-                Ok(z)
-            })
-            .forward(outgoing);
+        let receive_from_others = Self::forward_message(id.clone(), rx, outgoing);
+        // async {
+        //     while let Some(m) = rx.next().await {
+        //         debug!(
+        //             "Sending message (ip: id: {}): {}",
+        //             &id,
+        //             m.to_text().unwrap_or("Unable to decode text")
+        //         );
+        //         outgoing.send(m).await?;
+        //     }
+        //     Ok::<(), anyhow::Error>(())
+        // };
+        
+        //Self::forward_message(id.clone(), rx, outgoing);
+        // let receive_from_others = rx
+        //     .inspect(|m| {
+        //         debug!(
+        //             "Sending message (ip: id: {}): {}",
+        //             &id,
+        //             m.to_text().unwrap_or("Unable to decode text")
+        //         )
+        //     })
+        //     .map(Ok)
+        //     .forward(outgoing);
 
         // Irrelevant implementation detail: pinning prevents pointer invalidation
         pin_mut!(incoming_handler, receive_from_others);
@@ -242,6 +313,80 @@ impl Concierge {
         info!("Client disconnected. (ip: {}, id: {})", &addr, &id);
         self.clients.get(&t).unwrap().remove(&id);
 
+        Ok(())
+    }
+
+    async fn handle_incoming_messages(
+        self: &Arc<Concierge>,
+        t: ClientType,
+        id: String,
+        mut incoming: impl Stream<Item = Result<Message>> + Unpin,
+    ) -> Result<()> {
+        let client = self.clients.get(&t).unwrap().get(&id).unwrap();
+
+        while let Some(Ok(msg)) = incoming.next().await {
+            if let Ok(payload) = serde_json::from_slice::<Payload>(&msg.into_data()) {
+                match payload {
+                    Payload::Message {
+                        target_type,
+                        target,
+                        data,
+                        ..
+                    } => {
+                        if let Some(target_client) =
+                            self.clients.get(&target_type).unwrap().get(target)
+                        {
+                            // Relay the message and rewrite the origin fields.
+                            target_client.send(Payload::Message {
+                                origin_type: Some(t),
+                                origin: Some(&id),
+                                target_type,
+                                target,
+                                data,
+                            })?;
+                        } else {
+                            client.send(Payload::Error {
+                                code: 4005,
+                                data: "Invalid target",
+                            })?;
+                        }
+                    }
+                    Payload::FetchClients { client_type } => {
+                        let data = self
+                            .clients
+                            .get(&client_type)
+                            .unwrap()
+                            .iter()
+                            .map(|e| e.key().to_owned())
+                            .collect::<Vec<_>>();
+                        client.send(Payload::ClientsData { client_type, data })?;
+                    }
+                    _ => {}
+                }
+            } else {
+                client.send(Payload::Error {
+                    code: 4001,
+                    data: "Unknown payload",
+                })?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn forward_message(
+        id: String,
+        mut rx: Receiver<Message>,
+        mut outgoing: impl Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
+    ) -> Result<()> {
+        while let Some(m) = rx.next().await {
+            debug!(
+                "Sending message (ip: id: {}): {}",
+                &id,
+                m.to_text().unwrap_or("Unable to decode text")
+            );
+            outgoing.send(m).await?;
+        }
         Ok(())
     }
 }
