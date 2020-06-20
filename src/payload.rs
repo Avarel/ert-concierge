@@ -1,6 +1,7 @@
+use crate::clients::ClientGroup;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::clients::ClientType;
+use uuid::Uuid;
 
 pub mod error_payloads {
     use super::Payload;
@@ -46,30 +47,25 @@ pub mod close_codes {
 /// always relay the message with a proper origin set.
 ///
 /// # Example
-/// ## Payload to the Concierge
 /// ```json
-/// { "operation": "FETCH_PLUGINS", "data": { "foo": "bar" }}
-/// ```
-/// ## Payload from the Concierge
-/// ```json
-/// { "operation": "HELLO", "data": { "foo": "bar" }}
+/// { "operation": "ABCDEFG", "data": { "foo": "bar" }}
 /// ```
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(tag = "operation", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Payload<'a> {
     // PAYLOADS TO CONCIERGE
-    
     /// Identification payload. This payload must be the first payload sent
     /// within 5 seconds of establishing the socket connection, else the
     /// connection will be dropped.
     /// # Example
     /// ```json
-    /// { "operation": "IDENTIFY", "data": { "type": "USER", "id": "anthony" }}
-    /// { "operation": "IDENTIFY", "data": { "type": "USER", "id": "brendan" }}
-    /// { "operation": "IDENTIFY", "data": { "type": "PLUGIN", "id": "simulation" }}
+    /// { "operation": "IDENTIFY", "group": "USER", "name": "anthony" }
+    /// { "operation": "IDENTIFY", "group": "USER", "name": "brendan" }
+    /// { "operation": "IDENTIFY", "group": "PLUGIN", "name": "simulation" }
     /// ```
     Identify {
-        data: IdentifyData,
+        #[serde(flatten)]
+        data: ClientData<'a>,
     },
     /// Message payloads. These payloads have special fields for targeting
     /// other users or plugins. The origin fields are ignored if they are
@@ -80,9 +76,8 @@ pub enum Payload<'a> {
     /// Imagine that a user identifies as `anthony` sends this to the concierge.
     /// ```json
     /// {
-    ///     "operation":"MESSAGE",
-    ///     "target_type":"USER",
-    ///     "target":{"id":"brendan","type":"USER"},
+    ///     "operation":"MESSAGE_CLIENT",
+    ///     "target":{"name":"brendan","group":"USER"},
     ///     "data":{
     ///         "foo": "bar"
     ///     }
@@ -92,73 +87,111 @@ pub enum Payload<'a> {
     /// The user `brendan` will receive this on their end.
     /// ```json
     /// {
-    ///     "operation":"MESSAGE",
-    ///     "origin":{"id":"anthony","type":"USER"},
-    ///     "target":{"id":"brendan","type":"USER"},
+    ///     "operation":"MESSAGE_CLIENT",
+    ///     "origin":{"name":"anthony","group":"USER"},
+    ///     "target":{"name":"brendan","group":"USER"},
     ///     "data":{
     ///         "foo": "bar"
     ///     }
     /// }
     /// ```
-    Message {
+    MessageClient {
+        /// Origin of the message.
+        #[serde(skip_deserializing)]
+        origin: Option<ClientData<'a>>,
+        /// Target of the message.
+        target: ClientData<'a>,
+        /// Data field.
+        data: Value,
+    },
+    MessageUuid {
+        /// Origin of the message.
+        #[serde(skip_deserializing)]
+        origin: Option<Uuid>,
+        /// Target of the message.
+        target: Uuid,
+        /// Data field.
+        data: Value,
+    },
+    BroadcastGroup {
+        /// Origin of the message.
+        #[serde(skip_deserializing)]
+        origin: Option<ClientData<'a>>,
+        /// Target of the broadcast.
+        group: ClientGroup,
+        /// Data field.
+        data: Value,
+    },
+    BroadcastAll {
         // Origin of the message.
         #[serde(skip_deserializing)]
-        origin: Option<TargetData<'a>>,
-
-        /// Target of the message.
-        target: TargetData<'a>,
-
+        origin: Option<ClientData<'a>>,
         // Data field.
         data: Value,
     },
-    /// Fetch payload. This payload lists all the clients of the connection
-    /// type specified in the data field.
+    /// Fetch payload. This payload lists all the clients of the
+    /// group specified in the data field.
     /// ```json
-    /// {"operation":"FETCH_CLIENTS", "client_type": "USER"}
+    /// {"operation":"FETCH_CLIENTS","group": "USER"}
     /// ```
-    FetchClients { client_type: ClientType },
+    FetchClients { group: ClientGroup },
 
     // PAYLOADS FROM CONCIERGE
-
     /// Hello payload. This payload is sent upon successful identification.
+    /// The payload will also contain a file server authorization key.
     /// ```json
-    /// {"operation":"HELLO"}
+    /// {"operation":"HELLO","uuid":"73fcc768-d724-47e2-a101-a45298188f47"}
     /// ```
-    Hello,
-    /// Plugins data payload. Returns all the client IDs as an array of strings.
+    Hello { uuid: Uuid },
+    /// Plugins data payload. Returns all the client names as an array of strings.
     /// ```json
-    /// {"operation":"CLIENTS_DATA", "client_type": "PLUGIN", "data": ["simulation1", "simulation2"]}
+    /// {"operation":"CLIENTS_DUMP","group":"PLUGIN","names":["simulation1","simulation2"],"uuids":["...","..."]}
     /// ```
-    ClientsData {
-        client_type: ClientType,
-        data: Vec<String>,
+    ClientsDump {
+        /// The client's group.
+        group: ClientGroup,
+        /// Names of the clients of the queried type.
+        names: Vec<String>,
+        /// UUIDs of the clients of the queried type.
+        uuids: Vec<Uuid>,
     },
-    /// Error payload. 
+    /// A payload broadcasted whenever a new client joins. This is not
+    /// emitted to newly joining clients.
+    /// ```json
+    /// { "operation": "CLIENT_JOIN", "group": "USER", "name": "anthony" }
+    /// { "operation": "CLIENT_JOIN", "group": "PLUGIN", "name": "simulation" }
+    /// ```
+    ClientJoin {
+        #[serde(flatten)]
+        data: ClientData<'a>,
+    },
+    /// A payload broadcasted whenever a new client leaves. This is not
+    /// emitted to leaving clients.
+    /// ```json
+    /// { "operation": "CLIENT_LEAVE", "group": "USER", "name": "brendan" }
+    /// { "operation": "CLIENT_LEAVE", "group": "PLUGIN", "name": "simulation" }
+    /// ```
+    ClientLeave {
+        #[serde(flatten)]
+        data: ClientData<'a>,
+    },
+    /// Error payload.
     /// ```json
     /// {"operation":"ERROR", "code": 420, "data": "The cake was a lie."}
     /// ```
     Error {
+        /// Error code.
         code: u16,
-        data: &'a str
-    }
+        /// Error message.
+        data: &'a str,
+    },
 }
 
-/// Data field for an targetting.
+/// Data field for a client.
 #[derive(Serialize, Deserialize, Clone)]
-pub struct TargetData<'a> {
-    /// Identification of the target.
-    pub id: &'a str,
-    /// Type of the target.
-    #[serde(rename = "type")]
-    pub t: ClientType,
-}
-
-/// Data field for an identify payload.
-#[derive(Serialize, Deserialize, Clone)]
-pub struct IdentifyData {
+pub struct ClientData<'a> {
     /// Identification of the client.
-    pub id: String,
+    pub name: &'a str,
     /// Type of the client.
-    #[serde(rename = "type")]
-    pub t: ClientType,
+    pub group: ClientGroup,
 }

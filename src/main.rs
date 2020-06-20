@@ -4,31 +4,15 @@ mod payload;
 
 use anyhow::Result;
 use concierge::Concierge;
-use std::{net::SocketAddr, sync::Arc};
-
-use hyper::Body;
 use log::{debug, error, info};
-use tokio::fs::File;
-use tokio_util::codec::{BytesCodec, FramedRead};
-use warp::http::Response;
-use warp::Filter;
+use std::{net::SocketAddr, sync::Arc};
+use warp::{path::Tail, Filter};
+use uuid::Uuid;
 
 // Local host
 const IP: [u8; 4] = [127, 0, 0, 1];
 const WS_PORT: u16 = 8080;
 
-struct FileResponse(File);
-
-impl warp::Reply for FileResponse {
-    fn into_response(self) -> warp::reply::Response {
-        let stream = FramedRead::new(self.0, BytesCodec::new());
-        let res = Response::builder()
-            .header("Content-Disposition", "attachment; filename=\"file.txt\"")
-            .body(Body::wrap_stream(stream))
-            .unwrap();
-        res
-    }
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -52,7 +36,7 @@ async fn main() -> Result<()> {
                 debug!("Incoming TCP connection. (ip: {:?})", addr);
                 let server = server.clone();
                 ws.on_upgrade(move |websocket| async move {
-                    if let Err(err) = server.handle_new_socket(websocket, addr).await {
+                    if let Err(err) = server.handle_socket_conn(websocket, addr).await {
                         error!("Error: {}", err);
                     }
                 })
@@ -60,22 +44,15 @@ async fn main() -> Result<()> {
     };
 
     let fs_route = {
-        warp::path("wow")
-            .and(warp::header::<String>("Authorization"))
-            .and_then(move |_: String| {
+        warp::path("fs")
+            .and(warp::path::tail())
+            .and(warp::header::optional::<Uuid>("Authorization"))
+            .and_then(move |path: Tail, auth_key: Option<Uuid>| {
+                let path = path.as_str().to_string();
+                println!("{}",path);
                 let server = server.clone();
                 async move {
-                    server.clients.len(); // dummy variable
-                    if let Ok(file) = File::open("./Cargo.toml").await {
-                        let stream = FramedRead::new(file, BytesCodec::new());
-                        let res = Response::builder()
-                            .header("Content-Disposition", "attachment; filename=\"file.txt\"")
-                            .body(Body::wrap_stream(stream))
-                            .unwrap();
-                        Ok(res)
-                    } else {
-                        Err(warp::reject::not_found())
-                    }
+                    server.handle_file_request(path).await.map_err(|_| warp::reject())
                 }
             })
     };

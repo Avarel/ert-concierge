@@ -1,7 +1,4 @@
-use crate::payload::{
-    error_payloads,
-    Payload, TargetData,
-};
+use crate::payload::{error_payloads, ClientData, Payload};
 use anyhow::{anyhow, Result};
 use futures::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -9,33 +6,37 @@ use warp::ws::Message;
 
 use crate::concierge::Concierge;
 use flume::{unbounded, Receiver, Sender};
+use uuid::Uuid;
 
 pub struct Client {
     /// Client id.
-    id: String,
+    uuid: Uuid,
+    /// Client name.
+    name: String,
     /// Client type.
-    client_type: ClientType,
+    group: ClientGroup,
     /// Sender channel.
     tx: Sender<Message>,
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum ClientType {
+pub enum ClientGroup {
     PLUGIN,
     USER,
 }
 
 impl Client {
     /// Create a new client.
-    pub fn new(id: String, client_type: ClientType) -> (Self, Receiver<Message>) {
+    pub fn new(uuid: Uuid, name: String, group: ClientGroup) -> (Self, Receiver<Message>) {
         // This is our channels for messages.
         // rx: (receive) where messages are received
         // tx: (transmit) where we send messages
         let (tx, rx) = unbounded();
         (
             Self {
-                id,
-                client_type,
+                uuid,
+                name,
+                group,
                 tx,
             },
             rx,
@@ -62,17 +63,20 @@ impl Client {
             if let Ok(string) = message.to_str() {
                 if let Ok(payload) = serde_json::from_str::<Payload>(string) {
                     match payload {
-                        Payload::Message {
-                            target,
-                            data,
-                            ..
-                        } => {
-                            if let Some(target_client) =
-                                server.clients.get(&target.t).unwrap().get(target.id)
+                        Payload::MessageClient { target, data, .. } => {
+                            if let Some(target_client) = server
+                                .groups
+                                .get(&target.group)
+                                .unwrap()
+                                .get(target.name)
+                                .and_then(|id| server.clients.get(&id))
                             {
                                 // Relay the message and rewrite the origin fields.
-                                target_client.send(Payload::Message {
-                                    origin: Some(TargetData { t: self.client_type, id: &self.id }),
+                                target_client.send(Payload::MessageClient {
+                                    origin: Some(ClientData {
+                                        group: self.group,
+                                        name: &self.name,
+                                    }),
                                     target,
                                     data,
                                 })?;
@@ -80,15 +84,46 @@ impl Client {
                                 self.send(error_payloads::INVALID_TARGET)?;
                             }
                         }
-                        Payload::FetchClients { client_type } => {
-                            let data = server
-                                .clients
-                                .get(&client_type)
+                        Payload::MessageUuid { target, data, .. } => {
+                            if let Some(target_client) = server.clients.get(&target) {
+                                target_client.send(Payload::MessageUuid {
+                                    origin: Some(self.uuid),
+                                    target,
+                                    data,
+                                })?;
+                            }
+                        }
+                        Payload::BroadcastGroup { group, data, .. } => {
+                            server.broadcast(group, Payload::BroadcastAll {
+                                origin: Some(ClientData {
+                                    group: self.group,
+                                    name: &self.name,
+                                }),
+                                data
+                            })?;
+                        }
+                        Payload::BroadcastAll { data, .. } => {
+                            server.broadcast_all(Payload::BroadcastAll {
+                                origin: Some(ClientData {
+                                    group: self.group,
+                                    name: &self.name,
+                                }),
+                                data
+                            })?;
+                        }
+                        Payload::FetchClients { group } => {
+                            let (names, uuids) = server
+                                .groups
+                                .get(&group)
                                 .unwrap()
                                 .iter()
-                                .map(|e| e.key().to_owned())
-                                .collect::<Vec<_>>();
-                            self.send(Payload::ClientsData { client_type, data })?;
+                                .map(|e| (e.key().to_owned(), *e.value()))
+                                .unzip();
+                            self.send(Payload::ClientsDump {
+                                group,
+                                names,
+                                uuids,
+                            })?;
                         }
                         _ => self.send(error_payloads::UNSUPPORTED)?,
                     }
