@@ -13,6 +13,9 @@ use tokio_tungstenite::{
     tungstenite::protocol::{frame::coding::CloseCode, CloseFrame, Message},
     WebSocketStream,
 };
+use hyper::{Body, Request, Response, Method, body::Bytes, body::HttpBody};
+use hyper::{header::HeaderValue};
+use tokio::io::AsyncReadExt;
 
 use flume::Receiver;
 
@@ -30,7 +33,10 @@ impl Concierge {
         map.insert(ClientType::USER, ClientTable::new());
         Self { clients: map }
     }
+}
 
+impl Concierge {
+    #[allow(dead_code)]
     /// Broadcast a payload to all connected client of `client_type`.
     pub fn broadcast(&self, client_type: ClientType, payload: Payload) -> Result<()> {
         let message = Message::text(serde_json::to_string(&payload)?);
@@ -41,7 +47,7 @@ impl Concierge {
     }
 
     /// Handle incoming TCP connections and upgrade them to a Websocket connection.
-    pub async fn handle_connection(
+    pub async fn handle_new_socket(
         self: Arc<Self>,
         raw_stream: TcpStream,
         addr: SocketAddr,

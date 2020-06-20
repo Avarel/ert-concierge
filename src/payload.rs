@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use crate::clients::ClientType;
 
+#[allow(dead_code)]
 pub const ERROR_PAYLOAD_UNKNOWN: Payload = Payload::Error {
     code: 4000,
     data: "Unknown error",

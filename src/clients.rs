@@ -4,7 +4,7 @@ use crate::payload::{
 use anyhow::{anyhow, Result};
 use futures::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
-use std::{net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
 use crate::concierge::Concierge;
@@ -16,6 +16,7 @@ pub struct Client {
     /// Client type.
     client_type: ClientType,
     /// Client address.
+    #[allow(dead_code)]
     addr: SocketAddr,
     /// Sender channel.
     tx: Sender<Message>,
