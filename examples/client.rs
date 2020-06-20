@@ -13,7 +13,7 @@
 use std::env;
 
 use flume::{unbounded, Sender};
-use futures::{future, pin_mut, StreamExt};
+use futures::{future, pin_mut, StreamExt, SinkExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
@@ -22,7 +22,7 @@ async fn main() {
     // Connect to specific address provided in command arguments, or fall back to default
     let connect_addr = env::args()
         .nth(1)
-        .unwrap_or_else(|| "ws://127.0.0.1:8080".to_string());
+        .unwrap_or_else(|| "ws://127.0.0.1:8080/ws".to_string());
 
     // Parse into a Url
     let url = url::Url::parse(&connect_addr).unwrap();
@@ -30,7 +30,7 @@ async fn main() {
     // This is our channels for messages.
     // rx: (receive) where messages are received
     // tx: (transmit) where we send messages
-    let (stdin_tx, stdin_rx) = unbounded();
+    let (stdin_tx, mut stdin_rx) = unbounded();
 
     // Spawn a task for reading from stdin
     tokio::spawn(read_stdin(stdin_tx));
@@ -38,16 +38,22 @@ async fn main() {
     let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
     println!("WebSocket handshake has been successfully completed");
 
-    let (write, read) = ws_stream.split();
+    let (mut write, mut read) = ws_stream.split();
 
-    let stdin_to_ws = stdin_rx.map(Ok).forward(write);
-    let ws_to_stdout = {
-        read.for_each(|message| async {
-            let msg = message.unwrap();
-            println!("Received a message {}", msg.to_text().unwrap_or("string error"));
-            let data = msg.into_data();
+    let stdin_to_ws = async {
+        while let Some(message) = stdin_rx.next().await {
+            write.send(message).await.unwrap();
+        }
+    };
+    let ws_to_stdout = async {
+        while let Some(Ok(message)) = read.next().await {
+            println!("Received a message {}\n", message.to_text().unwrap_or("string error"));
+            if message.is_close() {
+                break;
+            }
+            let data = message.into_data();
             tokio::io::stdout().write_all(&data).await.unwrap();
-        })
+        }
     };
 
     pin_mut!(stdin_to_ws, ws_to_stdout);
@@ -65,6 +71,6 @@ async fn read_stdin(tx: Sender<Message>) {
             Ok(n) => n,
         };
         buf.truncate(n);
-        tx.send(Message::binary(buf)).unwrap();
+        tx.send(Message::text(String::from_utf8_lossy(&buf))).unwrap();
     }
 }

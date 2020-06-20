@@ -11,7 +11,7 @@ futures = "0.3.5"
 tokio = { version = "0.2", default-features = false, features = ["io-std", "macros", "stream", "time", "fs"] }
 tokio-util = { version = "0.3.1", default-features = false, features = ["codec"] }
 # WebSocket implementation
-tokio-tungstenite = "0.10.1"
+warp = "0.2"
 # Concurrent map, deadlock free for multithreaded peace of mind
 dashmap = "4.0.0-rc6"
 # Fast multithreaded MPSC channels
@@ -25,8 +25,9 @@ serde = { version = "1.0.112", features = ["derive"] }
 log = "0.4.8"
 env_logger = "0.7.1"
 # Static file server
-hyper = "0.13.6"
+hyper = "0.13.5"
 
 # Developer dependences, not present in src code
 [dev-dependencies]
 url = "2.0.0"
+tokio-tungstenite = "0.10"

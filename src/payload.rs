@@ -2,26 +2,39 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use crate::clients::ClientType;
 
-#[allow(dead_code)]
-pub const ERROR_PAYLOAD_UNKNOWN: Payload = Payload::Error {
-    code: 4000,
-    data: "Unknown error",
-};
+pub mod error_payloads {
+    use super::Payload;
 
-pub const ERROR_PAYLOAD_UNSUPPORTED: Payload = Payload::Error {
-    code: 4001,
-    data: "Unsupported payload",
-};
+    #[allow(dead_code)]
+    pub const UNKNOWN: Payload = Payload::Error {
+        code: 4000,
+        data: "Unknown error",
+    };
 
-pub const ERROR_PAYLOAD_DECODE: Payload = Payload::Error {
-    code: 4002,
-    data: "Decode error",
-};
+    pub const UNSUPPORTED: Payload = Payload::Error {
+        code: 4001,
+        data: "Unsupported payload",
+    };
 
-pub const ERROR_PAYLOAD_INVALID_TARGET: Payload = Payload::Error {
-    code: 4003,
-    data: "Invalid target",
-};
+    pub const PROTOCOL: Payload = Payload::Error {
+        code: 4002,
+        data: "Protocol error",
+    };
+
+    pub const INVALID_TARGET: Payload = Payload::Error {
+        code: 4003,
+        data: "Invalid target",
+    };
+}
+
+pub mod close_codes {
+    #[allow(dead_code)]
+    pub const UNKNOWN: u16 = 4000;
+    pub const FATAL_DECODE: u16 = 4002;
+    pub const NO_AUTH: u16 = 4003;
+    pub const AUTH_FAILED: u16 = 4004;
+    pub const DUPLICATE_AUTH: u16 = 4005;
+}
 
 /// Packets sent from the client to the Gateway API are encapsulated within a
 /// gateway payload object and must have the proper operation and data object set.
@@ -69,7 +82,7 @@ pub enum Payload<'a> {
     /// {
     ///     "operation":"MESSAGE",
     ///     "target_type":"USER",
-    ///     "target":"brendan",
+    ///     "target":{"id":"brendan","type":"USER"},
     ///     "data":{
     ///         "foo": "bar"
     ///     }
@@ -80,10 +93,8 @@ pub enum Payload<'a> {
     /// ```json
     /// {
     ///     "operation":"MESSAGE",
-    ///     "origin_type":"USER",
-    ///     "origin":"anthony",
-    ///     "target_type":"USER",
-    ///     "target":"brendan",
+    ///     "origin":{"id":"anthony","type":"USER"},
+    ///     "target":{"id":"brendan","type":"USER"},
     ///     "data":{
     ///         "foo": "bar"
     ///     }
@@ -92,13 +103,10 @@ pub enum Payload<'a> {
     Message {
         // Origin of the message.
         #[serde(skip_deserializing)]
-        origin_type: Option<ClientType>,
-        #[serde(skip_deserializing)]
-        origin: Option<&'a str>,
+        origin: Option<TargetData<'a>>,
 
         /// Target of the message.
-        target_type: ClientType,
-        target: &'a str,
+        target: TargetData<'a>,
 
         // Data field.
         data: Value,
@@ -133,6 +141,16 @@ pub enum Payload<'a> {
         code: u16,
         data: &'a str
     }
+}
+
+/// Data field for an targetting.
+#[derive(Serialize, Deserialize, Clone)]
+pub struct TargetData<'a> {
+    /// Identification of the target.
+    pub id: &'a str,
+    /// Type of the target.
+    #[serde(rename = "type")]
+    pub t: ClientType,
 }
 
 /// Data field for an identify payload.

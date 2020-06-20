@@ -5,24 +5,30 @@ mod payload;
 use anyhow::Result;
 use concierge::Concierge;
 use std::{net::SocketAddr, sync::Arc};
-use tokio::{fs::File, net::TcpListener};
 
+use hyper::Body;
 use log::{debug, error, info};
+use tokio::fs::File;
 use tokio_util::codec::{BytesCodec, FramedRead};
-
-use futures::{future, pin_mut};
-use hyper::{body::HttpBody, Body, Method, Request, Response, Server, service::Service};
-use hyper::{
-    header::HeaderValue,
-    service::{make_service_fn, service_fn},
-    StatusCode,
-};
-use std::convert::Infallible;
+use warp::http::Response;
+use warp::Filter;
 
 // Local host
 const IP: [u8; 4] = [127, 0, 0, 1];
-const FS_PORT: u16 = 8000;
 const WS_PORT: u16 = 8080;
+
+struct FileResponse(File);
+
+impl warp::Reply for FileResponse {
+    fn into_response(self) -> warp::reply::Response {
+        let stream = FramedRead::new(self.0, BytesCodec::new());
+        let res = Response::builder()
+            .header("Content-Disposition", "attachment; filename=\"file.txt\"")
+            .body(Body::wrap_stream(stream))
+            .unwrap();
+        res
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -33,104 +39,50 @@ async fn main() -> Result<()> {
     // Wrap the server in an atomic ref-counter, to make it safe to work with in between threads.
     let server = Arc::new(Concierge::new());
 
-    let fs_server = fs_server(server.clone());
-    let ws_server = ws_server(server);
-
-    pin_mut!(fs_server, ws_server);
-
-    future::select(fs_server, ws_server).await;
-    Ok(())
-}
-
-
-async fn fs_server(server: Arc<Concierge>) -> Result<()> {
-    info!("Starting up the file server.");
-
-    let addr = SocketAddr::from((IP, FS_PORT));
-
-    // async fn handle(req: Request<Body>) -> Result<Response<Body>> {
-    //     fn not_found() -> Response<Body> {
-    //         Response::builder()
-    //             .status(StatusCode::NOT_FOUND)
-    //             .body("Not Found".into())
-    //             .unwrap()
-    //     }
-
-    //     match req.method() {
-    //         &Method::GET => {
-    //             if let Ok(file) = File::open("./Cargo.toml").await {
-    //                 let stream = FramedRead::new(file, BytesCodec::new());
-    //                 let res = Response::builder()
-    //                     .header("Content-Disposition", "attachment; filename=\"file.txt\"")
-    //                     .body(Body::wrap_stream(stream))
-    //                     .unwrap();
-    //                 Ok(res)
-    //             } else {
-    //                 Ok(not_found())
-    //             }
-    //         }
-    //         &Method::POST => {
-    //             let mut body = req.into_body();
-    //             // check headers
-    //             // open file
-    //             while let Some(result) = body.data().await {
-    //                 let chunk = result?;
-    //                 // append to file
-    //                 // enforce a size limit
-    //             }
-    //             // mark the file as "fully uploaded"
-    //             Ok(Response::builder()
-    //                 .status(StatusCode::CREATED)
-    //                 .body("Ok".into())
-    //                 .unwrap())
-    //         }
-    //         _ => Ok(Response::new(Body::from("200 GOOD"))),
-    //     }
-    // }
-
-    debug!("Attempting to bind the server. (ip: {})", addr);
-
-    let make_service = make_service_fn(move |_| {
-        let server = server.clone();
-
-        async move {
-            Ok::<_, anyhow::Error>(service_fn(move |_req| {
-                let wtf =  server.clients.len();
-                async move { Ok::<_, anyhow::Error>(Response::new(Body::from(format!("Request #{}", wtf)))) }
-            }))
-        }
-    });
-
-    // A MakeService to handle each connection
-    let server = Server::bind(&addr).serve(make_service);
-
-    info!("Listening for new connections. (ip: {})", addr);
-
-    if let Err(e) = server.await {
-        error!("server error: {}", e);
-    }
-
-    Ok(())
-}
-
-async fn ws_server(server: Arc<Concierge>) -> Result<()> {
-    info!("Starting up the socket server.");
+    info!("Starting up the server.");
 
     let addr = SocketAddr::from((IP, WS_PORT));
 
-    debug!("Attempting to bind the server. (ip: {})", addr);
+    let socket_route = {
+        let server = server.clone();
+        warp::path("ws")
+            .and(warp::addr::remote())
+            .and(warp::ws())
+            .map(move |addr: Option<SocketAddr>, ws: warp::ws::Ws| {
+                debug!("Incoming TCP connection. (ip: {:?})", addr);
+                let server = server.clone();
+                ws.on_upgrade(move |websocket| async move {
+                    if let Err(err) = server.handle_new_socket(websocket, addr).await {
+                        error!("Error: {}", err);
+                    }
+                })
+            })
+    };
 
-    // Create the event loop and TCP listener we'll accept connections on.
-    let mut listener = TcpListener::bind(&addr)
-        .await
-        .expect("Failed to bind to address.");
-    info!("Listening for new connections. (ip: {})", addr);
+    let fs_route = {
+        warp::path("wow")
+            .and(warp::header::<String>("Authorization"))
+            .and_then(move |_: String| {
+                let server = server.clone();
+                async move {
+                    server.clients.len(); // dummy variable
+                    if let Ok(file) = File::open("./Cargo.toml").await {
+                        let stream = FramedRead::new(file, BytesCodec::new());
+                        let res = Response::builder()
+                            .header("Content-Disposition", "attachment; filename=\"file.txt\"")
+                            .body(Body::wrap_stream(stream))
+                            .unwrap();
+                        Ok(res)
+                    } else {
+                        Err(warp::reject::not_found())
+                    }
+                }
+            })
+    };
 
-    // Listen to new incoming connections.
-    while let Ok((stream, addr)) = listener.accept().await {
-        // Spawn a separate async task that handles the incoming connection.
-        tokio::spawn(server.clone().handle_new_socket(stream, addr));
-    }
+    let routes = warp::get().and(socket_route).or(fs_route);
+
+    warp::serve(routes).run(addr).await;
 
     Ok(())
 }
