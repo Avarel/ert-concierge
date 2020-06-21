@@ -1,11 +1,12 @@
-use crate::payload::{error_payloads, Origin, Payload, Target};
-use anyhow::{anyhow, Result};
-use futures::{Stream, StreamExt};
-use warp::ws::Message;
 use crate::concierge::Concierge;
+use crate::payload::{error_payloads, Origin, OwnedOrigin, Payload, Target};
+use anyhow::{anyhow, Result};
+use dashmap::DashMap;
 use flume::{unbounded, Receiver, Sender};
+use futures::{Stream, StreamExt};
 use tokio::sync::RwLock;
 use uuid::Uuid;
+use warp::ws::Message;
 
 pub struct Client {
     /// Client id.
@@ -115,12 +116,12 @@ impl Client {
                             }
                         },
                         Payload::Subscribe { group } => {
-                            let group_list = crate::util::get_or_compute_group(
-                                &concierge.groups,
-                                group.to_owned(),
-                            );
-                            group_list.insert(self.uuid, ());
-                            self.groups.write().await.push(group.to_owned());
+                            if let Some(group_list) = concierge.groups.get(group) {
+                                group_list.insert(self.uuid, ());
+                                self.groups.write().await.push(group.to_owned());
+                            } else {
+                                self.send(error_payloads::INVALID_TARGET)?;
+                            }
                         }
                         Payload::Unsubscribe { group } => {
                             if let Some(group) = concierge.groups.get(group) {
@@ -131,6 +132,20 @@ impl Client {
                                 groups.remove(pos);
                             }
                         }
+                        Payload::CreateGroup { group } => {
+                            if !concierge.groups.contains_key(group) {
+                                concierge.groups.insert(group.to_owned(), DashMap::new());
+                            } else {
+                                self.send(error_payloads::ALREADY_EXIST)?;
+                            }
+                        }
+                        Payload::DeleteGroup { group } => {
+                            if concierge.groups.contains_key(group) {
+                                concierge.groups.remove(group);
+                            } else {
+                                self.send(error_payloads::INVALID_TARGET)?;
+                            }
+                        }
                         Payload::Broadcast { data, .. } => {
                             concierge.broadcast_all(Payload::Broadcast {
                                 origin: Some(self.origin_receipt()),
@@ -139,30 +154,27 @@ impl Client {
                         }
                         Payload::FetchGroupSubs { group } => {
                             if let Some(group_list) = concierge.groups.get(group) {
-                                let uuids = group_list
+                                let clients = group_list
                                     .iter()
-                                    .map(|e| *e.key())
+                                    .filter_map(|e| concierge.clients.get(e.key()))
+                                    .map(|c| OwnedOrigin {
+                                        name: c.name.to_owned(),
+                                        uuid: c.uuid,
+                                    })
                                     .collect::<Vec<_>>();
-                                let names = uuids
-                                    .iter()
-                                    .filter_map(|uuid| concierge.clients.get(&uuid))
-                                    .map(|e| e.name.to_owned())
-                                    .collect::<Vec<_>>();
-                                self.send(Payload::GroupSubs {
-                                    group,
-                                    names,
-                                    uuids,
-                                })?
+                                self.send(Payload::GroupSubs { group, clients })?
                             }
-                            
                         }
                         Payload::FetchClientList => {
-                            let (names, uuids) = concierge
+                            let clients = concierge
                                 .clients
                                 .iter()
-                                .map(|c| (c.name.to_owned(), c.uuid))
-                                .unzip();
-                            self.send(Payload::ClientList { names, uuids })?
+                                .map(|c| OwnedOrigin {
+                                    name: c.name.to_owned(),
+                                    uuid: c.uuid,
+                                })
+                                .collect::<Vec<_>>();
+                            self.send(Payload::ClientList { clients })?
                         }
                         Payload::FetchGroupList => {
                             let groups = concierge

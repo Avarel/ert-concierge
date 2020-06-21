@@ -16,7 +16,7 @@ use flume::{unbounded, Sender};
 use futures::{future, pin_mut, StreamExt, SinkExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 #[tokio::main]
 async fn main() -> Result<()> {

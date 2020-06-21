@@ -23,7 +23,12 @@ pub mod error_payloads {
 
     pub const INVALID_TARGET: Payload = Payload::Error {
         code: 4003,
-        data: "Invalid target",
+        data: "Target does not exist",
+    };
+
+    pub const ALREADY_EXIST: Payload = Payload::Error {
+        code: 4004,
+        data: "Already exist",
     };
 }
 
@@ -122,6 +127,12 @@ pub enum Payload<'a> {
         // Data field.
         data: Value,
     },
+    CreateGroup {
+        group: Group<'a>,
+    },
+    DeleteGroup {
+        group: Group<'a>,
+    },
     /// This payload asks for all the clients of the
     /// group specified in the data field.
     /// ```json
@@ -155,12 +166,8 @@ pub enum Payload<'a> {
     /// {"operation":"GROUP_SUBS","group":"PLUGIN","names":["simulation1","simulation2"],"uuids":["...","..."]}
     /// ```
     GroupSubs {
-        /// The client's group.
         group: Group<'a>,
-        /// Names of the clients of the queried type.
-        names: Vec<String>,
-        /// UUIDs of the clients of the queried type.
-        uuids: Vec<Uuid>,
+        clients: Vec<OwnedOrigin>
     },
     /// This payload lists all of the groups registered with the concierge.
     GroupList {
@@ -168,9 +175,7 @@ pub enum Payload<'a> {
     },
     /// This payload lists all of the clients registered with the concierge.
     ClientList {
-        names: Vec<String>,
-        /// UUIDs of the clients of the queried type.
-        uuids: Vec<Uuid>,
+        clients: Vec<OwnedOrigin>
     },
     /// This payload lists all of the connecting client's subscriptions.
     Subs {
@@ -208,9 +213,14 @@ pub enum Payload<'a> {
     },
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct OwnedOrigin {
+    pub name: String,
+    pub uuid: Uuid,
+}
+
 #[derive(Serialize, Deserialize, Copy, Clone)]
 pub struct Origin<'a> {
-    /// Identification of the client.
     pub name: &'a str,
     pub uuid: Uuid,
 }

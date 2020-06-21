@@ -3,6 +3,10 @@ mod concierge;
 mod payload;
 mod util;
 
+// Only compile this module for tests.
+#[cfg(test)]
+mod tests;
+
 use anyhow::Result;
 use concierge::Concierge;
 use log::{debug, error, info};
@@ -11,9 +15,8 @@ use warp::{path::Tail, Filter};
 use uuid::Uuid;
 
 // Local host
-const IP: [u8; 4] = [127, 0, 0, 1];
-const WS_PORT: u16 = 8080;
-
+pub const IP: [u8; 4] = [127, 0, 0, 1];
+pub const WS_PORT: u16 = 8080;
 
 #[tokio::main]
 async fn main() -> Result<()> {
