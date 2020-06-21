@@ -1,6 +1,7 @@
 mod clients;
 mod concierge;
 mod payload;
+mod util;
 
 use anyhow::Result;
 use concierge::Concierge;
@@ -47,7 +48,7 @@ async fn main() -> Result<()> {
         warp::path("fs")
             .and(warp::path::tail())
             .and(warp::header::optional::<Uuid>("Authorization"))
-            .and_then(move |path: Tail, auth_key: Option<Uuid>| {
+            .and_then(move |path: Tail, _: Option<Uuid>| {
                 let path = path.as_str().to_string();
                 println!("{}",path);
                 let server = server.clone();

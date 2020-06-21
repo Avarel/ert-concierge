@@ -1,52 +1,50 @@
 use crate::{
-    clients::{Client, ClientGroup},
-    payload::{close_codes, ClientData, Payload},
+    clients::Client,
+    payload::{close_codes, Payload},
+    util::FileReply,
 };
 use anyhow::{anyhow, Result};
 use dashmap::DashMap;
-use flume::Receiver;
-use futures::{future, pin_mut, stream::TryStreamExt, Sink, SinkExt, StreamExt};
-use hyper::Body;
+use futures::{future, pin_mut, stream::TryStreamExt, SinkExt, StreamExt};
 use log::{debug, info, warn};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{fs::File, time::timeout};
-use tokio_util::codec::{BytesCodec, FramedRead};
 use uuid::Uuid;
-use warp::{
-    http::Response,
-    ws::{Message, WebSocket},
-};
+use warp::ws::{Message, WebSocket};
 
 pub struct Concierge {
-    pub groups: DashMap<ClientGroup, DashMap<String, Uuid>>,
+    pub groups: DashMap<String, DashMap<Uuid, ()>>,
+    pub namespace: DashMap<String, Uuid>,
     pub clients: DashMap<Uuid, Client>,
 }
 
 impl Concierge {
     /// Creates a new concierge.
     pub fn new() -> Self {
-        let namespaces = DashMap::new();
-        namespaces.insert(ClientGroup::PLUGIN, DashMap::new());
-        namespaces.insert(ClientGroup::USER, DashMap::new());
-        let clients = DashMap::new();
         Self {
-            groups: namespaces,
-            clients: clients,
+            groups: DashMap::new(),
+            clients: DashMap::new(),
+            namespace: DashMap::new(),
         }
     }
 }
 
 impl Concierge {
     /// Broadcast a payload to all connected client of a certain group.
-    pub fn broadcast(&self, group: ClientGroup, payload: Payload) -> Result<()> {
-        let message = Message::text(serde_json::to_string(&payload)?);
-        for uuid in self.groups.get(&group).unwrap().iter() {
-            self.clients
-                .get(uuid.value())
-                .unwrap()
-                .send_ws_msg(message.clone())?;
+    pub fn broadcast(&self, group: &str, payload: Payload) -> Result<bool> {
+        if let Some(group_list) = self.groups.get(group) {
+            let message = Message::text(serde_json::to_string(&payload)?);
+            for entry in group_list.iter() {
+                if let Some(client) = self.clients.get(entry.key()) {
+                    client.send_ws_msg(message.clone())?;
+                } else {
+                    warn!("Group had an invalid client id");
+                }
+            }
+            Ok(true)
+        } else {
+            Ok(false)
         }
-        Ok(())
     }
 
     /// Broadcast to all connected clients.
@@ -68,9 +66,9 @@ impl Concierge {
             // Protocol: Expect a payload that identifies the client within 5 seconds.
             match Self::handle_identification(&mut socket).await {
                 // Got the identification data successfully.
-                Ok((id, client_type)) => {
+                Ok(id) => {
                     debug!("Identification successful. (ip: {}, id: {})", addr, id);
-                    Ok(self.handle_client(client_type, id, socket).await?)
+                    Ok(self.handle_client(id, socket).await?)
                 }
                 // Failure: send close code to the client and drop the connection.
                 Err(close_code) => {
@@ -92,7 +90,7 @@ impl Concierge {
 
     #[allow(dead_code)]
     /// Handle the first 5 seconds of identification.
-    async fn handle_identification(socket: &mut WebSocket) -> Result<(String, ClientGroup), u16> {
+    async fn handle_identification(socket: &mut WebSocket) -> Result<String, u16> {
         // Protocol: Expect a payload that identifies the client within 5 seconds.
         if let Ok(Some(Ok(msg))) = timeout(Duration::from_secs(5), socket.next()).await {
             debug!("{:?}", msg);
@@ -100,8 +98,8 @@ impl Concierge {
                 .to_str()
                 .and_then(|s| serde_json::from_str::<Payload>(s).map_err(|_| ()))
             {
-                if let Payload::Identify { data } = payload {
-                    return Ok((data.name.to_owned(), data.group));
+                if let Payload::Identify { name } = payload {
+                    return Ok(name.to_owned());
                 } else {
                     return Err(close_codes::NO_AUTH);
                 }
@@ -113,16 +111,10 @@ impl Concierge {
     }
 
     /// Handle new client WebSocket connections.
-    async fn handle_client(
-        self: Arc<Self>,
-        client_type: ClientGroup,
-        name: String,
-        mut socket: WebSocket,
-    ) -> Result<()> {
-        let group = self.groups.get(&client_type).unwrap();
+    async fn handle_client(self: Arc<Self>, name: String, mut socket: WebSocket) -> Result<()> {
         // Duplicate identification, close the stream.
-        if group.contains_key(&name) {
-            warn!("User attempted to join with existing id. (id: {})", name);
+        if self.namespace.contains_key(&name) {
+            warn!("User attempted to join with existing id. (name: {})", name);
             socket
                 .send(Message::close_with(
                     close_codes::DUPLICATE_AUTH,
@@ -133,18 +125,16 @@ impl Concierge {
             return Ok(());
         }
 
-        info!("New client joined. (id: {})", name);
-        self.broadcast_all(Payload::ClientJoin {
-            data: ClientData {
-                name: &name,
-                group: client_type,
-            },
-        })?;
-
+        // Handle new client
         let uuid = Uuid::new_v4();
-        group.insert(name.clone(), uuid);
-        let (client, rx) = Client::new(uuid, name.clone(), client_type);
+        info!("New client joined. (name: {}, uuid: {})", name, uuid);
+        let (client, rx) = Client::new(uuid, name.clone());
+        self.broadcast_all(Payload::ClientJoin {
+            data: client.origin_receipt(),
+        })?;
         let client = self.clients.insert_and_get(uuid, client);
+        // Add to namespace
+        self.namespace.insert(name.clone(), uuid);
 
         // This is the WebSocket channels for messages.
         // incoming: where we receive messages
@@ -156,8 +146,14 @@ impl Concierge {
             client.handle_incoming_messages(&self, incoming.map_err(|e| e.into()));
         // Forward our sent messages (from tx) to the outgoing sink.
         // This is because the client acts upon channels and doesn't know what the websocket is.
-        let receive_from_others =
-            Self::forward_messages(&name, rx, outgoing.sink_map_err(|e| e.into()));
+        let receive_from_others = rx
+            .inspect(|m| {
+                if let Ok(string) = m.to_str() {
+                    debug!("Sending text (id: {}): {}", &name, string);
+                }
+            })
+            .map(Ok)
+            .forward(outgoing);
 
         // Setup complete, send the Hello payload.
         client.send(Payload::Hello { uuid })?;
@@ -171,31 +167,21 @@ impl Concierge {
 
         // Connection has been destroyed by this stage.
         info!("Client disconnected. (id: {})", &name);
-        self.groups.get(&client_type).unwrap().remove(&name);
-        self.clients.remove(&uuid);
+        // Remove client from table, unwrap safety: the client must exist
+        // because this is the only place where we remove it!
+        let client = self.clients.remove_take(&uuid).unwrap();
+        // Remove from namespace
+        self.namespace.remove(&name);
+        // Remove from groups
+        self.groups.iter().for_each(|e| {
+            e.remove(&uuid);
+        });
+
+        // Broadcast leave
         self.broadcast_all(Payload::ClientLeave {
-            data: ClientData {
-                name: &name,
-                group: client_type,
-            },
+            data: client.origin_receipt(),
         })?;
 
-        Ok(())
-    }
-
-    /// Forward messages from a client's receiver to the websocket outgoing stream.
-    async fn forward_messages(
-        id: &str,
-        mut rx: Receiver<Message>,
-        mut outgoing: impl Sink<Message, Error = anyhow::Error> + Unpin,
-    ) -> Result<()> {
-        // outgoing.send_all(&mut rx.map(Ok)) // or forwarding
-        while let Some(message) = rx.next().await {
-            if let Ok(string) = message.to_str() {
-                debug!("Sending text (id: {}): {}", &id, string);
-            }
-            outgoing.send(message).await?;
-        }
         Ok(())
     }
 
@@ -204,27 +190,5 @@ impl Concierge {
             "file.txt",
             File::open(format!("./{}", string)).await?,
         ))
-    }
-}
-
-pub struct FileReply(String, File);
-
-impl FileReply {
-    pub fn new(string: impl ToString, file: File) -> Self {
-        Self(string.to_string(), file)
-    }
-}
-
-impl warp::Reply for FileReply {
-    fn into_response(self) -> warp::reply::Response {
-        let stream = FramedRead::new(self.1, BytesCodec::new());
-        let res = Response::builder()
-            .header(
-                "Content-Disposition",
-                format!("attachment; filename=\"{}\"", self.0),
-            )
-            .body(Body::wrap_stream(stream))
-            .unwrap();
-        res
     }
 }

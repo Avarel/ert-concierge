@@ -16,9 +16,10 @@ use flume::{unbounded, Sender};
 use futures::{future, pin_mut, StreamExt, SinkExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
+use anyhow::{anyhow, Result};
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     // Connect to specific address provided in command arguments, or fall back to default
     let connect_addr = env::args()
         .nth(1)
@@ -42,22 +43,32 @@ async fn main() {
 
     let stdin_to_ws = async {
         while let Some(message) = stdin_rx.next().await {
-            write.send(message).await.unwrap();
+            write.send(message).await?;
         }
+        Ok::<_, anyhow::Error>(())
     };
     let ws_to_stdout = async {
         while let Some(Ok(message)) = read.next().await {
-            println!("Received a message {}\n", message.to_text().unwrap_or("string error"));
+            // println!("Received a message {}\n", message.to_text().unwrap_or("string error"));
             if message.is_close() {
+                let mut vec = Vec::new();
+                vec.extend_from_slice(b"Disconnecting: ");
+                vec.extend_from_slice(message.to_text().map(str::as_bytes).unwrap_or(b"string error"));
+                vec.push(b'\n');
+                tokio::io::stdout().write_all(&vec).await?;
+                tokio::io::stdout().flush().await?;
                 break;
             }
             let data = message.into_data();
-            tokio::io::stdout().write_all(&data).await.unwrap();
+            tokio::io::stdout().write_all(&data).await?;
+            tokio::io::stdout().write(b"\n").await?;
         }
+        Ok::<_, anyhow::Error>(())
     };
 
     pin_mut!(stdin_to_ws, ws_to_stdout);
     future::select(stdin_to_ws, ws_to_stdout).await;
+    Ok(())
 }
 
 // Our helper method which will read data from stdin and send it along the

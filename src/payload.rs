@@ -1,4 +1,3 @@
-use crate::clients::ClientGroup;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
@@ -37,6 +36,8 @@ pub mod close_codes {
     pub const DUPLICATE_AUTH: u16 = 4005;
 }
 
+pub type Group<'a> = &'a str;
+
 /// Packets sent from the client to the Gateway API are encapsulated within a
 /// gateway payload object and must have the proper operation and data object set.
 ///
@@ -54,20 +55,19 @@ pub mod close_codes {
 #[serde(tag = "operation", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Payload<'a> {
     // PAYLOADS TO CONCIERGE
-    /// Identification payload. This payload must be the first payload sent
+    /// This payload must be the first payload sent
     /// within 5 seconds of establishing the socket connection, else the
     /// connection will be dropped.
     /// # Example
     /// ```json
-    /// { "operation": "IDENTIFY", "group": "USER", "name": "anthony" }
-    /// { "operation": "IDENTIFY", "group": "USER", "name": "brendan" }
-    /// { "operation": "IDENTIFY", "group": "PLUGIN", "name": "simulation" }
+    /// { "operation": "IDENTIFY", "name": "anthony" }
+    /// { "operation": "IDENTIFY", "name": "brendan" }
+    /// { "operation": "IDENTIFY", "name": "simulation" }
     /// ```
     Identify {
-        #[serde(flatten)]
-        data: ClientData<'a>,
+        name: &'a str,
     },
-    /// Message payloads. These payloads have special fields for targeting
+    /// These payloads have special fields for targeting
     /// other users or plugins. The origin fields are ignored if they are
     /// sent to the concierge, since the identification process happens
     /// per socket. The data field is transmitted verbatim.
@@ -76,8 +76,8 @@ pub enum Payload<'a> {
     /// Imagine that a user identifies as `anthony` sends this to the concierge.
     /// ```json
     /// {
-    ///     "operation":"MESSAGE_CLIENT",
-    ///     "target":{"name":"brendan","group":"USER"},
+    ///     "operation":"MESSAGE",
+    ///     "name": "brendan",
     ///     "data":{
     ///         "foo": "bar"
     ///     }
@@ -87,73 +87,94 @@ pub enum Payload<'a> {
     /// The user `brendan` will receive this on their end.
     /// ```json
     /// {
-    ///     "operation":"MESSAGE_CLIENT",
-    ///     "origin":{"name":"anthony","group":"USER"},
-    ///     "target":{"name":"brendan","group":"USER"},
+    ///     "operation":"MESSAGE",
+    ///     "origin":{"name":"anthony","uuid":"..."},
+    ///     "name": "brendan",
     ///     "data":{
     ///         "foo": "bar"
     ///     }
     /// }
     /// ```
-    MessageClient {
+    Message {
         /// Origin of the message.
         #[serde(skip_deserializing)]
-        origin: Option<ClientData<'a>>,
-        /// Target of the message.
-        target: ClientData<'a>,
+        origin: Option<Origin<'a>>,
+        /// Target of the message. This can be a single user 
+        /// (using name or uuid), or a group.
+        #[serde(flatten)]
+        target: Target<'a>,
         /// Data field.
         data: Value,
     },
-    MessageUuid {
-        /// Origin of the message.
-        #[serde(skip_deserializing)]
-        origin: Option<Uuid>,
-        /// Target of the message.
-        target: Uuid,
-        /// Data field.
-        data: Value,
+    /// Subscribe to a group's broadcast.
+    Subscribe {
+        group: Group<'a>,
     },
-    BroadcastGroup {
-        /// Origin of the message.
-        #[serde(skip_deserializing)]
-        origin: Option<ClientData<'a>>,
-        /// Target of the broadcast.
-        group: ClientGroup,
-        /// Data field.
-        data: Value,
+    /// Unsubscribe from a group's broadcast.
+    Unsubscribe {
+        group: Group<'a>,
     },
-    BroadcastAll {
+    /// Broadcast to every client.
+    Broadcast {
         // Origin of the message.
         #[serde(skip_deserializing)]
-        origin: Option<ClientData<'a>>,
+        origin: Option<Origin<'a>>,
         // Data field.
         data: Value,
     },
-    /// Fetch payload. This payload lists all the clients of the
+    /// This payload asks for all the clients of the
     /// group specified in the data field.
     /// ```json
-    /// {"operation":"FETCH_CLIENTS","group": "USER"}
+    /// {"operation":"FETCH_GROUP_SUBS","group": "USER"}
     /// ```
-    FetchClients { group: ClientGroup },
+    FetchGroupSubs {
+        group: Group<'a>,
+    },
+    /// This payload asks for all of the groups
+    /// registered with the concierge.
+    FetchGroupList,
+    /// This payload asks for all of the clients
+    /// connected to the concierge.
+    FetchClientList,
+    /// This payload asks for the connecting client's
+    /// subscriptions.
+    FetchSubs,
 
     // PAYLOADS FROM CONCIERGE
-    /// Hello payload. This payload is sent upon successful identification.
-    /// The payload will also contain a file server authorization key.
+    /// This payload is sent upon successful identification.
+    /// The payload will also contain a universally unique identifier
+    /// that acts as a file server key.
     /// ```json
     /// {"operation":"HELLO","uuid":"73fcc768-d724-47e2-a101-a45298188f47"}
     /// ```
-    Hello { uuid: Uuid },
-    /// Plugins data payload. Returns all the client names as an array of strings.
+    Hello {
+        uuid: Uuid,
+    },
+    /// Returns all the client names as an array of strings.
     /// ```json
-    /// {"operation":"CLIENTS_DUMP","group":"PLUGIN","names":["simulation1","simulation2"],"uuids":["...","..."]}
+    /// {"operation":"GROUP_SUBS","group":"PLUGIN","names":["simulation1","simulation2"],"uuids":["...","..."]}
     /// ```
-    ClientsDump {
+    GroupSubs {
         /// The client's group.
-        group: ClientGroup,
+        group: Group<'a>,
         /// Names of the clients of the queried type.
         names: Vec<String>,
         /// UUIDs of the clients of the queried type.
         uuids: Vec<Uuid>,
+    },
+    /// This payload lists all of the groups registered with the concierge.
+    GroupList {
+        groups: Vec<String>,
+    },
+    /// This payload lists all of the clients registered with the concierge.
+    ClientList {
+        names: Vec<String>,
+        /// UUIDs of the clients of the queried type.
+        uuids: Vec<Uuid>,
+    },
+    /// This payload lists all of the connecting client's subscriptions.
+    Subs {
+        groups: Vec<String>,
     },
     /// A payload broadcasted whenever a new client joins. This is not
     /// emitted to newly joining clients.
@@ -163,7 +184,7 @@ pub enum Payload<'a> {
     /// ```
     ClientJoin {
         #[serde(flatten)]
-        data: ClientData<'a>,
+        data: Origin<'a>,
     },
     /// A payload broadcasted whenever a new client leaves. This is not
     /// emitted to leaving clients.
@@ -173,7 +194,7 @@ pub enum Payload<'a> {
     /// ```
     ClientLeave {
         #[serde(flatten)]
-        data: ClientData<'a>,
+        data: Origin<'a>,
     },
     /// Error payload.
     /// ```json
@@ -187,11 +208,17 @@ pub enum Payload<'a> {
     },
 }
 
-/// Data field for a client.
-#[derive(Serialize, Deserialize, Clone)]
-pub struct ClientData<'a> {
+#[derive(Serialize, Deserialize, Copy, Clone)]
+pub struct Origin<'a> {
     /// Identification of the client.
     pub name: &'a str,
-    /// Type of the client.
-    pub group: ClientGroup,
+    pub uuid: Uuid,
+}
+
+#[derive(Serialize, Deserialize, Copy, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum Target<'a> {
+    Name(&'a str),
+    Uuid(Uuid),
+    Group(Group<'a>),
 }

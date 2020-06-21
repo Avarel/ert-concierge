@@ -8,7 +8,7 @@ edition = "2018"
 # Async support
 futures = "0.3.5"
 # Async runtime
-tokio = { version = "0.2", default-features = false, features = ["io-std", "macros", "stream", "time", "fs", "rt-threaded"] }
+tokio = { version = "0.2", default-features = false, features = ["io-std", "macros", "time", "fs", "rt-threaded", "sync"] }
 tokio-util = { version = "0.3.1", default-features = false, features = ["codec"] }
 # WebSocket implementation
 warp = "0.2"
@@ -20,16 +20,16 @@ flume = "0.7.1"
 anyhow = "1.0.31"
 # Serialization framework
 serde_json = "1.0.55"
-serde = { version = "1.0.112", features = ["derive"] }
+serde = { version = "1.0.113", features = ["derive"] }
 # Logging capabilities
 log = "0.4.8"
 env_logger = "0.7.1"
 # Static file server
-hyper = "0.13.5"
+hyper = "0.13.6"
 # Universally unique identifiers
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 
 # Developer dependences, not present in src code
 [dev-dependencies]
-url = "2.0.0"
+url = "2.1.1"
 tokio-tungstenite = "0.10"
