@@ -3,7 +3,6 @@ use anyhow::Result;
 use tokio::time::delay_for;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use std::time::Duration;
-use futures::{pin_mut, future};
 
 mod ws {
     use crate::{IP, WS_PORT, payload::Payload};

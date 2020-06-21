@@ -13,7 +13,7 @@ tokio-util = { version = "0.3.1", default-features = false, features = ["codec"]
 # WebSocket implementation
 warp = "0.2"
 # Concurrent map, deadlock free for multithreaded peace of mind
-dashmap = "4.0.0-rc6"
+dashmap = "4.0.0-rc6" #{ path = "../dashmap", features = ["serde"] }
 # Fast multithreaded MPSC channels
 flume = "0.7.1"
 # Ergonomic error handling
