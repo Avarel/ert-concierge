@@ -1,3 +1,7 @@
+//! This file manages the file server part of the Concierge.
+
+use super::Concierge;
+use anyhow::Result;
 use hyper::Body;
 use tokio::fs::File;
 use tokio_util::codec::{BytesCodec, FramedRead};
@@ -23,4 +27,11 @@ impl warp::Reply for FileReply {
             .unwrap();
         res
     }
+}
+
+pub async fn handle_file_request(_: &Concierge, string: String) -> Result<FileReply> {
+    Ok(FileReply::new(
+        "file.txt",
+        File::open(format!("./{}", string)).await?,
+    ))
 }

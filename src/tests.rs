@@ -3,6 +3,7 @@ use anyhow::Result;
 use std::time::Duration;
 use tokio::time::delay_for;
 use tokio_tungstenite::tungstenite::protocol::Message;
+use futures::{pin_mut, future};
 
 mod ws {
     use crate::{payload::Payload, IP, WS_PORT};
@@ -81,6 +82,33 @@ async fn duplicate_identificaiton() -> Result<()> {
     if let Message::Close(_) = ws::expect_message(ws_stream_2).await {
         assert!(ws::recv_hello(ws_stream_1).await);
         ws_stream_1.close(None).await?;
+        Ok(())
+    } else {
+        ws_stream_1.close(None).await?;
+        ws_stream_2.close(None).await?;
+        panic!("WS did not close")
+    }
+}
+
+#[tokio::test]
+async fn duplicate_identificaiton_concurrent() -> Result<()> {
+    let ref mut ws_stream_1 = ws::connect().await;
+    let ref mut ws_stream_2 = ws::connect().await;
+    
+    {
+        let send1 = ws::send_text(ws_stream_1, identify("c"));
+        let send2 = ws::send_text(ws_stream_2, identify("c"));
+        pin_mut!(send1, send2);
+        future::join(send1, send2).await;
+    }
+
+    if let Message::Close(_) = ws::expect_message(ws_stream_2).await {
+        assert!(ws::recv_hello(ws_stream_1).await);
+        ws_stream_1.close(None).await?;
+        Ok(())
+    } else if let Message::Close(_) = ws::expect_message(ws_stream_1).await {
+        assert!(ws::recv_hello(ws_stream_2).await);
+        ws_stream_2.close(None).await?;
         Ok(())
     } else {
         ws_stream_1.close(None).await?;

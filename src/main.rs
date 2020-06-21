@@ -1,7 +1,12 @@
+#![deny(clippy::correctness)]
+#![warn(clippy::style)]
+#![warn(clippy::complexity)]
+#![warn(clippy::perf)]
+#![warn(clippy::cargo)]
+
 mod clients;
 mod concierge;
 mod payload;
-mod util;
 
 // Only compile this module for tests.
 #[cfg(test)]
@@ -25,14 +30,14 @@ async fn main() -> Result<()> {
         .init();
 
     // Wrap the server in an atomic ref-counter, to make it safe to work with in between threads.
-    let server = Arc::new(Concierge::new());
+    let concierge = Arc::new(Concierge::new());
 
     info!("Starting up the server.");
 
     let addr = SocketAddr::from((IP, WS_PORT));
 
     let socket_route = {
-        let server = server.clone();
+        let server = concierge.clone();
         warp::path("ws")
             .and(warp::addr::remote())
             .and(warp::ws())
@@ -40,7 +45,9 @@ async fn main() -> Result<()> {
                 debug!("Incoming TCP connection. (ip: {:?})", addr);
                 let server = server.clone();
                 ws.on_upgrade(move |websocket| async move {
-                    if let Err(err) = server.handle_socket_conn(websocket, addr).await {
+                    if let Err(err) =
+                        server.handle_socket_conn(websocket, addr).await
+                    {
                         error!("Error: {}", err);
                     }
                 })
@@ -54,10 +61,9 @@ async fn main() -> Result<()> {
             .and_then(move |path: Tail, _: Option<Uuid>| {
                 let path = path.as_str().to_string();
                 println!("{}", path);
-                let server = server.clone();
+                let server = concierge.clone();
                 async move {
-                    server
-                        .handle_file_request(path)
+                    server.handle_file_request(path)
                         .await
                         .map_err(|_| warp::reject())
                 }
