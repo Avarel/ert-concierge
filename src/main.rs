@@ -11,8 +11,8 @@ use anyhow::Result;
 use concierge::Concierge;
 use log::{debug, error, info};
 use std::{net::SocketAddr, sync::Arc};
-use warp::{path::Tail, Filter};
 use uuid::Uuid;
+use warp::{path::Tail, Filter};
 
 // Local host
 pub const IP: [u8; 4] = [127, 0, 0, 1];
@@ -53,10 +53,13 @@ async fn main() -> Result<()> {
             .and(warp::header::optional::<Uuid>("Authorization"))
             .and_then(move |path: Tail, _: Option<Uuid>| {
                 let path = path.as_str().to_string();
-                println!("{}",path);
+                println!("{}", path);
                 let server = server.clone();
                 async move {
-                    server.handle_file_request(path).await.map_err(|_| warp::reject())
+                    server
+                        .handle_file_request(path)
+                        .await
+                        .map_err(|_| warp::reject())
                 }
             })
     };

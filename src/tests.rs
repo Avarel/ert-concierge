@@ -1,11 +1,11 @@
 use crate::payload::Payload;
 use anyhow::Result;
+use std::time::Duration;
 use tokio::time::delay_for;
 use tokio_tungstenite::tungstenite::protocol::Message;
-use std::time::Duration;
 
 mod ws {
-    use crate::{IP, WS_PORT, payload::Payload};
+    use crate::{payload::Payload, IP, WS_PORT};
     use futures::{SinkExt, StreamExt};
     use std::net::SocketAddr;
     use tokio::net::TcpStream;

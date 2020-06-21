@@ -16,7 +16,7 @@ pub struct Client {
     /// Sender channel.
     tx: Sender<Message>,
     /// Groups.
-    groups: RwLock<Vec<String>>,
+    groups: RwLock<Vec<String>>, // TODO: Use DashSet
 }
 
 impl Client {

@@ -8,7 +8,7 @@ use dashmap::DashMap;
 use futures::{future, pin_mut, stream::TryStreamExt, SinkExt, StreamExt};
 use log::{debug, info, warn};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
-use tokio::{fs::File, time::timeout};
+use tokio::{fs::File, time::timeout, sync::RwLock};
 use uuid::Uuid;
 use warp::ws::{Message, WebSocket};
 
@@ -129,13 +129,14 @@ impl Concierge {
         let uuid = Uuid::new_v4();
         // Add to namespace
         self.namespace.insert(name.clone(), uuid);
-        info!("New client joined. (name: {}, uuid: {})", name, uuid);
+        
         let (client, rx) = Client::new(uuid, name.clone());
         self.broadcast_all(Payload::ClientJoin {
             data: client.origin_receipt(),
         })?;
         let client = self.clients.insert_and_get(uuid, client);
-        
+
+        info!("New client joined. (name: {}, uuid: {})", name, uuid);
 
         // This is the WebSocket channels for messages.
         // incoming: where we receive messages

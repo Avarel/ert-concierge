@@ -104,7 +104,7 @@ pub enum Payload<'a> {
         /// Origin of the message.
         #[serde(skip_deserializing)]
         origin: Option<Origin<'a>>,
-        /// Target of the message. This can be a single user 
+        /// Target of the message. This can be a single user
         /// (using name or uuid), or a group.
         #[serde(flatten)]
         target: Target<'a>,
@@ -167,7 +167,7 @@ pub enum Payload<'a> {
     /// ```
     GroupSubs {
         group: Group<'a>,
-        clients: Vec<OwnedOrigin>
+        clients: Vec<OwnedOrigin>,
     },
     /// This payload lists all of the groups registered with the concierge.
     GroupList {
@@ -175,7 +175,7 @@ pub enum Payload<'a> {
     },
     /// This payload lists all of the clients registered with the concierge.
     ClientList {
-        clients: Vec<OwnedOrigin>
+        clients: Vec<OwnedOrigin>,
     },
     /// This payload lists all of the connecting client's subscriptions.
     Subs {
