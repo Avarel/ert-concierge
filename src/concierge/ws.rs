@@ -11,7 +11,7 @@ use dashmap::ElementGuard;
 use flume::Receiver;
 use futures::{future, pin_mut, stream::TryStreamExt, SinkExt, StreamExt};
 use log::{debug, info, warn};
-use std::{net::SocketAddr, time::Duration};
+use std::{net::SocketAddr, time::Duration, path::Path};
 use tokio::time::timeout;
 use uuid::Uuid;
 use warp::ws::{Message, WebSocket};
@@ -186,6 +186,9 @@ async fn remove_client(concierge: &Concierge, client: &Client) -> Result<()> {
             data: client.origin_receipt(),
         },
     )?;
+
+    // Delete file folder if it exists
+    tokio::fs::remove_dir_all(Path::new(".").join("fs").join(client.name())).await?;
 
     Ok(())
 }

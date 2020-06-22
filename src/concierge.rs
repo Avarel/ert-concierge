@@ -6,13 +6,17 @@ mod ws;
 use crate::{clients::Client, payload::Payload};
 use anyhow::{Result, anyhow};
 use dashmap::DashMap;
-use fs::FileReply;
+use fs::{ConciergeFile, FileReply};
 use std::{collections::HashMap, net::SocketAddr};
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use warp::ws::WebSocket;
+use warp::{Buf, ws::WebSocket};
+use futures::Stream;
+use hyper::StatusCode;
 
 pub struct Concierge {
+    pub files: DashMap<Uuid, ConciergeFile>,
+    /// This is the groups registered in the Concierge.
     pub groups: DashMap<String, Group>,
     /// This is the namespace of the Concierge.
     /// It uses an RwLock in order to prevent race conditions.
@@ -26,6 +30,7 @@ impl Concierge {
     /// Creates a new concierge.
     pub fn new() -> Self {
         Self {
+            files: DashMap::new(),
             groups: DashMap::new(),
             clients: DashMap::new(),
             namespace: RwLock::new(HashMap::new()),
@@ -50,8 +55,16 @@ impl Concierge {
         }
     }
 
-    pub async fn handle_file_request(&self, string: String) -> Result<FileReply> {
-        fs::handle_file_request(self, string).await
+    pub async fn handle_file_request(&self, auth: Uuid, tail: &str) -> Result<FileReply> {
+        fs::handle_file_get(self, auth, tail).await
+    }
+
+    pub async fn handle_file_upload(&self, auth: Uuid, tail: &str, stream: impl Stream<Item = Result<impl Buf, warp::Error>> + Unpin) -> Result<StatusCode> {
+        fs::handle_file_post(self, auth, tail, stream).await
+    }
+
+    pub async fn handle_file_delete(&self, auth: Uuid, tail: &str) -> Result<StatusCode> {
+        fs::handle_file_delete(self, auth, tail).await
     }
 }
 

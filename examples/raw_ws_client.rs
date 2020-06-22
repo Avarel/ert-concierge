@@ -14,7 +14,7 @@ use std::env;
 
 use flume::{unbounded, Sender};
 use futures::{future, pin_mut, StreamExt, SinkExt};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncWriteExt, BufReader, AsyncBufReadExt};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use anyhow::Result;
 
@@ -73,15 +73,11 @@ async fn main() -> Result<()> {
 
 // Our helper method which will read data from stdin and send it along the
 // sender provided.
-async fn read_stdin(tx: Sender<Message>) {
-    let mut stdin = tokio::io::stdin();
+async fn read_stdin(tx: Sender<Message>) -> Result<()> {
+    let mut stdin = BufReader::new(tokio::io::stdin());
     loop {
-        let mut buf = vec![0; 1024];
-        let n = match stdin.read(&mut buf).await {
-            Err(_) | Ok(0) => break,
-            Ok(n) => n,
-        };
-        buf.truncate(n);
-        tx.send(Message::text(String::from_utf8_lossy(&buf))).unwrap();
+        let mut buf = String::new();
+        stdin.read_line(&mut buf).await?;
+        tx.send(Message::text(buf)).unwrap();
     }
 }

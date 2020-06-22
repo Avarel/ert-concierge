@@ -14,6 +14,7 @@ mod tests;
 
 use anyhow::Result;
 use concierge::Concierge;
+use hyper::StatusCode;
 use log::{debug, error, info};
 use std::{net::SocketAddr, sync::Arc};
 use uuid::Uuid;
@@ -36,41 +37,75 @@ async fn main() -> Result<()> {
 
     let addr = SocketAddr::from((IP, WS_PORT));
 
-    let socket_route = {
-        let server = concierge.clone();
-        warp::path("ws")
+    let ws_route = {
+        let concierge = concierge.clone();
+        warp::get()
+            .and(warp::path("ws"))
             .and(warp::addr::remote())
             .and(warp::ws())
             .map(move |addr: Option<SocketAddr>, ws: warp::ws::Ws| {
                 debug!("Incoming TCP connection. (ip: {:?})", addr);
-                let server = server.clone();
+                let server = concierge.clone();
                 ws.on_upgrade(move |websocket| async move {
-                    if let Err(err) =
-                        server.handle_socket_conn(websocket, addr).await
-                    {
+                    if let Err(err) = server.handle_socket_conn(websocket, addr).await {
                         error!("Error: {}", err);
                     }
                 })
             })
     };
 
-    let fs_route = {
-        warp::path("fs")
+    let fs_download_route = {
+        let concierge = concierge.clone();
+        warp::get()
+            .and(warp::path("fs"))
             .and(warp::path::tail())
-            .and(warp::header::optional::<Uuid>("Authorization"))
-            .and_then(move |path: Tail, _: Option<Uuid>| {
-                let path = path.as_str().to_string();
-                println!("{}", path);
+            .and(warp::header::<Uuid>("Authorization"))
+            .and_then(move |path: Tail, auth: Uuid| {
                 let server = concierge.clone();
                 async move {
-                    server.handle_file_request(path)
+                    server
+                        .handle_file_request(auth, path.as_str())
                         .await
                         .map_err(|_| warp::reject())
                 }
             })
     };
 
-    let routes = warp::get().and(socket_route).or(fs_route);
+    let fs_upload_route = {
+        let concierge = concierge.clone();
+        warp::post()
+            .and(warp::path("fs"))
+            .and(warp::path::tail())
+            .and(warp::header::<Uuid>("Authorization"))
+            .and(warp::body::stream())
+            .and_then(move |path: Tail, auth: Uuid, stream| {
+                let server = concierge.clone();
+                async move {
+                    server
+                        .handle_file_upload(auth, path.as_str(), stream)
+                        .await
+                        .map_err(|_| warp::reject())
+                }
+            })
+    };
+
+    let fs_delete_route = {
+        warp::delete()
+            .and(warp::path("fs"))
+            .and(warp::path::tail())
+            .and(warp::header::<Uuid>("Authorization"))
+            .and_then(move |path: Tail, auth: Uuid| {
+                let server = concierge.clone();
+                async move {
+                    server
+                        .handle_file_delete(auth, path.as_str())
+                        .await
+                        .map_err(|_| warp::reject())
+                }
+            })
+    };
+
+    let routes = ws_route.or(fs_download_route).or(fs_upload_route).or(fs_delete_route);
 
     warp::serve(routes).run(addr).await;
 

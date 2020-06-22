@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
+use std::collections::HashSet;
 
 pub mod error_payloads {
     use super::Payload;
@@ -209,6 +210,10 @@ pub enum Payload<'a> {
     /// { "operation":"FETCH_SUBS" }
     /// ```
     FetchSubs,
+    
+    FileUpload,
+
+    FileId,
 
     /*
      * PAYLOADS FROM THE CONCIERGE
@@ -288,7 +293,7 @@ pub enum Payload<'a> {
     /// ```json
     /// {"operation":"SUBS","groups":["simulation1"]}
     /// ```
-    Subs { groups: Vec<String> },
+    Subs { groups: HashSet<String> },
     /// A payload broadcasted whenever a new client joins. This is not
     /// emitted to newly joining clients.
     ///

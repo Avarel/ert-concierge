@@ -7,6 +7,7 @@ use futures::{Stream, StreamExt};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 use warp::ws::Message;
+use std::collections::HashSet;
 
 pub struct Client {
     /// Client id.
@@ -16,7 +17,7 @@ pub struct Client {
     /// Sender channel.
     tx: Sender<Message>,
     /// Groups.
-    groups: RwLock<Vec<String>>, // TODO: Use DashSet
+    groups: RwLock<HashSet<String>>,
 }
 
 impl Client {
@@ -26,7 +27,7 @@ impl Client {
         // rx: (receive) where messages are received
         // tx: (transmit) where we send messages
         let (tx, rx) = unbounded();
-        let groups = RwLock::new(Vec::new());
+        let groups = RwLock::new(HashSet::new());
         (
             Self {
                 uuid,
@@ -138,7 +139,7 @@ impl Client {
             Payload::Subscribe { group } => {
                 if let Some(group) = concierge.groups.get(group) {
                     group.clients.insert(self.uuid, ());
-                    self.groups.write().await.push(group.name.to_owned());
+                    self.groups.write().await.insert(group.name.to_owned());
                 } else {
                     self.send(error_payloads::INVALID_TARGET)?;
                 }
@@ -148,9 +149,7 @@ impl Client {
                     group.clients.remove(&self.uuid);
                 }
                 let mut groups = self.groups.write().await;
-                if let Some(pos) = groups.iter().position(|x| *x == *group) {
-                    groups.remove(pos);
-                }
+                groups.remove(group);
             }
             Payload::CreateGroup { group } => {
                 if !concierge.groups.contains_key(group) {
