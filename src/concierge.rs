@@ -53,12 +53,12 @@ impl Concierge {
         }
     }
 
-    pub async fn handle_file_request(&self, auth: Uuid, tail: &str) -> Result<FileReply> {
+    pub async fn handle_file_get(&self, auth: Uuid, tail: &str) -> Result<FileReply> {
         fs::handle_file_get(self, auth, tail).await
     }
 
-    pub async fn handle_file_upload(&self, auth: Uuid, tail: &str, stream: impl Stream<Item = Result<impl Buf, warp::Error>> + Unpin) -> Result<StatusCode> {
-        fs::handle_file_post(self, auth, tail, stream).await
+    pub async fn handle_file_put(&self, auth: Uuid, tail: &str, stream: impl Stream<Item = Result<impl Buf, warp::Error>> + Unpin) -> Result<StatusCode> {
+        fs::handle_file_put(self, auth, tail, stream).await
     }
 
     pub async fn handle_file_delete(&self, auth: Uuid, tail: &str) -> Result<StatusCode> {

@@ -125,7 +125,7 @@ impl Client {
         data: serde_json::Value,
     ) -> Result<()> {
         match target {
-            Target::Name(name) => {
+            Target::Name { name } => {
                 if let Some(client) = concierge
                     .namespace
                     .read()
@@ -140,7 +140,7 @@ impl Client {
                     });
                 }
             }
-            Target::Uuid(uuid) => {
+            Target::Uuid { uuid } => {
                 if let Some(client) = concierge.clients.get(&uuid) {
                     return client.send(Payload::Message {
                         origin: Some(self.origin_receipt()),
@@ -149,7 +149,7 @@ impl Client {
                     });
                 }
             }
-            Target::Group(group) => {
+            Target::Group { group } => {
                 if let Some(group) = concierge.groups.get(group) {
                     return group.broadcast(
                         concierge,

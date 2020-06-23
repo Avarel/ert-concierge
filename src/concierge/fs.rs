@@ -1,40 +1,42 @@
 //! This file manages the file server part of the Concierge.
 
 use super::Concierge;
-use anyhow::Result;
-use anyhow::anyhow;
-use futures::Stream;
-use futures::StreamExt;
+use anyhow::{anyhow, Result};
+use futures::{Stream, StreamExt};
 use hyper::{Body, StatusCode};
 use log::{debug, warn};
 use std::{ffi::OsStr, path::Path};
-use tokio::fs::{File, OpenOptions};
-use tokio::io::AsyncWriteExt;
+use tokio::{fs::{File, OpenOptions}, io::AsyncWriteExt};
 use tokio_util::codec::{BytesCodec, FramedRead};
 use uuid::Uuid;
-use warp::{Buf, reply::Response};
+use warp::{reply::Response, Buf};
 
-
-pub struct FileReply(String, File);
+pub struct FileReply {
+    file_name: String,
+    file: File,
+}
 
 impl FileReply {
     pub fn new(string: impl ToString, file: File) -> Self {
-        Self(string.to_string(), file)
+        Self {
+            file_name: string.to_string(),
+            file,
+        }
     }
 }
 
 impl warp::Reply for FileReply {
     fn into_response(self) -> Response {
         // Use frameread for maximum efficiency
-        let stream = FramedRead::new(self.1, BytesCodec::new());
-        let res = hyper::Response::builder()
+        let stream = FramedRead::new(self.file, BytesCodec::new());
+        hyper::Response::builder()
+            .status(StatusCode::ACCEPTED)
             .header(
                 "Content-Disposition",
-                format!("attachment; filename=\"{}\"", self.0),
+                format!("attachment; filename=\"{}\"", self.file_name),
             )
             .body(Body::wrap_stream(stream))
-            .unwrap();
-        res
+            .unwrap()
     }
 }
 
@@ -46,14 +48,14 @@ pub async fn handle_file_get(concierge: &Concierge, auth: Uuid, string: &str) ->
 
         if let Some(file_name) = file_path.file_name().and_then(OsStr::to_str) {
             if !file_path.is_file() {
-                return Err(anyhow!("Not found"))
+                return Err(anyhow!("Not found"));
             }
 
             return Ok(FileReply::new(
                 file_name.to_owned(),
                 File::open(file_path).await?,
-            ))
-        } 
+            ));
+        }
     }
     Err(anyhow!("Not found"))
 }
@@ -81,7 +83,7 @@ pub async fn handle_file_delete(
     }
 }
 
-pub async fn handle_file_post(
+pub async fn handle_file_put(
     concierge: &Concierge,
     auth: Uuid,
     string: &str,
@@ -112,7 +114,7 @@ pub async fn handle_file_post(
             file.write_all(chunk.bytes()).await?;
         }
         file.flush().await?;
-        
+
         // client.add_file(tail_path.to_owned(), ClientFile::no_target());
 
         Ok(StatusCode::CREATED)

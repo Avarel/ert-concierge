@@ -16,6 +16,7 @@ mod ws {
 
     pub async fn connect() -> WebSocket {
         let addr = SocketAddr::from((IP, WS_PORT));
+
         let connect_addr = format!("ws://{}/ws", addr);
         let url = url::Url::parse(&connect_addr).unwrap();
 

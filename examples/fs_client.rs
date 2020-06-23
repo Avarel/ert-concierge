@@ -113,7 +113,7 @@ async fn upload(uuid: &str, name: &str, file_name: &str) -> Result<()> {
     let stream = FramedRead::new(file, BytesCodec::new());
     let client = reqwest::Client::new();
     let res = client
-        .post(&format!("http://127.0.0.1:8080/fs/{}/{}", name, file_name))
+        .put(&format!("http://127.0.0.1:8080/fs/{}/{}", name, file_name))
         .timeout(Duration::from_secs(1))
         .header("Authorization", uuid)
         .body(Body::wrap_stream(stream))

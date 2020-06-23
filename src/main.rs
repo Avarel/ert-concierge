@@ -23,6 +23,14 @@ use warp::{path::Tail, Filter};
 pub const IP: [u8; 4] = [127, 0, 0, 1];
 pub const WS_PORT: u16 = 8080;
 
+// Internal error for the warp framework
+#[derive(Debug)]
+struct InternalConciergeError(anyhow::Error);
+impl warp::reject::Reject for InternalConciergeError {}
+fn internal_concierge_error(err: anyhow::Error) -> warp::Rejection {
+    warp::reject::custom(InternalConciergeError(err))
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::Builder::new()
@@ -63,16 +71,16 @@ async fn main() -> Result<()> {
                 let server = concierge.clone();
                 async move {
                     server
-                        .handle_file_request(auth, path.as_str())
+                        .handle_file_get(auth, path.as_str())
                         .await
-                        .map_err(|_| warp::reject())
+                        .map_err(internal_concierge_error)
                 }
             })
     };
 
     let fs_upload_route = {
         let concierge = concierge.clone();
-        warp::post()
+        warp::put()
             .and(warp::path("fs"))
             .and(warp::path::tail())
             .and(warp::header::<Uuid>("Authorization"))
@@ -81,9 +89,9 @@ async fn main() -> Result<()> {
                 let server = concierge.clone();
                 async move {
                     server
-                        .handle_file_upload(auth, path.as_str(), stream)
+                        .handle_file_put(auth, path.as_str(), stream)
                         .await
-                        .map_err(|_| warp::reject())
+                        .map_err(internal_concierge_error)
                 }
             })
     };
@@ -99,12 +107,15 @@ async fn main() -> Result<()> {
                     server
                         .handle_file_delete(auth, path.as_str())
                         .await
-                        .map_err(|_| warp::reject())
+                        .map_err(internal_concierge_error)
                 }
             })
     };
 
-    let routes = ws_route.or(fs_download_route).or(fs_upload_route).or(fs_delete_route);
+    let routes = ws_route
+        .or(fs_download_route)
+        .or(fs_upload_route)
+        .or(fs_delete_route);
 
     warp::serve(routes).run(addr).await;
 

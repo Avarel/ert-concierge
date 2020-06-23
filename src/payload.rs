@@ -54,104 +54,29 @@ pub type GroupId<'a> = &'a str;
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(tag = "operation", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Payload<'a> {
-    /*
-     * PAYLOADS TO THE CONCIERGE
-     */
     /// This payload must be the first payload sent
     /// within 5 seconds of establishing the socket connection, else the
     /// connection will be dropped.
-    ///
-    /// # Example
-    /// ```json
-    /// { "operation": "IDENTIFY", "name": "anthony" }
-    /// { "operation": "IDENTIFY", "name": "brendan" }
-    /// { "operation": "IDENTIFY", "name": "simulation" }
-    /// ```
     Identify { name: &'a str },
     /// These payloads have special fields for targeting
     /// other users or plugins. The origin fields are ignored if they are
     /// sent to the concierge, since the identification process happens
     /// per socket. The data field is transmitted verbatim.
-    ///
-    /// # Example
-    /// ## Payload to the Concierge
-    /// Imagine that a user identifies as `anthony` sends this to the concierge.
-    /// ```json
-    /// {
-    ///     "operation":"MESSAGE",
-    ///     "name": "brendan",
-    ///     "data":{
-    ///         "foo": "bar"
-    ///     }
-    /// }
-    /// ```
-    /// ## Payload from the Concierge
-    /// The user `brendan` will receive this on their end.
-    /// ```json
-    /// {
-    ///     "operation":"MESSAGE",
-    ///     "origin":{"name":"anthony","uuid":"..."},
-    ///     "name": "brendan",
-    ///     "data":{
-    ///         "foo": "bar"
-    ///     }
-    /// }
-    /// ```
     Message {
         /// Origin of the message.
         #[serde(skip_deserializing)]
         origin: Option<Origin<'a>>,
         /// Target of the message. This can be a single user
         /// (using name or uuid), or a group.
-        #[serde(flatten)]
         target: Target<'a>,
         /// Data field.
         data: Value,
     },
     /// Subscribe to a group's broadcast.
-    ///
-    /// # Example
-    /// ```json
-    /// {
-    ///     "operation":"SUBSCRIBE",
-    ///     "group":"simulation1_data"
-    /// }
-    /// ```
     Subscribe { group: GroupId<'a> },
     /// Unsubscribe from a group's broadcast.
-    ///
-    /// # Example
-    /// ```json
-    /// {
-    ///     "operation":"UNSUBSCRIBE",
-    ///     "group":"simulation1_data"
-    /// }
-    /// ```
     Unsubscribe { group: GroupId<'a> },
     /// Broadcast to every client connected to the concierge.
-    ///
-    /// # Example
-    /// ## Payload to the Concierge
-    /// Imagine that a user identifies as `anthony` sends this to the concierge.
-    /// ```json
-    /// {
-    ///     "operation":"BROADCAST",
-    ///     "data":{
-    ///         "foo": "bar"
-    ///     }
-    /// }
-    /// ```
-    /// ## Payload from the Concierge
-    /// The user `brendan` will receive this on their end.
-    /// ```json
-    /// {
-    ///     "operation":"BROADCAST",
-    ///     "origin":{"name":"anthony","uuid":"..."},
-    ///     "data":{
-    ///         "foo": "bar"
-    ///     }
-    /// }
-    /// ```
     Broadcast {
         // Origin of the message.
         #[serde(skip_deserializing)]
@@ -161,147 +86,39 @@ pub enum Payload<'a> {
     },
     /// Create a group such that every subscriber
     /// will receive the message targeted towards that group.
-    ///
-    /// # Example
-    /// ```json
-    /// { "operation":"CREATE_GROUP", "group":"simulation1_data" }
-    /// ```
     CreateGroup { group: GroupId<'a> },
     /// Delete a group. This operation only succeeds if
     /// the client is the group's owner.
-    ///
-    /// # Example
-    /// ```json
-    /// { "operation":"DELETE_GROUP", "group":"simulation1_data" }
-    /// ```
     DeleteGroup { group: GroupId<'a> },
     /// This payload asks for all the clients of the
     /// group specified in the data field.
-    ///
-    /// # Example
-    /// ```json
-    /// {
-    ///     "operation":"FETCH_GROUP_SUBS",
-    ///     "group":"users"
-    /// }
-    /// ```
     FetchGroupSubs { group: GroupId<'a> },
     /// This payload asks for all of the groups
     /// registered with the concierge.
-    ///
-    /// # Example
-    /// ```json
-    /// { "operation":"FETCH_GROUP_LIST" }
-    /// ```
     FetchGroupList,
     /// This payload asks for all of the clients
     /// connected to the concierge.
-    ///
-    /// # Example
-    /// ```json
-    /// { "operation":"FETCH_CLIENT_LIST" }
-    /// ```
     FetchClientList,
     /// This payload asks for the connecting client's
     /// subscriptions.
-    ///
-    /// # Example
-    /// ```json
-    /// { "operation":"FETCH_SUBS" }
-    /// ```
     FetchSubs,
-    
-    FileUpload,
-
-    FileId,
-
-    /*
-     * PAYLOADS FROM THE CONCIERGE
-     */
     /// This payload is sent upon successful identification.
     /// The payload will also contain a universally unique identifier
     /// that acts as a file server key.
-    ///
-    /// # Example
-    /// ```json
-    /// {
-    ///     "operation":"HELLO",
-    ///     "uuid":"73fcc768-d724-47e2-a101-a45298188f47"
-    /// }
-    /// ```
     Hello { uuid: Uuid },
-    /// Returns all the client names as an array of strings.
-    ///
-    /// # Example
-    /// ```json
-    /// {
-    ///     "operation":"GROUP_SUBS",
-    ///     "group":"plugins",
-    ///     "clients":[
-    ///         {
-    ///             "name":"simulation1",
-    ///             "uuid":"..."
-    ///         },
-    ///         {
-    ///             "name":"simulation2",
-    ///             "uuid":"..."
-    ///         }
-    ///     ]
-    /// }
-    /// ```
+    /// Returns all the client (subscribed to the group) names as an array of strings.
     GroupSubs {
         group: GroupId<'a>,
         clients: Vec<OwnedOrigin>,
     },
     /// This payload lists all of the groups registered with the concierge.
-    ///
-    /// # Example
-    /// ```json
-    /// {"operation":"GROUP_LIST","groups":["simulation1", "simulation2"]}
-    /// ```
     GroupList { groups: Vec<String> },
     /// This payload lists all of the clients registered with the concierge.
-    ///
-    /// # Example
-    /// ```json
-    /// {
-    ///     "operation":"CLIENT_LIST",
-    ///     "clients":[
-    ///         {
-    ///             "name":"simulation1",
-    ///             "uuid":"..."
-    ///         },
-    ///         {
-    ///             "name":"simulation2",
-    ///             "uuid":"..."
-    ///         },
-    ///         {
-    ///             "name":"anthony",
-    ///             "uuid":"..."
-    ///         },
-    ///         {
-    ///             "name":"brendan",
-    ///             "uuid":"..."
-    ///         }
-    ///     ]
-    /// }
-    /// ```
     ClientList { clients: Vec<OwnedOrigin> },
     /// This payload lists all of the connecting client's subscriptions.
-    ///
-    /// # Example
-    /// ```json
-    /// {"operation":"SUBS","groups":["simulation1"]}
-    /// ```
     Subs { groups: HashSet<String> },
     /// A payload broadcasted whenever a new client joins. This is not
     /// emitted to newly joining clients.
-    ///
-    /// # Example
-    /// ```json
-    /// { "operation": "CLIENT_JOIN", "group": "USER", "name": "anthony" }
-    /// { "operation": "CLIENT_JOIN", "group": "PLUGIN", "name": "simulation" }
-    /// ```
     ClientJoin {
         #[serde(flatten)]
         data: Origin<'a>,
@@ -311,14 +128,14 @@ pub enum Payload<'a> {
     ///
     /// # Example
     /// ```json
-    /// { "operation": "CLIENT_LEAVE", "name": "brendan" }
-    /// { "operation": "CLIENT_LEAVE", "name": "simulation" }
+    /// { "operation": "CLIENT_LEAVE", "name": "brendan", "uuid": "..." }
+    /// { "operation": "CLIENT_LEAVE", "name": "simulation", "uuid": "..." }
     /// ```
     ClientLeave {
         #[serde(flatten)]
         data: Origin<'a>,
     },
-    /// Error payload.
+    /// Error payload sent upon erroneous conditions encountered by the concierge.
     ///
     /// # Example
     /// ```json
@@ -347,12 +164,18 @@ pub struct Origin<'a> {
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone)]
-#[serde(rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Target<'a> {
     /// Target a client name.
-    Name(&'a str),
+    Name {
+        name: &'a str
+    },
     /// Target a client Uuid.
-    Uuid(Uuid),
+    Uuid {
+        uuid: Uuid
+    },
     /// Target a group name.
-    Group(GroupId<'a>),
+    Group {
+        group: GroupId<'a>
+    },
 }

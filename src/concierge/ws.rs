@@ -1,7 +1,7 @@
-//! This file manages the low-level internal implementation of the WebSocket 
+//! This file manages the low-level internal implementation of the WebSocket
 //! handle for the Concierge. Some functions are delegated to from the Concierge.
 
-use super::{Group, Concierge};
+use super::{Concierge, Group};
 use crate::{
     clients::Client,
     payload::{close_codes, Payload},
@@ -11,7 +11,7 @@ use dashmap::ElementGuard;
 use flume::Receiver;
 use futures::{future, pin_mut, stream::TryStreamExt, SinkExt, StreamExt};
 use log::{debug, info, warn};
-use std::{net::SocketAddr, time::Duration, path::Path};
+use std::{net::SocketAddr, path::Path, time::Duration};
 use tokio::time::timeout;
 use uuid::Uuid;
 use warp::ws::{Message, WebSocket};
@@ -172,12 +172,12 @@ async fn remove_client(concierge: &Concierge, client: &Client) -> Result<()> {
     let client = concierge.clients.remove_take(&client.uuid()).unwrap();
     // Remove from namespace
     concierge.namespace.write().await.remove(client.name());
+    // Remove any owned groups
+    concierge.groups.retain(|_, v| v.owner != client.uuid());
     // Remove from groups
     concierge.groups.iter().for_each(|group| {
         group.clients.remove(&client.uuid());
     });
-    // Remove any owned groups
-    concierge.groups.retain(|_, v| v.owner != client.uuid());
 
     // Broadcast leave
     broadcast_all(
@@ -187,7 +187,7 @@ async fn remove_client(concierge: &Concierge, client: &Client) -> Result<()> {
         },
     )?;
 
-    // Delete file folder if it exists
+    // Delete clientfile folder if it exists
     tokio::fs::remove_dir_all(Path::new(".").join("fs").join(client.name())).await?;
 
     Ok(())
