@@ -6,7 +6,7 @@ mod ws;
 use crate::{clients::Client, payload::Payload};
 use anyhow::{Result, anyhow};
 use dashmap::DashMap;
-use fs::{ConciergeFile, FileReply};
+use fs::FileReply;
 use std::{collections::HashMap, net::SocketAddr};
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -15,7 +15,6 @@ use futures::Stream;
 use hyper::StatusCode;
 
 pub struct Concierge {
-    pub files: DashMap<Uuid, ConciergeFile>,
     /// This is the groups registered in the Concierge.
     pub groups: DashMap<String, Group>,
     /// This is the namespace of the Concierge.
@@ -30,7 +29,6 @@ impl Concierge {
     /// Creates a new concierge.
     pub fn new() -> Self {
         Self {
-            files: DashMap::new(),
             groups: DashMap::new(),
             clients: DashMap::new(),
             namespace: RwLock::new(HashMap::new()),

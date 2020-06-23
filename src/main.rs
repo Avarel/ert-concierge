@@ -14,7 +14,6 @@ mod tests;
 
 use anyhow::Result;
 use concierge::Concierge;
-use hyper::StatusCode;
 use log::{debug, error, info};
 use std::{net::SocketAddr, sync::Arc};
 use uuid::Uuid;
@@ -45,9 +44,9 @@ async fn main() -> Result<()> {
             .and(warp::ws())
             .map(move |addr: Option<SocketAddr>, ws: warp::ws::Ws| {
                 debug!("Incoming TCP connection. (ip: {:?})", addr);
-                let server = concierge.clone();
+                let concierge = concierge.clone();
                 ws.on_upgrade(move |websocket| async move {
-                    if let Err(err) = server.handle_socket_conn(websocket, addr).await {
+                    if let Err(err) = concierge.handle_socket_conn(websocket, addr).await {
                         error!("Error: {}", err);
                     }
                 })

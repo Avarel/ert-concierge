@@ -18,7 +18,27 @@ pub struct Client {
     tx: Sender<Message>,
     /// Groups.
     groups: RwLock<HashSet<String>>,
+    // /// Files.
+    // files: RwLock<HashMap<PathBuf, ClientFile>>
 }
+
+// pub struct ClientFile {
+//     targets: Option<HashSet<Uuid>>,
+// }
+
+// impl ClientFile {
+//     pub fn no_target() -> Self {
+//         Self {
+//             targets: None
+//         }
+//     }
+
+//     pub fn targeted(targets: HashSet<Uuid>) -> Self {
+//         Self {
+//             targets: Some(targets)
+//         }
+//     }
+// }
 
 impl Client {
     /// Create a new client.
@@ -27,13 +47,12 @@ impl Client {
         // rx: (receive) where messages are received
         // tx: (transmit) where we send messages
         let (tx, rx) = unbounded();
-        let groups = RwLock::new(HashSet::new());
         (
             Self {
                 uuid,
                 name,
                 tx,
-                groups,
+                groups: RwLock::default()
             },
             rx,
         )
@@ -83,6 +102,21 @@ impl Client {
 
         Ok(())
     }
+
+    // /// Add a file that the client manages.
+    // pub async fn add_file(&self, path: PathBuf, file: ClientFile) {
+    //     self.files.write().await.insert(path, file);
+    // }
+
+    // /// Update the file using a function.
+    // pub async fn update_file(&self, path: &Path, f: impl FnOnce(&mut ClientFile)) {
+    //     self.files.write().await.get_mut(path).map(f);
+    // }
+
+    // /// Remove the file using a function.
+    // pub async fn remove_file(&self, path: &Path) {
+    //     self.files.write().await.remove(path);
+    // }
 
     async fn handle_message(
         &self,
