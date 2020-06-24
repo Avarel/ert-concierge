@@ -1,36 +1,98 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use uuid::Uuid;
 use std::collections::HashSet;
+use uuid::Uuid;
 
-pub mod error_payloads {
+pub mod ok_payloads {
     use super::Payload;
+    use serde_json::Value;
 
-    #[allow(dead_code)]
-    pub const UNKNOWN: Payload = Payload::Error {
+    pub const OK: Payload = Payload::Status {
+        code: 2000,
+        data: None,
+    };
+
+    pub const MESSAGE_SENT: Payload = Payload::Status {
+        code: 2001,
+        data: None,
+    };
+
+    pub fn subscribed(group: &str) -> Payload {
+        Payload::Status {
+            code: 2002,
+            data: Some(Value::String(group.to_owned())),
+        }
+    }
+
+    pub fn unsubscribed(group: &str) -> Payload {
+        Payload::Status {
+            code: 2003,
+            data: Some(Value::String(group.to_owned())),
+        }
+    }
+
+    pub fn created_group(group: &str) -> Payload {
+        Payload::Status {
+            code: 2004,
+            data: Some(Value::String(group.to_owned())),
+        }
+    }
+
+    pub fn deleted_group(group: &str) -> Payload {
+        Payload::Status {
+            code: 2005,
+            data: Some(Value::String(group.to_owned())),
+        }
+    }
+}
+
+pub mod err_payloads {
+    use super::Payload;
+    use serde_json::Value;
+    use uuid::Uuid;
+
+    pub const BAD: Payload = Payload::Status {
         code: 4000,
-        data: "Unknown error",
+        data: None,
     };
 
-    pub const UNSUPPORTED: Payload = Payload::Error {
+    pub const UNSUPPORTED: Payload = Payload::Status {
         code: 4001,
-        data: "Unsupported payload",
+        data: None,
     };
 
-    pub const PROTOCOL: Payload = Payload::Error {
+    pub const PROTOCOL: Payload = Payload::Status {
         code: 4002,
-        data: "Protocol error",
+        data: None,
     };
 
-    pub const INVALID_TARGET: Payload = Payload::Error {
-        code: 4003,
-        data: "Target does not exist",
-    };
+    pub fn group_already_created(group: &str) -> Payload {
+        Payload::Status {
+            code: 4003,
+            data: Some(Value::String(group.to_owned())),
+        }
+    }
 
-    pub const ALREADY_EXIST: Payload = Payload::Error {
-        code: 4004,
-        data: "Already exist",
-    };
+    pub fn no_such_name(name: &str) -> Payload {
+        Payload::Status {
+            code: 4004,
+            data: Some(Value::String(name.to_owned())),
+        }
+    }
+
+    pub fn no_such_uuid(uuid: Uuid) -> Payload<'static> {
+        Payload::Status {
+            code: 4005,
+            data: Some(Value::String(uuid.to_string())),
+        }
+    }
+
+    pub fn no_such_group(group: &str) -> Payload {
+        Payload::Status {
+            code: 4006,
+            data: Some(Value::String(group.to_owned())),
+        }
+    }
 }
 
 pub mod close_codes {
@@ -125,27 +187,17 @@ pub enum Payload<'a> {
     },
     /// A payload broadcasted whenever a new client leaves. This is not
     /// emitted to leaving clients.
-    ///
-    /// # Example
-    /// ```json
-    /// { "operation": "CLIENT_LEAVE", "name": "brendan", "uuid": "..." }
-    /// { "operation": "CLIENT_LEAVE", "name": "simulation", "uuid": "..." }
-    /// ```
     ClientLeave {
         #[serde(flatten)]
         data: Origin<'a>,
     },
-    /// Error payload sent upon erroneous conditions encountered by the concierge.
-    ///
-    /// # Example
-    /// ```json
-    /// {"operation":"ERROR", "code": 420, "data": "The cake was a lie."}
-    /// ```
-    Error {
+    /// Status payload sent by the concierge. May happen for various reasons
+    /// such as error response.
+    Status {
         /// Error code.
         code: u16,
         /// Error message.
-        data: &'a str,
+        data: Option<Value>,
     },
 }
 
@@ -167,15 +219,9 @@ pub struct Origin<'a> {
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Target<'a> {
     /// Target a client name.
-    Name {
-        name: &'a str
-    },
+    Name { name: &'a str },
     /// Target a client Uuid.
-    Uuid {
-        uuid: Uuid
-    },
+    Uuid { uuid: Uuid },
     /// Target a group name.
-    Group {
-        group: GroupId<'a>
-    },
+    Group { group: GroupId<'a> },
 }

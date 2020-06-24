@@ -2,16 +2,27 @@
 Packets sent from the client to the Gateway API are encapsulated within a
 gateway payload object and must have the proper `operation` set.
 ### Example
-```json
-{ "operation": "ABCDEFG", "data": { "foo": "bar" }}
+```typescript
+{ "operation": "ABCDEFG", ... }
 ```
+
+# Protocol
+Upon connecting, the client must send an appropriate `IDENTIFY` payload within 5 seconds. Otherwise, the connection will be dropped. Any other payload sent during
+this period will also immediately drop the connection with either:
+* `4000` UNKOWN: internal server errors.
+* `4002` FATAL_DECODE: server failed to decode; malformed input?
+* `4003` NO_AUTH: a normal payload was sent prior to identification.
+* `4004` AUTH_FAILED: authorization failed due to timeout.
+* `4005` DUPLICATE_AUTH: namespace conflict in the concierge (pick another `name`!).
+
+Successful identification will result in a `HELLO` payload being sent to the client,
+along with a UUID that acts as the [file server](./FILESYSTEM.md) key.
 
 ## Identify
 **This payload must be the first payload sent
 within 5 seconds of establishing the socket connection**, else the
 connection will be dropped. When the concierge receives this payload, it will check
-that the `name` does not conflict with the current namespace (or the connection will
-be dropped). If everything goes well, a `HELLO` payload will be sent to the client.
+that the `name` does not conflict with the current namespace. If everything goes well, a `HELLO` payload will be sent to the client.
 ### Structure
 ```typescript
 {
@@ -371,12 +382,13 @@ emitted to leaving clients.
 { "operation": "CLIENT_LEAVE", "name": "anthony", "uuid": "..." }
 { "operation": "CLIENT_LEAVE", "name": "simulation", "uuid": "..." }
 ```
-## Error
-Error payload sent upon erroneous conditions encountered by the concierge.
+## STATUS
+Status payload sent by the concierge. May happen for various reasons
+such as error response.
 ### Structure
 ```typescript
 {
-    "operation": "ERROR",
+    "operation": "STATUS",
     "code": number, 
     "data": string
 }
@@ -384,7 +396,7 @@ Error payload sent upon erroneous conditions encountered by the concierge.
 ### Example
 ```json
 {
-    "operation":"ERROR",
+    "operation": "STATUS",
     "code": 420,
     "data": "The cake was a lie."
 }

@@ -1,5 +1,5 @@
 use crate::concierge::{self, Concierge};
-use crate::payload::{error_payloads, Origin, OwnedOrigin, Payload, Target};
+use crate::payload::{err_payloads, Origin, OwnedOrigin, Payload, Target, ok_payloads};
 use anyhow::{anyhow, Result};
 use concierge::Group;
 use flume::{unbounded, Receiver, Sender};
@@ -95,7 +95,7 @@ impl Client {
                 if let Ok(payload) = serde_json::from_str::<Payload>(string) {
                     self.handle_payload(concierge, payload).await?;
                 } else {
-                    self.send(error_payloads::PROTOCOL)?;
+                    self.send(err_payloads::PROTOCOL)?;
                 }
             }
         }
@@ -133,36 +133,44 @@ impl Client {
                     .get(name)
                     .and_then(|id| concierge.clients.get(&id))
                 {
-                    return client.send(Payload::Message {
+                    client.send(Payload::Message {
                         origin: Some(self.origin_receipt()),
                         target,
                         data,
-                    });
+                    })?;
+                    self.send(ok_payloads::MESSAGE_SENT)
+                } else {
+                    self.send(err_payloads::no_such_name(name))
                 }
             }
             Target::Uuid { uuid } => {
                 if let Some(client) = concierge.clients.get(&uuid) {
-                    return client.send(Payload::Message {
+                    client.send(Payload::Message {
                         origin: Some(self.origin_receipt()),
                         target,
                         data,
-                    });
+                    })?;
+                    self.send(ok_payloads::MESSAGE_SENT)
+                } else {
+                    self.send(err_payloads::no_such_uuid(uuid))
                 }
             }
             Target::Group { group } => {
                 if let Some(group) = concierge.groups.get(group) {
-                    return group.broadcast(
+                    group.broadcast(
                         concierge,
                         Payload::Message {
                             origin: Some(self.origin_receipt()),
                             target,
                             data,
                         },
-                    );
+                    )?;
+                    self.send(ok_payloads::MESSAGE_SENT)
+                } else {
+                    self.send(err_payloads::no_such_group(group))
                 }
             }
         }
-        self.send(error_payloads::INVALID_TARGET)
     }
 
     async fn handle_payload(&self, concierge: &Concierge, payload: Payload<'_>) -> Result<()> {
@@ -174,14 +182,19 @@ impl Client {
                 if let Some(group) = concierge.groups.get(group) {
                     group.clients.insert(self.uuid, ());
                     self.groups.write().await.insert(group.name.to_owned());
+                    self.send(ok_payloads::subscribed(group.key()))?;
                 } else {
-                    self.send(error_payloads::INVALID_TARGET)?;
+                    self.send(err_payloads::no_such_group(group))?;
                 }
             }
             Payload::Unsubscribe { group } => {
                 if let Some(group) = concierge.groups.get(group) {
                     group.clients.remove(&self.uuid);
+                    self.send(ok_payloads::unsubscribed(group.key()))?;
+                } else {
+                    self.send(err_payloads::no_such_group(group))?;
                 }
+
                 let mut groups = self.groups.write().await;
                 groups.remove(group);
             }
@@ -190,19 +203,25 @@ impl Client {
                     concierge
                         .groups
                         .insert(group.to_owned(), Group::new(group.to_owned(), self.uuid));
+                    self.send(ok_payloads::created_group(group))?;
                 } else {
-                    self.send(error_payloads::ALREADY_EXIST)?;
+                    self.send(err_payloads::group_already_created(group))?;
                 }
             }
             Payload::DeleteGroup { group } => {
-                if !concierge.groups.remove_if(group, |_, group| group.owner == self.uuid) {
-                    self.send(error_payloads::INVALID_TARGET)?;
+                if concierge.remove_group(group, self.uuid) {
+                    self.send(ok_payloads::deleted_group(group))?;
+                } else {
+                    self.send(err_payloads::no_such_group(group))?;
                 }
             }
-            Payload::Broadcast { data, .. } => concierge.broadcast_all(Payload::Broadcast {
-                origin: Some(self.origin_receipt()),
-                data,
-            })?,
+            Payload::Broadcast { data, .. } => {
+                concierge.broadcast_all(Payload::Broadcast {
+                    origin: Some(self.origin_receipt()),
+                    data,
+                })?;
+                self.send(ok_payloads::MESSAGE_SENT)?;
+            },
             Payload::FetchGroupSubs { group } => {
                 if let Some(group) = concierge.groups.get(group) {
                     let clients = group
@@ -243,7 +262,7 @@ impl Client {
                 let groups = self.groups.read().await.clone();
                 self.send(Payload::Subs { groups })?
             }
-            _ => self.send(error_payloads::UNSUPPORTED)?,
+            _ => self.send(err_payloads::UNSUPPORTED)?,
         }
         Ok(())
     }

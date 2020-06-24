@@ -167,17 +167,7 @@ async fn handle_client(
 async fn remove_client(concierge: &Concierge, client: &Client) -> Result<()> {
     // Connection has been destroyed by this stage.
     info!("Client disconnected. (id: {})", client.name());
-    // Remove client from table, unwrap safety: the client must exist
-    // because this is the only place where we remove it!
-    let client = concierge.clients.remove_take(&client.uuid()).unwrap();
-    // Remove from namespace
-    concierge.namespace.write().await.remove(client.name());
-    // Remove any owned groups
-    concierge.groups.retain(|_, v| v.owner != client.uuid());
-    // Remove from groups
-    concierge.groups.iter().for_each(|group| {
-        group.clients.remove(&client.uuid());
-    });
+    concierge.remove_client(client.uuid()).await?;
 
     // Broadcast leave
     broadcast_all(
