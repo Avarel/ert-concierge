@@ -19,7 +19,7 @@ use warp::{ws::WebSocket, Buf};
 /// Central struct that stores the concierge data.
 pub struct Concierge {
     /// This is the groups registered in the Concierge.
-    pub groups: DashMap<String, Group>,
+    pub groups: DashMap<String, Group>, // TODO: lock in a RwLock?
     /// This is the namespace of the Concierge.
     /// It uses an RwLock in order to prevent race conditions.
     pub namespace: RwLock<HashMap<String, Uuid>>,

@@ -390,7 +390,7 @@ such as error response or responses to certain commands.
 {
     "operation": "STATUS",
     "code": number, 
-    "data": string
+    "data": string | undefined
 }
 ```
 ### Example
@@ -415,7 +415,7 @@ such as error response or responses to certain commands.
 
 * `4000` BAD
 * `4001` UNSUPORTED
-* `4002` PROTOCOL
+* `4002` PROTOCOL (Server failed to decode, or failed to deserialize data to an accepted format)
 * `4003` GROUP_ALREADY_CREATED (in response to `CREATE_GROUP`)
     * `data: string`: The name of the group already created.
 * `4004` NO_SUCH_NAME (in response to `MESSAGE`)

@@ -84,6 +84,7 @@ async fn main() -> Result<()> {
             .and(warp::path("fs"))
             .and(warp::path::tail())
             .and(warp::header::<Uuid>("Authorization"))
+            // .and(warp::body::content_length_limit(20971520))
             .and(warp::body::aggregate())
             .and_then(move |path: Tail, auth: Uuid, stream| {
                 let server = concierge.clone();

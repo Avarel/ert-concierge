@@ -9,3 +9,4 @@ Websocket protocol for connecting multiple client types and facilitating transfe
 ## Documentation
 * [**Websocket**](./PAYLOAD.md) protocol for interacting with the concierge, the main method of data communication.
 * [**File system**](./FILESYSTEM.md) protocol for transferring files between clients connected to the Concierge.
+* [**Rust rundown**](./RUST.md) for future maintainers.
