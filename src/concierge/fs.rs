@@ -2,7 +2,6 @@
 
 use super::Concierge;
 use anyhow::{anyhow, Result};
-use futures::{Stream, StreamExt};
 use hyper::{Body, StatusCode};
 use log::{debug, warn};
 use std::{ffi::OsStr, path::Path};
@@ -32,8 +31,8 @@ impl FileReply {
 
 impl warp::Reply for FileReply {
     fn into_response(self) -> Response {
+        // Old implementation:
         // let (mut sender, body) = Body::channel();
-
         // let mut file = self.file;
         // tokio::spawn(async move {
         //     use tokio::io::AsyncReadExt;
@@ -57,6 +56,7 @@ impl warp::Reply for FileReply {
         //     .body(body)
         //     .unwrap()
 
+        // New implementation:
         // Use frameread for maximum efficiency
         let stream = FramedRead::new(self.file, BytesCodec::new());
         hyper::Response::builder()
@@ -103,6 +103,7 @@ pub async fn handle_file_delete(
             return Ok(StatusCode::FORBIDDEN);
         }
 
+        // Remove the file
         let file_path = base_path!().join(tail_path);
         tokio::fs::remove_file(file_path).await?;
 
@@ -178,6 +179,7 @@ pub async fn handle_file_put2(
             .open(file_path)
             .await?;
 
+        // Write the file as long as the body is streaming bytes
         while body.has_remaining() {
             let bytes = body.bytes();
             file.write_all(body.bytes()).await?;

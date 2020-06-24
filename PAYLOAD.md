@@ -382,9 +382,9 @@ emitted to leaving clients.
 { "operation": "CLIENT_LEAVE", "name": "anthony", "uuid": "..." }
 { "operation": "CLIENT_LEAVE", "name": "simulation", "uuid": "..." }
 ```
-## STATUS
+## Status
 Status payload sent by the concierge. May happen for various reasons
-such as error response.
+such as error response or responses to certain commands.
 ### Structure
 ```typescript
 {
@@ -401,3 +401,26 @@ such as error response.
     "data": "The cake was a lie."
 }
 ```
+#### Status Codes
+* `2000` OK 
+* `2001` MESSAGE_SENT
+* `2002` SUBSCRIBED (in response to `SUBSCRIBE`)
+    * `data: string`: The group the client subscribed to.
+* `2003` UNSUBSCRIBED (in response to `UNSUBSCRIBE`, `DELETE_GROUP`, and the group being deleted because the owner of the group left the concierge)
+    * `data: string`: The group the client unsubscribed from.
+* `2004` CREATED_GROUP (in response to `CREATE_GROUP`)
+    * `data: string`: The group created;
+* `2005` DELETED_GROUP (in response to `DELETE_GROUP`)
+    * `data: string`: The group deleted.
+
+* `4000` BAD
+* `4001` UNSUPORTED
+* `4002` PROTOCOL
+* `4003` GROUP_ALREADY_CREATED (in response to `CREATE_GROUP`)
+    * `data: string`: The name of the group already created.
+* `4004` NO_SUCH_NAME (in response to `MESSAGE`)
+    * `data: string`: The name unrecognized by the server.
+* `4005` NO_SUCH_UUID (in response to `MESSAGE`)
+    * `data: string`: The UUID unrecognized by the server.
+* `4006` NO_SUCH_GROUP (in response to `MESSAGE`, `DELETE_GROUP`, `SUBSCRIBE`, `UNSUBSCRIBE`)
+    * `data: string`: The group unrecognized by the server.

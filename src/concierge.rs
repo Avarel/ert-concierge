@@ -10,13 +10,13 @@ use crate::{
 use anyhow::{anyhow, Result};
 use dashmap::DashMap;
 use fs::FileReply;
-use futures::Stream;
 use hyper::StatusCode;
 use std::{collections::HashMap, net::SocketAddr};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 use warp::{ws::WebSocket, Buf};
 
+/// Central struct that stores the concierge data.
 pub struct Concierge {
     /// This is the groups registered in the Concierge.
     pub groups: DashMap<String, Group>,
@@ -38,10 +38,12 @@ impl Concierge {
         }
     }
 
+    /// Broadcast a payload to all clients.
     pub fn broadcast_all(&self, payload: Payload) -> Result<()> {
         ws::broadcast_all(self, payload)
     }
 
+    /// Remove a group if a client is the owner of that group.
     pub fn remove_group(&self, group: &str, owner_id: Uuid) -> bool {
         self.groups.remove_if(group, |group_name, group| {
             if group.owner == owner_id {
@@ -53,6 +55,7 @@ impl Concierge {
         })
     }
 
+    /// Remove all groups owned by a client.
     pub fn remove_groups_owned_by(&self, owner_id: Uuid) {
         self.groups.retain(|group_name, group| {
             if group.owner != owner_id {
@@ -64,16 +67,20 @@ impl Concierge {
         });
     }
 
+    /// Remove a client from all groups.
     pub fn remove_from_all_groups(&self, uuid: Uuid) {
         self.groups.iter().for_each(|group| {
             group.clients.remove(&uuid);
         });
     }
 
+    /// Remove a name from the namespace.
     pub async fn remove_name(&self, name: &str) {
         self.namespace.write().await.remove(name);
     }
 
+    /// Remove a client from clientspace, namespace, their owned groups, and
+    /// them from any of their subscribed groups.
     pub async fn remove_client(&self, uuid: Uuid) -> Result<()> {
         let client = self
             .clients
@@ -88,6 +95,7 @@ impl Concierge {
         Ok(())
     }
 
+    /// Handle new socket connections
     pub async fn handle_socket_conn(
         &self,
         socket: WebSocket,
@@ -102,6 +110,7 @@ impl Concierge {
         }
     }
 
+    /// Handle file server GET requests
     pub async fn handle_file_get(&self, auth: Uuid, tail: &str) -> Result<FileReply> {
         fs::handle_file_get(self, auth, tail).await
     }
@@ -115,6 +124,7 @@ impl Concierge {
     //     fs::handle_file_put(self, auth, tail, stream).await
     // }
 
+    /// Handle file server PUT requests
     pub async fn handle_file_put2(
         &self,
         auth: Uuid,
@@ -124,7 +134,7 @@ impl Concierge {
         fs::handle_file_put2(self, auth, tail, stream).await
     }
 
-
+    /// Handle file server DELETE requests
     pub async fn handle_file_delete(&self, auth: Uuid, tail: &str) -> Result<StatusCode> {
         fs::handle_file_delete(self, auth, tail).await
     }
