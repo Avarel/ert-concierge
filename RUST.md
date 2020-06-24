@@ -33,14 +33,14 @@ For developing, I recommend using either:
 * [IntelliJ](https://www.jetbrains.com/) [IDEA](https://www.jetbrains.com/idea/) or [CLion](https://www.jetbrains.com/clion/) with the [Rust plugin](https://intellij-rust.github.io/).
 
 ### Ownership
-Arguably, ownership and borrowing is the **hardest** concepts you must learn when learning Rust. The rules of ownership are simple:
+Arguably, ownership and borrowing are the **hardest** concepts you must learn when learning Rust. The rules of ownership are simple:
 * Each value in Rust has a variable that’s called its owner.
 * There can only be one owner at a time.
 * When the owner goes out of scope, the value will be dropped (freed from memory).
 
 You can pass ownership of values around, which is called *moving*.
 
-Of course, having one owner at all times make it impossible to express certain concepts ergonomically. This is where borrowing comes into play: you can borrow variables (as references) from something that owns it. The rules of borrowing are also simple.
+Of course, having one owner at all times makes it impossible to express certain concepts ergonomically. This is where borrowing comes into play: you can borrow variables (as references) from something that owns it. The rules of borrowing are also simple.
 * There is either **one** `&mut _` *mutable reference* __OR__ **any number** of  `&_` *immutable references*.
 * References must always be valid. This means that references can not *outlive* their owners (no dangling pointers!).
 
