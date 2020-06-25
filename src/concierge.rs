@@ -9,12 +9,14 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use fs::FsFileReply;
-use hyper::StatusCode;
 use log::{debug, error, warn};
-use std::{collections::{HashSet, HashMap}, net::SocketAddr};
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+};
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use warp::{ws::WebSocket, Buf, Rejection};
+use warp::{hyper::StatusCode, ws::WebSocket, Buf, Rejection};
 
 /// Central struct that stores the concierge data.
 pub struct Concierge {
@@ -49,13 +51,15 @@ impl Concierge {
 
         if let Some(group) = groups.get(group_name) {
             if group.owner == owner_id {
-                ws::broadcast(self, group, ok::unsubscribed(group_name)).await.ok();
+                ws::broadcast(self, group, ok::unsubscribed(group_name))
+                    .await
+                    .ok();
                 groups.remove(group_name);
-                return true
+                return true;
             }
         }
 
-        return false
+        return false;
     }
 
     /// Remove all groups owned by a client.
@@ -69,7 +73,9 @@ impl Concierge {
 
         for key in removing {
             let group = groups.remove(&key).unwrap();
-            ws::broadcast(self, &group, ok::unsubscribed(&key)).await.ok();
+            ws::broadcast(self, &group, ok::unsubscribed(&key))
+                .await
+                .ok();
         }
     }
 

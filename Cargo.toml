@@ -22,8 +22,6 @@ serde = { version = "1.0.114", features = ["derive"] }
 # Logging capabilities
 log = "0.4.8"
 env_logger = "0.7.1"
-# Static file server
-hyper = "0.13.6"
 # Universally unique identifiers
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 
@@ -32,3 +30,10 @@ uuid = { version = "0.8.1", features = ["v4", "serde"] }
 url = "2.1.1"
 tokio-tungstenite = "0.10"
 reqwest = { version = "0.10.6", features = ["stream"] }
+
+[build]
+target-cpu = "native"
+
+[profile.release]
+lto = "true"
+rustflags = ["-C", "target-cpu=native"]

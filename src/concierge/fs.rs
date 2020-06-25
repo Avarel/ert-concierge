@@ -2,7 +2,6 @@
 
 use super::Concierge;
 use anyhow::Result;
-use hyper::{Body, Response, StatusCode};
 use log::debug;
 use std::{ffi::OsStr, path::Path};
 use tokio::{
@@ -11,7 +10,11 @@ use tokio::{
 };
 use tokio_util::codec::{BytesCodec, FramedRead};
 use uuid::Uuid;
-use warp::{reject::Reject, Buf, Rejection};
+use warp::{
+    hyper::{Body, Response, StatusCode},
+    reject::Reject,
+    Buf, Rejection,
+};
 
 /// Base path of the file system.
 macro_rules! base_path {
