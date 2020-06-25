@@ -64,7 +64,7 @@ async fn make_client(
     concierge: &Concierge,
     name: String,
     socket: &mut WebSocket,
-) -> Result<(ElementGuard<Uuid, Client>, Receiver<Message>)> {
+) -> Result<(Uuid, Receiver<Message>)> {
     // Acquire a write lock to prevent race condition
     let mut namespace = concierge.namespace.write().await;
     // Duplicate identification, close the stream.
@@ -93,7 +93,10 @@ async fn make_client(
             data: client.origin_receipt(),
         },
     )?;
-    Ok((concierge.clients.insert_and_get(uuid, client), rx))
+
+    concierge.clients.insert(uuid, client);
+
+    Ok((uuid, rx))
 }
 
 /// Handle incoming TCP connections and upgrade them to a Websocket connection.
@@ -107,9 +110,9 @@ pub async fn handle_socket_conn(
         // Got the identification data successfully.
         Ok(name) => {
             debug!("Identification successful. (ip: {}, name: {})", addr, name);
-            let (client, rx) = make_client(concierge, name, &mut socket).await?;
-            handle_client(concierge, &client, rx, socket).await?;
-            remove_client(concierge, &client).await?;
+            let (uuid, rx) = make_client(concierge, name, &mut socket).await?;
+            handle_client(concierge, uuid, rx, socket).await?;
+            remove_client(concierge, uuid).await?;
             Ok(())
         }
         // Failure: send close code to the client and drop the connection.
@@ -129,7 +132,7 @@ pub async fn handle_socket_conn(
 /// Handle new client WebSocket connections.
 async fn handle_client(
     concierge: &Concierge,
-    client: &Client,
+    client_uuid: Uuid,
     rx: Receiver<Message>,
     socket: WebSocket,
 ) -> Result<()> {
@@ -139,21 +142,21 @@ async fn handle_client(
     let (outgoing, incoming) = socket.split();
     // Have the client handle incoming messages.
     let incoming_handler =
-        handle_incoming_messages(client.uuid(), concierge, incoming.map_err(|e| e.into()));
+        handle_incoming_messages(client_uuid, concierge, incoming.map_err(|e| e.into()));
     // Forward our sent messages (from tx) to the outgoing sink.
     // This is because the client acts upon channels and doesn't know what the websocket is.
     let receive_from_others = rx
         .inspect(|m| {
             if let Ok(string) = m.to_str() {
-                trace!("Sending text (id: {}): {}", client.uuid(), string);
+                trace!("Sending text (id: {}): {}", client_uuid, string);
             }
         })
         .map(Ok)
         .forward(outgoing);
 
     // Setup complete, send the Hello payload.
-    client.send(Payload::Hello {
-        uuid: client.uuid(),
+    concierge.clients.get(&client_uuid).unwrap().send(Payload::Hello {
+        uuid: client_uuid,
     })?;
 
     // Irrelevant implementation detail: pinning prevents pointer invalidation
@@ -165,21 +168,25 @@ async fn handle_client(
     Ok(())
 }
 
-async fn remove_client(concierge: &Concierge, client: &Client) -> Result<()> {
+async fn remove_client(concierge: &Concierge, client_uuid: Uuid) -> Result<()> {
+    let client = concierge.clients.get(&client_uuid).unwrap();
+    let client_name = client.name();
+    let origin_receipt = client.origin_receipt();
+
     // Connection has been destroyed by this stage.
-    info!("Client disconnected. (id: {})", client.name());
-    concierge.remove_client(client.uuid()).await?;
+    info!("Client disconnected. (id: {})", client_name);
+    concierge.remove_client(client_uuid).await?;
 
     // Broadcast leave
     broadcast_all(
         concierge,
         Payload::ClientLeave {
-            data: client.origin_receipt(),
+            data: origin_receipt,
         },
     )?;
 
     // Delete clientfile folder if it exists
-    tokio::fs::remove_dir_all(Path::new(".").join("fs").join(client.name())).await?;
+    tokio::fs::remove_dir_all(Path::new(".").join("fs").join(client_name)).await?;
 
     Ok(())
 }
