@@ -1,9 +1,9 @@
 use crate::payload::Payload;
 use anyhow::Result;
+use futures::{future, pin_mut};
 use std::time::Duration;
 use tokio::time::delay_for;
 use tokio_tungstenite::tungstenite::protocol::Message;
-use futures::{pin_mut, future};
 
 mod ws {
     use crate::{payload::Payload, IP, WS_PORT};
@@ -95,7 +95,7 @@ async fn duplicate_identificaiton() -> Result<()> {
 async fn duplicate_identificaiton_concurrent() -> Result<()> {
     let ref mut ws_stream_1 = ws::connect().await;
     let ref mut ws_stream_2 = ws::connect().await;
-    
+
     {
         let send1 = ws::send_text(ws_stream_1, identify("c"));
         let send2 = ws::send_text(ws_stream_2, identify("c"));

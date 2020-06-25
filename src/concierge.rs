@@ -8,7 +8,6 @@ use crate::{
     payload::{ok, Payload},
 };
 use anyhow::{anyhow, Result};
-use dashmap::DashMap;
 use fs::FsFileReply;
 use hyper::StatusCode;
 use log::{debug, error, warn};

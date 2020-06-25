@@ -328,8 +328,11 @@ async fn handle_payload(
             })?;
         }
         Payload::FetchSubs => {
-            let groups = client.groups.read().await.clone();
-            client.send(Payload::Subs { groups })?
+            let groups = concierge.groups.read().await;
+            let group_names = groups.iter().map(|(s, _)| s.as_str()).collect::<Vec<_>>();
+            client.send(Payload::Subs {
+                groups: group_names,
+            })?
         }
         _ => client.send(payload::err::unsupported())?,
     }

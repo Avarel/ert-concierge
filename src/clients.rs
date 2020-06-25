@@ -1,6 +1,4 @@
-use crate::{
-    payload::{Origin, Payload},
-};
+use crate::payload::{Origin, Payload};
 use anyhow::{anyhow, Result};
 use flume::{unbounded, Receiver, Sender};
 use std::collections::HashSet;

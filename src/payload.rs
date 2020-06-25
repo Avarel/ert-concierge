@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashSet;
 use uuid::Uuid;
 
 pub mod ok {
@@ -190,7 +189,7 @@ pub enum Payload<'a> {
     /// This payload lists all of the clients registered with the concierge.
     ClientList { clients: Vec<Origin<'a>> },
     /// This payload lists all of the connecting client's subscriptions.
-    Subs { groups: HashSet<String> },
+    Subs { groups: Vec<&'a str> },
     /// A payload broadcasted whenever a new client joins. This is not
     /// emitted to newly joining clients.
     ClientJoin {

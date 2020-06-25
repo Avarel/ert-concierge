@@ -59,11 +59,7 @@ async fn main() -> Result<()> {
             .and(warp::header::<Uuid>("Authorization"))
             .and_then(move |path: Tail, auth: Uuid| {
                 let server = concierge.clone();
-                async move {
-                    server
-                        .handle_file_get(auth, path.as_str())
-                        .await
-                }
+                async move { server.handle_file_get(auth, path.as_str()).await }
             })
     };
 
@@ -77,11 +73,7 @@ async fn main() -> Result<()> {
             .and(warp::body::aggregate())
             .and_then(move |path: Tail, auth: Uuid, stream| {
                 let server = concierge.clone();
-                async move {
-                    server
-                        .handle_file_put(auth, path.as_str(), stream)
-                        .await
-                }
+                async move { server.handle_file_put(auth, path.as_str(), stream).await }
             })
     };
 
@@ -92,11 +84,7 @@ async fn main() -> Result<()> {
             .and(warp::header::<Uuid>("Authorization"))
             .and_then(move |path: Tail, auth: Uuid| {
                 let server = concierge.clone();
-                async move {
-                    server
-                        .handle_file_delete(auth, path.as_str())
-                        .await
-                }
+                async move { server.handle_file_delete(auth, path.as_str()).await }
             })
     };
 
