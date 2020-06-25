@@ -4,7 +4,7 @@ This document was made for future interns who will work on this project and have
 Rust is a relatively new language that has been gaining quite a lot of traction in recent years. Major companies such as Microsoft, Dropbox, Discord, etc. are adopting Rust as the language of choice for high performance systems programming. This project picked Rust (1.44.1) as the tool of choice in order to deliver high performance networking.
 
 ## Notes to Future Maintainers
-The upload, download, and delete functions are pretty basic. They handle file management correctly (AFAIK), but the uploading could use some work. In particular, multipart forms are a standard way of chopping up and uploading large files in parts, but they are not utilized in this project.
+The upload, download, and delete functions are pretty basic. They handle file management correctly (AFAIK), but the uploading could use some work. In particular, multipart forms are a standard way of chopping up and uploading large files in parts, but they are not utilized in this project. Other low hanging fruits include compression using GZIP, etc.
 
 ## Why Rust?
 Shamelessly stolen from [Nannou](https://nannou.cc/).
