@@ -312,14 +312,14 @@ async fn handle_message(
 ) -> Result<()> {
     match target {
         Target::Name { name } => {
-            if let Some(client) = concierge
+            if let Some(target_client) = concierge
                 .namespace
                 .read()
                 .await
                 .get(name)
                 .and_then(|id| concierge.clients.get(&id))
             {
-                client.send(Payload::Message {
+                target_client.send(Payload::Message {
                     origin: Some(client.origin_receipt()),
                     target,
                     data,
@@ -330,8 +330,8 @@ async fn handle_message(
             }
         }
         Target::Uuid { uuid } => {
-            if let Some(client) = concierge.clients.get(&uuid) {
-                client.send(Payload::Message {
+            if let Some(target_client) = concierge.clients.get(&uuid) {
+                target_client.send(Payload::Message {
                     origin: Some(client.origin_receipt()),
                     target,
                     data,
