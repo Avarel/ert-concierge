@@ -79,7 +79,7 @@ pub async fn handle_file_get(
     debug!("Received GET request (auth: {}, path: {})", auth, string);
 
     // Check that the key is registered with the concierge.
-    if !concierge.clients.contains_key(&auth) {
+    if !concierge.clients.read().await.contains_key(&auth) {
         return Err(FsError::BadAuthorization.rejection());
     }
 
@@ -114,8 +114,8 @@ pub async fn handle_file_delete(
     debug!("Received delete request (auth: {}, path: {})", auth, string);
 
     // Check that a client with the auth UUID exists in the concierge.
-    let client = concierge
-        .clients
+    let clients = concierge.clients.read().await;
+    let client = clients
         .get(&auth)
         .ok_or_else(|| FsError::BadAuthorization.rejection())?;
 
@@ -134,7 +134,7 @@ pub async fn handle_file_delete(
     Ok(StatusCode::OK)
 }
 
-pub async fn handle_file_put2(
+pub async fn handle_file_put(
     concierge: &Concierge,
     auth: Uuid,
     string: &str,
@@ -143,8 +143,8 @@ pub async fn handle_file_put2(
     debug!("Received upload request (auth: {}, path: {})", auth, string);
 
     // Check that a client with the auth UUID exists in the concierge.
-    let client = concierge
-        .clients
+    let clients = concierge.clients.read().await;
+    let client = clients
         .get(&auth)
         .ok_or_else(|| FsError::BadAuthorization.rejection())?;
 

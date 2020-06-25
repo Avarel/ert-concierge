@@ -4,24 +4,28 @@
 use super::{Concierge, Group};
 use crate::{
     clients::Client,
-    payload::{close_codes, Payload, self},
+    payload::{self, close_codes, Payload},
 };
 use anyhow::{anyhow, Result};
-use dashmap::ElementGuard;
 use flume::Receiver;
-use futures::{future, pin_mut, stream::TryStreamExt, SinkExt, StreamExt, Stream};
+use futures::{future, pin_mut, stream::TryStreamExt, SinkExt, Stream, StreamExt};
 use log::{debug, info, trace, warn};
+use payload::{Origin, Target};
 use std::{net::SocketAddr, path::Path, time::Duration};
 use tokio::time::timeout;
 use uuid::Uuid;
 use warp::ws::{Message, WebSocket};
-use payload::{OwnedOrigin, Target};
 
 /// Broadcast a payload to all connected clients of a certain group.
-pub(super) fn broadcast(concierge: &Concierge, group: &Group, payload: Payload) -> Result<()> {
+pub(super) async fn broadcast(
+    concierge: &Concierge,
+    group: &Group,
+    payload: Payload<'_>,
+) -> Result<()> {
     let message = Message::text(serde_json::to_string(&payload)?);
-    for entry in group.clients.iter() {
-        if let Some(client) = concierge.clients.get(entry.key()) {
+    let clients = concierge.clients.read().await;
+    for uuid in group.clients.iter() {
+        if let Some(client) = clients.get(uuid) {
             client.send_ws_msg(message.clone())?;
         } else {
             warn!("Group had an invalid client id");
@@ -31,9 +35,10 @@ pub(super) fn broadcast(concierge: &Concierge, group: &Group, payload: Payload) 
 }
 
 /// Broadcast to all connected clients.
-pub(super) fn broadcast_all(concierge: &Concierge, payload: Payload) -> Result<()> {
+pub(super) async fn broadcast_all(concierge: &Concierge, payload: Payload<'_>) -> Result<()> {
     let message = Message::text(serde_json::to_string(&payload)?);
-    for client in concierge.clients.iter() {
+    let clients = concierge.clients.read().await;
+    for (_, client) in clients.iter() {
         client.send_ws_msg(message.clone())?;
     }
     Ok(())
@@ -92,9 +97,10 @@ async fn make_client(
         Payload::ClientJoin {
             data: client.origin_receipt(),
         },
-    )?;
+    )
+    .await?;
 
-    concierge.clients.insert(uuid, client);
+    concierge.clients.write().await.insert(uuid, client);
 
     Ok((uuid, rx))
 }
@@ -155,9 +161,13 @@ async fn handle_client(
         .forward(outgoing);
 
     // Setup complete, send the Hello payload.
-    concierge.clients.get(&client_uuid).unwrap().send(Payload::Hello {
-        uuid: client_uuid,
-    })?;
+    concierge
+        .clients
+        .read()
+        .await
+        .get(&client_uuid)
+        .unwrap()
+        .send(Payload::Hello { uuid: client_uuid })?;
 
     // Irrelevant implementation detail: pinning prevents pointer invalidation
     pin_mut!(incoming_handler, receive_from_others);
@@ -169,24 +179,33 @@ async fn handle_client(
 }
 
 async fn remove_client(concierge: &Concierge, client_uuid: Uuid) -> Result<()> {
-    let client = concierge.clients.get(&client_uuid).unwrap();
-    let client_name = client.name();
-    let origin_receipt = client.origin_receipt();
+    // let client = concierge.clients.get(&client_uuid).unwrap();
+    // let client_name = client.name();
+    // let origin_receipt = client.origin_receipt();
 
     // Connection has been destroyed by this stage.
-    info!("Client disconnected. (id: {})", client_name);
-    concierge.remove_client(client_uuid).await?;
+    info!("Client disconnected. (id: {})", client_uuid);
+    let client = concierge.remove_client(client_uuid).await?;
 
     // Broadcast leave
     broadcast_all(
         concierge,
         Payload::ClientLeave {
-            data: origin_receipt,
+            data: client.origin_receipt(),
         },
-    )?;
+    )
+    .await?;
 
     // Delete clientfile folder if it exists
-    tokio::fs::remove_dir_all(Path::new(".").join("fs").join(client_name)).await?;
+    let path = Path::new(".").join("fs").join(client.name());
+    if let Ok(_) = tokio::fs::remove_dir_all(&path).await {
+        info!("Deleted {}.", path.display());
+    } else {
+        warn!(
+            "Could not delete {} (it might not exist, and that's ok).",
+            path.display()
+        );
+    }
 
     Ok(())
 }
@@ -199,12 +218,11 @@ pub async fn handle_incoming_messages(
 ) -> Result<()> {
     while let Some(Ok(message)) = incoming.next().await {
         if let Ok(string) = message.to_str() {
-            // safe unwrap since client can only be removed when in `handle_socket_conn`,
-            // in which this stream would have already been  stopped
-            let client = concierge.clients.get(&uuid).unwrap();
             if let Ok(payload) = serde_json::from_str::<Payload>(string) {
-                handle_payload(&client, concierge, payload).await?;
+                handle_payload(uuid, concierge, payload).await?;
             } else {
+                let clients = concierge.clients.read().await;
+                let client = clients.get(&uuid).unwrap();
                 client.send(payload::err::protocol())?;
             }
         }
@@ -213,24 +231,33 @@ pub async fn handle_incoming_messages(
     Ok(())
 }
 
-async fn handle_payload(client: &Client, concierge: &Concierge, payload: Payload<'_>) -> Result<()> {
+async fn handle_payload(
+    client_uuid: Uuid,
+    concierge: &Concierge,
+    payload: Payload<'_>,
+) -> Result<()> {
+    let clients = concierge.clients.read().await;
+    let client = clients.get(&client_uuid).unwrap();
+
     match payload {
         Payload::Message { target, data, .. } => {
-            handle_message(client, concierge, target, data).await?
+            handle_message(client_uuid, concierge, target, data).await?
         }
         Payload::Subscribe { group } => {
-            if let Some(group) = concierge.groups.get(group) {
-                group.clients.insert(client.uuid(), ());
+            let mut groups = concierge.groups.write().await;
+            if let Some(group) = groups.get_mut(group) {
+                group.clients.insert(client.uuid());
                 client.groups.write().await.insert(group.name.to_owned());
-                client.send(payload::ok::subscribed(group.key()))?;
+                client.send(payload::ok::subscribed(&group.name))?;
             } else {
                 client.send(payload::err::no_such_group(group))?;
             }
         }
         Payload::Unsubscribe { group } => {
-            if let Some(group) = concierge.groups.get(group) {
+            let mut groups = concierge.groups.write().await;
+            if let Some(group) = groups.get_mut(group) {
                 group.clients.remove(&client.uuid());
-                client.send(payload::ok::unsubscribed(group.key()))?;
+                client.send(payload::ok::unsubscribed(&group.name))?;
             } else {
                 client.send(payload::err::no_such_group(group))?;
             }
@@ -239,42 +266,42 @@ async fn handle_payload(client: &Client, concierge: &Concierge, payload: Payload
             groups.remove(group);
         }
         Payload::CreateGroup { group } => {
-            if !concierge.groups.contains_key(group) {
-                concierge
-                    .groups
-                    .insert(group.to_owned(), Group::new(group.to_owned(), client.uuid()));
+            let mut groups = concierge.groups.write().await;
+            if !groups.contains_key(group) {
+                groups.insert(
+                    group.to_owned(),
+                    Group::new(group.to_owned(), client.uuid()),
+                );
                 client.send(payload::ok::created_group(group))?;
             } else {
                 client.send(payload::err::group_already_created(group))?;
             }
         }
         Payload::DeleteGroup { group } => {
-            if concierge.remove_group(group, client.uuid()) {
+            if concierge.remove_group(group, client.uuid()).await {
                 client.send(payload::ok::deleted_group(group))?;
             } else {
                 client.send(payload::err::no_such_group(group))?;
             }
         }
         Payload::Broadcast { data, .. } => {
-            concierge.broadcast_all(Payload::Broadcast {
-                origin: Some(client.origin_receipt()),
-                data,
-            })?;
+            concierge
+                .broadcast_all(Payload::Broadcast {
+                    origin: Some(client.origin_receipt()),
+                    data,
+                })
+                .await?;
             client.send(payload::ok::message_sent())?;
         }
         Payload::FetchGroupSubs { group } => {
-            if let Some(group) = concierge.groups.get(group) {
-                // let clients = std::collections::HashSet::<Uuid>::new();
-                // let cmap = std::collections::HashMap::<Uuid, Client>::new();
-                // clients.iter().filter_map(|e| cmap.get(e)).map(|c| Origin { name: &c.name, uuid: c.uuid });
-
+            if let Some(group) = concierge.groups.read().await.get(group) {
                 let clients = group
                     .clients
                     .iter()
-                    .filter_map(|e| concierge.clients.get(e.key()))
-                    .map(|c| OwnedOrigin {
-                        name: c.name().to_owned(),
-                        uuid: c.uuid(),
+                    .filter_map(|uuid| clients.get(uuid))
+                    .map(|client| Origin {
+                        name: client.name(),
+                        uuid: client.uuid(),
                     })
                     .collect::<Vec<_>>();
                 client.send(Payload::GroupSubs {
@@ -284,23 +311,21 @@ async fn handle_payload(client: &Client, concierge: &Concierge, payload: Payload
             }
         }
         Payload::FetchClientList => {
-            let clients = concierge
-                .clients
+            let clients = clients
                 .iter()
-                .map(|c| OwnedOrigin {
-                    name: c.name().to_owned(),
-                    uuid: c.uuid(),
+                .map(|(&uuid, client)| Origin {
+                    name: client.name(),
+                    uuid,
                 })
                 .collect::<Vec<_>>();
             client.send(Payload::ClientList { clients })?;
         }
         Payload::FetchGroupList => {
-            let groups = concierge
-                .groups
-                .iter()
-                .map(|e| e.key().to_owned())
-                .collect();
-            client.send(Payload::GroupList { groups })?;
+            let groups = concierge.groups.read().await;
+            let group_names = groups.iter().map(|(name, _)| name.as_str()).collect();
+            client.send(Payload::GroupList {
+                groups: group_names,
+            })?;
         }
         Payload::FetchSubs => {
             let groups = client.groups.read().await.clone();
@@ -312,11 +337,13 @@ async fn handle_payload(client: &Client, concierge: &Concierge, payload: Payload
 }
 
 async fn handle_message(
-    client: &Client,
+    client_uuid: Uuid,
     concierge: &Concierge,
     target: Target<'_>,
     data: serde_json::Value,
 ) -> Result<()> {
+    let clients = concierge.clients.read().await;
+    let client = clients.get(&client_uuid).unwrap();
     match target {
         Target::Name { name } => {
             if let Some(target_client) = concierge
@@ -324,7 +351,7 @@ async fn handle_message(
                 .read()
                 .await
                 .get(name)
-                .and_then(|id| concierge.clients.get(&id))
+                .and_then(|id| clients.get(&id))
             {
                 target_client.send(Payload::Message {
                     origin: Some(client.origin_receipt()),
@@ -337,7 +364,7 @@ async fn handle_message(
             }
         }
         Target::Uuid { uuid } => {
-            if let Some(target_client) = concierge.clients.get(&uuid) {
+            if let Some(target_client) = clients.get(&uuid) {
                 target_client.send(Payload::Message {
                     origin: Some(client.origin_receipt()),
                     target,
@@ -349,15 +376,17 @@ async fn handle_message(
             }
         }
         Target::Group { group } => {
-            if let Some(group) = concierge.groups.get(group) {
-                group.broadcast(
-                    concierge,
-                    Payload::Message {
-                        origin: Some(client.origin_receipt()),
-                        target,
-                        data,
-                    },
-                )?;
+            if let Some(group) = concierge.groups.read().await.get(group) {
+                group
+                    .broadcast(
+                        concierge,
+                        Payload::Message {
+                            origin: Some(client.origin_receipt()),
+                            target,
+                            data,
+                        },
+                    )
+                    .await?;
                 client.send(payload::ok::message_sent())
             } else {
                 client.send(payload::err::no_such_group(group))

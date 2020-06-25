@@ -79,7 +79,7 @@ async fn main() -> Result<()> {
                 let server = concierge.clone();
                 async move {
                     server
-                        .handle_file_put2(auth, path.as_str(), stream)
+                        .handle_file_put(auth, path.as_str(), stream)
                         .await
                 }
             })

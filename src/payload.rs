@@ -183,12 +183,12 @@ pub enum Payload<'a> {
     /// Returns all the client (subscribed to the group) names as an array of strings.
     GroupSubs {
         group: GroupId<'a>,
-        clients: Vec<OwnedOrigin>,
+        clients: Vec<Origin<'a>>,
     },
     /// This payload lists all of the groups registered with the concierge.
-    GroupList { groups: Vec<String> },
+    GroupList { groups: Vec<&'a str> },
     /// This payload lists all of the clients registered with the concierge.
-    ClientList { clients: Vec<OwnedOrigin> },
+    ClientList { clients: Vec<Origin<'a>> },
     /// This payload lists all of the connecting client's subscriptions.
     Subs { groups: HashSet<String> },
     /// A payload broadcasted whenever a new client joins. This is not
@@ -211,13 +211,6 @@ pub enum Payload<'a> {
         /// Error message.
         data: Option<Value>,
     },
-}
-
-/// Origin but the name field is owned.
-#[derive(Serialize, Deserialize, Clone)]
-pub struct OwnedOrigin {
-    pub name: String,
-    pub uuid: Uuid,
 }
 
 /// An origin receipt for certain payloads.
