@@ -1,13 +1,15 @@
-use crate::concierge::{self, Concierge};
-use crate::payload::{err_payloads, Origin, OwnedOrigin, Payload, Target, ok_payloads};
+use crate::{
+    concierge::{self, Concierge},
+    payload::{self, Origin, OwnedOrigin, Payload, Target},
+};
 use anyhow::{anyhow, Result};
 use concierge::Group;
 use flume::{unbounded, Receiver, Sender};
 use futures::{Stream, StreamExt};
+use std::collections::HashSet;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 use warp::ws::Message;
-use std::collections::HashSet;
 
 pub struct Client {
     /// Client id.
@@ -52,7 +54,7 @@ impl Client {
                 uuid,
                 name,
                 tx,
-                groups: RwLock::default()
+                groups: RwLock::default(),
             },
             rx,
         )
@@ -95,28 +97,13 @@ impl Client {
                 if let Ok(payload) = serde_json::from_str::<Payload>(string) {
                     self.handle_payload(concierge, payload).await?;
                 } else {
-                    self.send(err_payloads::PROTOCOL)?;
+                    self.send(payload::err::protocol())?;
                 }
             }
         }
 
         Ok(())
     }
-
-    // /// Add a file that the client manages.
-    // pub async fn add_file(&self, path: PathBuf, file: ClientFile) {
-    //     self.files.write().await.insert(path, file);
-    // }
-
-    // /// Update the file using a function.
-    // pub async fn update_file(&self, path: &Path, f: impl FnOnce(&mut ClientFile)) {
-    //     self.files.write().await.get_mut(path).map(f);
-    // }
-
-    // /// Remove the file using a function.
-    // pub async fn remove_file(&self, path: &Path) {
-    //     self.files.write().await.remove(path);
-    // }
 
     async fn handle_message(
         &self,
@@ -138,9 +125,9 @@ impl Client {
                         target,
                         data,
                     })?;
-                    self.send(ok_payloads::MESSAGE_SENT)
+                    self.send(payload::ok::message_sent())
                 } else {
-                    self.send(err_payloads::no_such_name(name))
+                    self.send(payload::err::no_such_name(name))
                 }
             }
             Target::Uuid { uuid } => {
@@ -150,9 +137,9 @@ impl Client {
                         target,
                         data,
                     })?;
-                    self.send(ok_payloads::MESSAGE_SENT)
+                    self.send(payload::ok::message_sent())
                 } else {
-                    self.send(err_payloads::no_such_uuid(uuid))
+                    self.send(payload::err::no_such_uuid(uuid))
                 }
             }
             Target::Group { group } => {
@@ -165,9 +152,9 @@ impl Client {
                             data,
                         },
                     )?;
-                    self.send(ok_payloads::MESSAGE_SENT)
+                    self.send(payload::ok::message_sent())
                 } else {
-                    self.send(err_payloads::no_such_group(group))
+                    self.send(payload::err::no_such_group(group))
                 }
             }
         }
@@ -182,17 +169,17 @@ impl Client {
                 if let Some(group) = concierge.groups.get(group) {
                     group.clients.insert(self.uuid, ());
                     self.groups.write().await.insert(group.name.to_owned());
-                    self.send(ok_payloads::subscribed(group.key()))?;
+                    self.send(payload::ok::subscribed(group.key()))?;
                 } else {
-                    self.send(err_payloads::no_such_group(group))?;
+                    self.send(payload::err::no_such_group(group))?;
                 }
             }
             Payload::Unsubscribe { group } => {
                 if let Some(group) = concierge.groups.get(group) {
                     group.clients.remove(&self.uuid);
-                    self.send(ok_payloads::unsubscribed(group.key()))?;
+                    self.send(payload::ok::unsubscribed(group.key()))?;
                 } else {
-                    self.send(err_payloads::no_such_group(group))?;
+                    self.send(payload::err::no_such_group(group))?;
                 }
 
                 let mut groups = self.groups.write().await;
@@ -203,16 +190,16 @@ impl Client {
                     concierge
                         .groups
                         .insert(group.to_owned(), Group::new(group.to_owned(), self.uuid));
-                    self.send(ok_payloads::created_group(group))?;
+                    self.send(payload::ok::created_group(group))?;
                 } else {
-                    self.send(err_payloads::group_already_created(group))?;
+                    self.send(payload::err::group_already_created(group))?;
                 }
             }
             Payload::DeleteGroup { group } => {
                 if concierge.remove_group(group, self.uuid) {
-                    self.send(ok_payloads::deleted_group(group))?;
+                    self.send(payload::ok::deleted_group(group))?;
                 } else {
-                    self.send(err_payloads::no_such_group(group))?;
+                    self.send(payload::err::no_such_group(group))?;
                 }
             }
             Payload::Broadcast { data, .. } => {
@@ -220,10 +207,14 @@ impl Client {
                     origin: Some(self.origin_receipt()),
                     data,
                 })?;
-                self.send(ok_payloads::MESSAGE_SENT)?;
-            },
+                self.send(payload::ok::message_sent())?;
+            }
             Payload::FetchGroupSubs { group } => {
                 if let Some(group) = concierge.groups.get(group) {
+                    // let clients = std::collections::HashSet::<Uuid>::new();
+                    // let cmap = std::collections::HashMap::<Uuid, Client>::new();
+                    // clients.iter().filter_map(|e| cmap.get(e)).map(|c| Origin { name: &c.name, uuid: c.uuid });
+
                     let clients = group
                         .clients
                         .iter()
@@ -262,7 +253,7 @@ impl Client {
                 let groups = self.groups.read().await.clone();
                 self.send(Payload::Subs { groups })?
             }
-            _ => self.send(err_payloads::UNSUPPORTED)?,
+            _ => self.send(payload::err::unsupported())?,
         }
         Ok(())
     }

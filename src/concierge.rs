@@ -5,16 +5,17 @@ mod ws;
 
 use crate::{
     clients::Client,
-    payload::{ok_payloads, Payload},
+    payload::{ok, Payload},
 };
 use anyhow::{anyhow, Result};
 use dashmap::DashMap;
-use fs::FileReply;
+use fs::FsFileReply;
 use hyper::StatusCode;
+use log::{warn, error, debug};
 use std::{collections::HashMap, net::SocketAddr};
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use warp::{ws::WebSocket, Buf};
+use warp::{ws::WebSocket, Buf, Rejection};
 
 /// Central struct that stores the concierge data.
 pub struct Concierge {
@@ -47,7 +48,7 @@ impl Concierge {
     pub fn remove_group(&self, group: &str, owner_id: Uuid) -> bool {
         self.groups.remove_if(group, |group_name, group| {
             if group.owner == owner_id {
-                ws::broadcast(self, group, ok_payloads::unsubscribed(group_name)).ok();
+                ws::broadcast(self, group, ok::unsubscribed(group_name)).ok();
                 true
             } else {
                 false
@@ -59,7 +60,7 @@ impl Concierge {
     pub fn remove_groups_owned_by(&self, owner_id: Uuid) {
         self.groups.retain(|group_name, group| {
             if group.owner != owner_id {
-                ws::broadcast(self, group, ok_payloads::unsubscribed(group_name)).ok();
+                ws::broadcast(self, group, ok::unsubscribed(group_name)).ok();
                 true
             } else {
                 false
@@ -96,33 +97,25 @@ impl Concierge {
     }
 
     /// Handle new socket connections
-    pub async fn handle_socket_conn(
-        &self,
-        socket: WebSocket,
-        addr: Option<SocketAddr>,
-    ) -> Result<()> {
+    pub async fn handle_socket_conn(&self, socket: WebSocket, addr: Option<SocketAddr>) {
         // Connection must have an incoming socket address
         if let Some(addr) = addr {
-            ws::handle_socket_conn(self, socket, addr).await
+            if let Err(err) = ws::handle_socket_conn(self, socket, addr).await {
+                error!("WS error: {}", err);
+            }
         } else {
-            socket.close().await?;
-            Err(anyhow!("A client joined without any ip."))
+            warn!("Client joined without address.");
+            if let Err(err) = socket.close().await {
+                error!("WS close error: {}", err);
+            }
         }
+        debug!("Socket connection (addr: {:?}) dropped.", addr)
     }
 
     /// Handle file server GET requests
-    pub async fn handle_file_get(&self, auth: Uuid, tail: &str) -> Result<FileReply> {
+    pub async fn handle_file_get(&self, auth: Uuid, tail: &str) -> Result<FsFileReply, Rejection> {
         fs::handle_file_get(self, auth, tail).await
     }
-
-    // pub async fn handle_file_put(
-    //     &self,
-    //     auth: Uuid,
-    //     tail: &str,
-    //     stream: impl Stream<Item = Result<impl Buf, warp::Error>> + Unpin,
-    // ) -> Result<StatusCode> {
-    //     fs::handle_file_put(self, auth, tail, stream).await
-    // }
 
     /// Handle file server PUT requests
     pub async fn handle_file_put2(
@@ -130,12 +123,16 @@ impl Concierge {
         auth: Uuid,
         tail: &str,
         stream: impl Buf,
-    ) -> Result<StatusCode> {
+    ) -> Result<StatusCode, Rejection> {
         fs::handle_file_put2(self, auth, tail, stream).await
     }
 
     /// Handle file server DELETE requests
-    pub async fn handle_file_delete(&self, auth: Uuid, tail: &str) -> Result<StatusCode> {
+    pub async fn handle_file_delete(
+        &self,
+        auth: Uuid,
+        tail: &str,
+    ) -> Result<StatusCode, Rejection> {
         fs::handle_file_delete(self, auth, tail).await
     }
 }

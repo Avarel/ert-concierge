@@ -14,7 +14,7 @@ mod tests;
 
 use anyhow::Result;
 use concierge::Concierge;
-use log::{debug, error, info};
+use log::{debug, info};
 use std::{net::SocketAddr, sync::Arc};
 use uuid::Uuid;
 use warp::{path::Tail, Filter};
@@ -22,14 +22,6 @@ use warp::{path::Tail, Filter};
 // Local host
 pub const IP: [u8; 4] = [127, 0, 0, 1];
 pub const WS_PORT: u16 = 8080;
-
-// Internal error for the warp framework
-#[derive(Debug)]
-struct InternalConciergeError(anyhow::Error);
-impl warp::reject::Reject for InternalConciergeError {}
-fn internal_concierge_error(err: anyhow::Error) -> warp::Rejection {
-    warp::reject::custom(InternalConciergeError(err))
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -54,9 +46,7 @@ async fn main() -> Result<()> {
                 debug!("Incoming TCP connection. (ip: {:?})", addr);
                 let concierge = concierge.clone();
                 ws.on_upgrade(move |websocket| async move {
-                    if let Err(err) = concierge.handle_socket_conn(websocket, addr).await {
-                        error!("Error: {}", err);
-                    }
+                    concierge.handle_socket_conn(websocket, addr).await
                 })
             })
     };
@@ -73,7 +63,6 @@ async fn main() -> Result<()> {
                     server
                         .handle_file_get(auth, path.as_str())
                         .await
-                        .map_err(internal_concierge_error)
                 }
             })
     };
@@ -92,7 +81,6 @@ async fn main() -> Result<()> {
                     server
                         .handle_file_put2(auth, path.as_str(), stream)
                         .await
-                        .map_err(internal_concierge_error)
                 }
             })
     };
@@ -108,7 +96,6 @@ async fn main() -> Result<()> {
                     server
                         .handle_file_delete(auth, path.as_str())
                         .await
-                        .map_err(internal_concierge_error)
                 }
             })
     };

@@ -3,19 +3,24 @@ use serde_json::Value;
 use std::collections::HashSet;
 use uuid::Uuid;
 
-pub mod ok_payloads {
+pub mod ok {
     use super::Payload;
     use serde_json::Value;
 
-    pub const OK: Payload = Payload::Status {
-        code: 2000,
-        data: None,
-    };
+    #[allow(dead_code)]
+    pub const fn ok() -> Payload<'static> {
+        Payload::Status {
+            code: 2000,
+            data: None,
+        }
+    }
 
-    pub const MESSAGE_SENT: Payload = Payload::Status {
-        code: 2001,
-        data: None,
-    };
+    pub const fn message_sent() -> Payload<'static> {
+        Payload::Status {
+            code: 2001,
+            data: None,
+        }
+    }
 
     pub fn subscribed(group: &str) -> Payload {
         Payload::Status {
@@ -46,25 +51,32 @@ pub mod ok_payloads {
     }
 }
 
-pub mod err_payloads {
+pub mod err {
     use super::Payload;
     use serde_json::Value;
     use uuid::Uuid;
 
-    pub const BAD: Payload = Payload::Status {
-        code: 4000,
-        data: None,
-    };
+    #[allow(dead_code)]
+    pub const fn bad() -> Payload<'static> {
+        Payload::Status {
+            code: 4000,
+            data: None,
+        }
+    }
 
-    pub const UNSUPPORTED: Payload = Payload::Status {
-        code: 4001,
-        data: None,
-    };
+    pub const fn unsupported() -> Payload<'static> {
+        Payload::Status {
+            code: 4001,
+            data: None,
+        }
+    }
 
-    pub const PROTOCOL: Payload = Payload::Status {
-        code: 4002,
-        data: None,
-    };
+    pub const fn protocol() -> Payload<'static> {
+        Payload::Status {
+            code: 4002,
+            data: None,
+        }
+    }
 
     pub fn group_already_created(group: &str) -> Payload {
         Payload::Status {
