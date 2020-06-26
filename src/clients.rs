@@ -17,24 +17,6 @@ pub struct Client {
     pub groups: RwLock<HashSet<String>>,
 }
 
-// pub struct ClientFile {
-//     targets: Option<HashSet<Uuid>>,
-// }
-
-// impl ClientFile {
-//     pub fn no_target() -> Self {
-//         Self {
-//             targets: None
-//         }
-//     }
-
-//     pub fn targeted(targets: HashSet<Uuid>) -> Self {
-//         Self {
-//             targets: Some(targets)
-//         }
-//     }
-// }
-
 impl Client {
     /// Create a new client.
     pub fn new(uuid: Uuid, name: String) -> (Self, Receiver<Message>) {

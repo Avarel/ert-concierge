@@ -11,7 +11,7 @@ futures = "0.3.5"
 tokio = { version = "0.2", default-features = false, features = ["io-std", "macros", "time", "fs", "rt-threaded", "sync"] }
 tokio-util = { version = "0.3.1", default-features = false, features = ["codec"] }
 # WebSocket implementation
-warp = "0.2"
+warp = { version = "0.2", features = ["tls"] }
 # Fast multithreaded MPSC channels
 flume = "0.7.1"
 # Ergonomic error handling

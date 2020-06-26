@@ -93,7 +93,12 @@ async fn main() -> Result<()> {
         .or(fs_upload_route)
         .or(fs_delete_route);
 
-    warp::serve(routes).run(addr).await;
+    warp::serve(routes)
+        // .tls()
+        // .cert_path("./tls/cert.pem")
+        // .key_path("./tls/key.rsa")
+        .run(addr)
+        .await;
 
     Ok(())
 }
