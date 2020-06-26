@@ -19,8 +19,8 @@ use std::{net::SocketAddr, sync::Arc};
 use uuid::Uuid;
 use warp::{path::Tail, Filter};
 
-// Local host
-pub const IP: [u8; 4] = [127, 0, 0, 1];
+// isten on every available network interface
+pub const IP: [u8; 4] = [0, 0, 0, 0];
 pub const WS_PORT: u16 = 64209;
 
 #[tokio::main]
