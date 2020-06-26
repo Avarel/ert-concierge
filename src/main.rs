@@ -21,7 +21,7 @@ use warp::{path::Tail, Filter};
 
 // Local host
 pub const IP: [u8; 4] = [127, 0, 0, 1];
-pub const WS_PORT: u16 = 8080;
+pub const WS_PORT: u16 = 64209;
 
 #[tokio::main]
 async fn main() -> Result<()> {

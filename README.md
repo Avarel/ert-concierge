@@ -3,7 +3,7 @@ Websocket protocol for connecting multiple client types and facilitating transfe
 
 ## Running
 * Install [**Rust 1.44.1 or above**](https://www.rust-lang.org/).
-* `cd concierge/` to the project root.
+* Clone the repository.
 * Execute `cargo run --release` in the terminal.
 
 ## Documentation

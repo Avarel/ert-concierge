@@ -15,14 +15,18 @@ this period will also immediately drop the connection with either:
 * `4004` AUTH_FAILED: authorization failed due to timeout.
 * `4005` DUPLICATE_AUTH: namespace conflict in the concierge (pick another `name`!).
 
-Successful identification will result in a `HELLO` payload being sent to the client,
-along with a UUID that acts as the [file server](./FILESYSTEM.md) key.
+Successful identification will result in a `HELLO` payload being sent to the client, along with a UUID that acts as the [file server](./FILESYSTEM.md) key.
+
+Clients can use `MESSAGE` payloads to send data to specific targets or entire groups. If a message is sent to a group, then it will be broadcasted to every client subscribed to the group.
+
+The group must first be created using `CREATE_GROUP` before anyone can subscribe to it. The client that created the group is the only client that can delete the group with `DELETE_GROUP`. The group will also be automatically deleted if the owning client leaves the concierge.
 
 ## Identify
 **This payload must be the first payload sent
 within 5 seconds of establishing the socket connection**, else the
 connection will be dropped. When the concierge receives this payload, it will check
 that the `name` does not conflict with the current namespace. If everything goes well, a `HELLO` payload will be sent to the client.
+
 ### Structure
 ```typescript
 {
