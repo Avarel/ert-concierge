@@ -16,6 +16,7 @@ use anyhow::Result;
 use concierge::Concierge;
 use log::{debug, info};
 use std::{net::SocketAddr, sync::Arc};
+use tokio::runtime::Builder;
 use uuid::Uuid;
 use warp::{path::Tail, Filter};
 
@@ -23,8 +24,16 @@ use warp::{path::Tail, Filter};
 pub const IP: [u8; 4] = [0, 0, 0, 0];
 pub const WS_PORT: u16 = 64209;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
+    let mut runtime = Builder::new()
+        .threaded_scheduler()
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(serve())
+}
+
+async fn serve() -> Result<()> {
     env_logger::Builder::new()
         .filter_level(log::LevelFilter::Debug)
         .init();
