@@ -2,9 +2,8 @@ use crate::{
     concierge::WsError,
     payload::{Origin, Payload},
 };
-use flume::{unbounded, Receiver, Sender};
 use std::collections::HashSet;
-use tokio::sync::RwLock;
+use tokio::sync::{mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender}, RwLock};
 use uuid::Uuid;
 use warp::ws::Message;
 
@@ -14,18 +13,18 @@ pub struct Client {
     /// Client name.
     name: String,
     /// Sender channel.
-    tx: Sender<Message>,
+    tx: UnboundedSender<Message>,
     /// Groups.
     pub groups: RwLock<HashSet<String>>,
 }
 
 impl Client {
     /// Create a new client.
-    pub fn new(uuid: Uuid, name: String) -> (Self, Receiver<Message>) {
+    pub fn new(uuid: Uuid, name: String) -> (Self, UnboundedReceiver<Message>) {
         // This is our channels for messages.
         // rx: (receive) where messages are received
         // tx: (transmit) where we send messages
-        let (tx, rx) = unbounded();
+        let (tx, rx) = unbounded_channel();
         let instance = Self {
             uuid,
             name,

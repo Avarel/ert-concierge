@@ -7,12 +7,11 @@ use crate::{
     payload::{self, close_codes, Payload},
 };
 pub use error::WsError;
-use flume::Receiver;
 use futures::{future, pin_mut, SinkExt, Stream, StreamExt};
 use log::{debug, info, trace, warn};
 use payload::{Origin, Target};
 use std::{net::SocketAddr, path::Path, time::Duration};
-use tokio::time::timeout;
+use tokio::{sync::mpsc::UnboundedReceiver, time::timeout};
 use uuid::Uuid;
 use warp::ws::{Message, WebSocket};
 
@@ -95,7 +94,7 @@ async fn make_client(
     concierge: &Concierge,
     name: String,
     socket: &mut WebSocket,
-) -> Result<(Uuid, Receiver<Message>), WsError> {
+) -> Result<(Uuid, UnboundedReceiver<Message>), WsError> {
     // Acquire a write lock to prevent race condition
     let mut namespace = concierge.namespace.write().await;
     // Duplicate identification, close the stream.
@@ -166,7 +165,7 @@ pub async fn handle_socket_conn(
 async fn handle_client(
     concierge: &Concierge,
     client_uuid: Uuid,
-    rx: Receiver<Message>,
+    rx: UnboundedReceiver<Message>,
     socket: WebSocket,
 ) -> Result<(), WsError> {
     // This is the WebSocket channels for messages.
