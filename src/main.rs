@@ -25,6 +25,12 @@ pub const IP: [u8; 4] = [0, 0, 0, 0];
 pub const WS_PORT: u16 = 64209;
 
 fn main() -> Result<()> {
+    // Setup the logging
+    env_logger::Builder::new()
+        .filter_level(log::LevelFilter::Debug)
+        .init();
+
+    // Setup the runtime
     let mut runtime = Builder::new()
         .threaded_scheduler()
         .enable_all()
@@ -34,10 +40,6 @@ fn main() -> Result<()> {
 }
 
 async fn serve() -> Result<()> {
-    env_logger::Builder::new()
-        .filter_level(log::LevelFilter::Debug)
-        .init();
-
     // Wrap the server in an atomic ref-counter, to make it safe to work with in between threads.
     let concierge = Arc::new(Concierge::new());
 
@@ -67,8 +69,8 @@ async fn serve() -> Result<()> {
             .and(warp::path::tail())
             .and(warp::header::<Uuid>("Authorization"))
             .and_then(move |path: Tail, auth: Uuid| {
-                let server = concierge.clone();
-                async move { server.handle_file_get(auth, path.as_str()).await }
+                let concierge = concierge.clone();
+                async move { concierge.handle_file_get(auth, path.as_str()).await }
             })
     };
 
@@ -81,8 +83,8 @@ async fn serve() -> Result<()> {
             // .and(warp::body::content_length_limit(20971520))
             .and(warp::body::aggregate())
             .and_then(move |path: Tail, auth: Uuid, stream| {
-                let server = concierge.clone();
-                async move { server.handle_file_put(auth, path.as_str(), stream).await }
+                let concierge = concierge.clone();
+                async move { concierge.handle_file_put(auth, path.as_str(), stream).await }
             })
     };
 
@@ -92,8 +94,8 @@ async fn serve() -> Result<()> {
             .and(warp::path::tail())
             .and(warp::header::<Uuid>("Authorization"))
             .and_then(move |path: Tail, auth: Uuid| {
-                let server = concierge.clone();
-                async move { server.handle_file_delete(auth, path.as_str()).await }
+                let concierge = concierge.clone();
+                async move { concierge.handle_file_delete(auth, path.as_str()).await }
             })
     };
 

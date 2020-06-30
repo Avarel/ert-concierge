@@ -1,4 +1,7 @@
-use crate::{concierge::WsError, payload::{Origin, Payload}};
+use crate::{
+    concierge::WsError,
+    payload::{Origin, Payload},
+};
 use flume::{unbounded, Receiver, Sender};
 use std::collections::HashSet;
 use tokio::sync::RwLock;
@@ -23,15 +26,13 @@ impl Client {
         // rx: (receive) where messages are received
         // tx: (transmit) where we send messages
         let (tx, rx) = unbounded();
-        (
-            Self {
-                uuid,
-                name,
-                tx,
-                groups: RwLock::default(),
-            },
-            rx,
-        )
+        let instance = Self {
+            uuid,
+            name,
+            tx,
+            groups: RwLock::default(),
+        };
+        (instance, rx)
     }
 
     pub fn uuid(&self) -> Uuid {

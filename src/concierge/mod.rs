@@ -11,7 +11,7 @@ use fs::FsFileReply;
 use log::{debug, error, warn};
 use std::{
     collections::{HashMap, HashSet},
-    net::SocketAddr,
+    net::SocketAddr, sync::Arc,
 };
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -110,10 +110,10 @@ impl Concierge {
     }
 
     /// Handle new socket connections
-    pub async fn handle_socket_conn(&self, socket: WebSocket, addr: Option<SocketAddr>) {
+    pub async fn handle_socket_conn(self: Arc<Self>, socket: WebSocket, addr: Option<SocketAddr>) {
         // Connection must have an incoming socket address
         if let Some(addr) = addr {
-            if let Err(err) = ws::handle_socket_conn(self, socket, addr).await {
+            if let Err(err) = ws::handle_socket_conn(&self, socket, addr).await {
                 error!("WS error: {:?}", err);
             }
         } else {
@@ -126,31 +126,31 @@ impl Concierge {
     }
 
     /// Handle file server GET requests
-    pub async fn handle_file_get(&self, auth: Uuid, tail: &str) -> Result<FsFileReply, Rejection> {
-        fs::handle_file_get(self, auth, tail)
+    pub async fn handle_file_get(self: Arc<Self>, auth: Uuid, tail: &str) -> Result<FsFileReply, Rejection> {
+        fs::handle_file_get(&self, auth, tail)
             .await
             .map_err(|err| err.rejection())
     }
 
     /// Handle file server PUT requests
     pub async fn handle_file_put(
-        &self,
+        self: Arc<Self>,
         auth: Uuid,
         tail: &str,
         stream: impl Buf,
     ) -> Result<StatusCode, Rejection> {
-        fs::handle_file_put(self, auth, tail, stream)
+        fs::handle_file_put(&self, auth, tail, stream)
             .await
             .map_err(|err| err.rejection())
     }
 
     /// Handle file server DELETE requests
     pub async fn handle_file_delete(
-        &self,
+        self: Arc<Self>,
         auth: Uuid,
         tail: &str,
     ) -> Result<StatusCode, Rejection> {
-        fs::handle_file_delete(self, auth, tail)
+        fs::handle_file_delete(&self, auth, tail)
             .await
             .map_err(|err| err.rejection())
     }

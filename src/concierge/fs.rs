@@ -179,9 +179,7 @@ pub async fn handle_file_put(
     // Write the file as long as the body streams bytes.
     while body.has_remaining() {
         let bytes = body.bytes();
-        file.write_all(body.bytes())
-            .await
-            .map_err(|_| FsError::IoError)?;
+        file.write_all(bytes).await.map_err(|_| FsError::IoError)?;
         let n = bytes.len();
         body.advance(n);
     }
