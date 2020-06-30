@@ -15,7 +15,7 @@ warp = { version = "0.2", features = ["tls"] }
 # Ergonomic error handling
 anyhow = "1.0.31"
 # Serialization framework
-serde_json = "1.0.55"
+serde_json = "1.0.56"
 serde = { version = "1.0.114", features = ["derive"] }
 # Logging capabilities
 log = "0.4.8"
