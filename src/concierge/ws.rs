@@ -16,17 +16,28 @@ use tokio::time::timeout;
 use uuid::Uuid;
 use warp::ws::{Message, WebSocket};
 
+#[derive(Debug, Copy, Clone)]
+pub enum WsError {
+    SendError,
+    EncodeError,
+    DuplicateAuth,
+    SocketSendError,
+    InternalError
+}
+
 /// Broadcast a payload to all connected clients of a certain group.
 pub(super) async fn broadcast(
     concierge: &Concierge,
     group: &Group,
     payload: Payload<'_>,
-) -> Result<()> {
-    let message = Message::text(serde_json::to_string(&payload)?);
+) -> Result<(), WsError> {
+    let message = Message::text(serde_json::to_string(&payload).map_err(|_| WsError::EncodeError)?);
     let clients = concierge.clients.read().await;
     for uuid in group.clients.iter() {
         if let Some(client) = clients.get(uuid) {
-            client.send_ws_msg(message.clone())?;
+            client
+                .send_ws_msg(message.clone())
+                .map_err(|_| WsError::SendError)?;
         } else {
             warn!("Group had an invalid client id");
         }
@@ -35,11 +46,16 @@ pub(super) async fn broadcast(
 }
 
 /// Broadcast to all connected clients.
-pub(super) async fn broadcast_all(concierge: &Concierge, payload: Payload<'_>) -> Result<()> {
-    let message = Message::text(serde_json::to_string(&payload)?);
+pub(super) async fn broadcast_all(
+    concierge: &Concierge,
+    payload: Payload<'_>,
+) -> Result<(), WsError> {
+    let message = Message::text(serde_json::to_string(&payload).map_err(|_| WsError::EncodeError)?);
     let clients = concierge.clients.read().await;
     for (_, client) in clients.iter() {
-        client.send_ws_msg(message.clone())?;
+        client
+            .send_ws_msg(message.clone())
+            .map_err(|_| WsError::SendError)?;
     }
     Ok(())
 }
@@ -69,7 +85,7 @@ async fn make_client(
     concierge: &Concierge,
     name: String,
     socket: &mut WebSocket,
-) -> Result<(Uuid, Receiver<Message>)> {
+) -> Result<(Uuid, Receiver<Message>), WsError> {
     // Acquire a write lock to prevent race condition
     let mut namespace = concierge.namespace.write().await;
     // Duplicate identification, close the stream.
@@ -80,9 +96,10 @@ async fn make_client(
                 close_codes::DUPLICATE_AUTH,
                 "Identification failed",
             ))
-            .await?;
-        socket.close().await?;
-        return Err(anyhow!("Duplicate identification"));
+            .await
+            .map_err(|_| WsError::DuplicateAuth)?;
+        socket.close().await.map_err(|_| WsError::DuplicateAuth)?;
+        return Err(WsError::DuplicateAuth);
     }
 
     // Handle new client
@@ -110,7 +127,7 @@ pub async fn handle_socket_conn(
     concierge: &Concierge,
     mut socket: WebSocket,
     addr: SocketAddr,
-) -> Result<()> {
+) -> Result<(), WsError> {
     // Protocol: Expect a payload that identifies the client within 5 seconds.
     match handle_identification(&mut socket).await {
         // Got the identification data successfully.
@@ -129,8 +146,8 @@ pub async fn handle_socket_conn(
             );
             socket
                 .send(Message::close_with(close_code, "Identification failed"))
-                .await?;
-            Ok(socket.close().await?)
+                .await.map_err(|_| WsError::SocketSendError)?;
+            Ok(socket.close().await.map_err(|_| WsError::SocketSendError)?)
         }
     }
 }
@@ -141,7 +158,7 @@ async fn handle_client(
     client_uuid: Uuid,
     rx: Receiver<Message>,
     socket: WebSocket,
-) -> Result<()> {
+) -> Result<(), WsError> {
     // This is the WebSocket channels for messages.
     // incoming: where we receive messages
     // outgoing: where the websocket send messages
@@ -167,7 +184,8 @@ async fn handle_client(
         .await
         .get(&client_uuid)
         .unwrap()
-        .send(Payload::Hello { uuid: client_uuid })?;
+        .send(Payload::Hello { uuid: client_uuid })
+        .map_err(|_| WsError::SendError)?;
 
     // Irrelevant implementation detail: pinning prevents pointer invalidation
     pin_mut!(incoming_handler, receive_from_others);
@@ -178,7 +196,7 @@ async fn handle_client(
     Ok(())
 }
 
-async fn remove_client(concierge: &Concierge, client_uuid: Uuid) -> Result<()> {
+async fn remove_client(concierge: &Concierge, client_uuid: Uuid) -> Result<(), WsError> {
     // let client = concierge.clients.get(&client_uuid).unwrap();
     // let client_name = client.name();
     // let origin_receipt = client.origin_receipt();
@@ -215,7 +233,7 @@ pub async fn handle_incoming_messages(
     uuid: Uuid,
     concierge: &Concierge,
     mut incoming: impl Stream<Item = Result<Message>> + Unpin,
-) -> Result<()> {
+) -> Result<(), WsError> {
     while let Some(Ok(message)) = incoming.next().await {
         if let Ok(string) = message.to_str() {
             if let Ok(payload) = serde_json::from_str::<Payload>(string) {
@@ -235,7 +253,7 @@ async fn handle_payload(
     client_uuid: Uuid,
     concierge: &Concierge,
     payload: Payload<'_>,
-) -> Result<()> {
+) -> Result<(), WsError> {
     let clients = concierge.clients.read().await;
     let client = clients.get(&client_uuid).unwrap();
 
@@ -344,7 +362,7 @@ async fn handle_message(
     concierge: &Concierge,
     target: Target<'_>,
     data: serde_json::Value,
-) -> Result<()> {
+) -> Result<(), WsError> {
     let clients = concierge.clients.read().await;
     let client = clients.get(&client_uuid).unwrap();
     match target {

@@ -1,4 +1,4 @@
-use crate::payload::{Origin, Payload};
+use crate::{concierge::WsError, payload::{Origin, Payload}};
 use anyhow::{anyhow, Result};
 use flume::{unbounded, Receiver, Sender};
 use std::collections::HashSet;
@@ -52,12 +52,12 @@ impl Client {
     }
 
     /// Send a payload.
-    pub fn send(&self, payload: Payload) -> Result<()> {
-        self.send_ws_msg(Message::text(serde_json::to_string(&payload)?))
+    pub fn send(&self, payload: Payload) -> Result<(), WsError> {
+        self.send_ws_msg(Message::text(serde_json::to_string(&payload).map_err(|_| WsError::EncodeError)?))
     }
 
     /// Send a WebSocket message.
-    pub fn send_ws_msg(&self, msg: Message) -> Result<()> {
-        self.tx.send(msg).map_err(|_| anyhow!("Send error"))
+    pub fn send_ws_msg(&self, msg: Message) -> Result<(), WsError> {
+        self.tx.send(msg).map_err(|_| WsError::SendError)
     }
 }

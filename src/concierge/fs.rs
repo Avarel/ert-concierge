@@ -12,8 +12,7 @@ use tokio_util::codec::{BytesCodec, FramedRead};
 use uuid::Uuid;
 use warp::{
     hyper::{Body, Response, StatusCode},
-    reject::Reject,
-    Buf, Rejection,
+    Buf, Rejection, reject::Reject,
 };
 
 /// Base path of the file system.
@@ -21,6 +20,25 @@ macro_rules! base_path {
     () => {
         Path::new(".").join("fs")
     };
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum FsError {
+    Unknown,
+    Encoding,
+    FileNotFound,
+    IoError,
+    NotAFile,
+    Forbidden,
+    BadAuthorization,
+}
+
+impl Reject for FsError {}
+
+impl FsError {
+    pub fn rejection(self) -> Rejection {
+        warp::reject::custom(self)
+    }
 }
 
 pub struct FsFileReply {
@@ -34,23 +52,6 @@ impl FsFileReply {
             file_name: string.to_string(),
             file,
         }
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-enum FsError {
-    Unknown,
-    Encoding,
-    FileNotFound,
-    IoError,
-    NotAFile,
-    Forbidden,
-    BadAuthorization,
-}
-impl Reject for FsError {}
-impl FsError {
-    fn rejection(self) -> Rejection {
-        warp::reject::custom(self)
     }
 }
 
@@ -78,12 +79,12 @@ pub async fn handle_file_get(
     concierge: &Concierge,
     auth: Uuid,
     string: &str,
-) -> Result<FsFileReply, Rejection> {
+) -> Result<FsFileReply, FsError> {
     debug!("Received GET request (auth: {}, path: {})", auth, string);
 
     // Check that the key is registered with the concierge.
     if !concierge.clients.read().await.contains_key(&auth) {
-        return Err(FsError::BadAuthorization.rejection());
+        return Err(FsError::BadAuthorization);
     }
 
     // Construct the file path.
@@ -94,17 +95,17 @@ pub async fn handle_file_get(
     let file_name = file_path
         .file_name()
         .and_then(OsStr::to_str)
-        .ok_or_else(|| FsError::Encoding.rejection())?;
+        .ok_or_else(|| FsError::Encoding)?;
 
     // Check that the file at the path is a file.
     if file_path.is_file() {
-        return Err(FsError::NotAFile.rejection());
+        return Err(FsError::NotAFile);
     }
 
     // Make sure file exists.
     let file = File::open(&file_path)
         .await
-        .map_err(|_| FsError::FileNotFound.rejection())?;
+        .map_err(|_| FsError::FileNotFound)?;
 
     Ok(FsFileReply::new(file_name.to_owned(), file))
 }
@@ -113,26 +114,26 @@ pub async fn handle_file_delete(
     concierge: &Concierge,
     auth: Uuid,
     string: &str,
-) -> Result<StatusCode, Rejection> {
+) -> Result<StatusCode, FsError> {
     debug!("Received delete request (auth: {}, path: {})", auth, string);
 
     // Check that a client with the auth UUID exists in the concierge.
     let clients = concierge.clients.read().await;
     let client = clients
         .get(&auth)
-        .ok_or_else(|| FsError::BadAuthorization.rejection())?;
+        .ok_or_else(|| FsError::BadAuthorization)?;
 
     // Check that the client has access to the path.
     let tail_path = Path::new(string);
     if !tail_path.starts_with(Path::new(client.name())) {
-        return Err(FsError::Forbidden.rejection());
+        return Err(FsError::Forbidden);
     }
 
     // Construct the path and remove the file.
     let file_path = base_path!().join(tail_path);
     tokio::fs::remove_file(file_path)
         .await
-        .map_err(|_| FsError::FileNotFound.rejection())?;
+        .map_err(|_| FsError::FileNotFound)?;
 
     Ok(StatusCode::OK)
 }
@@ -142,26 +143,26 @@ pub async fn handle_file_put(
     auth: Uuid,
     string: &str,
     mut body: impl Buf,
-) -> Result<StatusCode, Rejection> {
+) -> Result<StatusCode, FsError> {
     debug!("Received upload request (auth: {}, path: {})", auth, string);
 
     // Check that a client with the auth UUID exists in the concierge.
     let clients = concierge.clients.read().await;
     let client = clients
         .get(&auth)
-        .ok_or_else(|| FsError::BadAuthorization.rejection())?;
+        .ok_or_else(|| FsError::BadAuthorization)?;
 
     // Check that the client has access to the path.
     let tail_path = Path::new(string);
     if !tail_path.starts_with(Path::new(client.name())) {
-        return Err(FsError::Forbidden.rejection());
+        return Err(FsError::Forbidden);
     }
 
     // Construct the path and create the directories recursively.
     let file_path = base_path!().join(tail_path);
     tokio::fs::create_dir_all(file_path.parent().unwrap())
         .await
-        .map_err(|_| FsError::Unknown.rejection())?;
+        .map_err(|_| FsError::Unknown)?;
 
     // Open the file.
     let mut file = OpenOptions::new()
@@ -169,14 +170,14 @@ pub async fn handle_file_put(
         .write(true)
         .open(file_path)
         .await
-        .map_err(|_| FsError::FileNotFound.rejection())?;
+        .map_err(|_| FsError::FileNotFound)?;
 
     // Write the file as long as the body streams bytes.
     while body.has_remaining() {
         let bytes = body.bytes();
         file.write_all(body.bytes())
             .await
-            .map_err(|_| FsError::IoError.rejection())?;
+            .map_err(|_| FsError::IoError)?;
         let n = bytes.len();
         body.advance(n);
     }

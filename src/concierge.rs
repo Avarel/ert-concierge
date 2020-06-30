@@ -17,6 +17,7 @@ use std::{
 use tokio::sync::RwLock;
 use uuid::Uuid;
 use warp::{hyper::StatusCode, ws::WebSocket, Buf, Rejection};
+pub use ws::WsError;
 
 /// Central struct that stores the concierge data.
 pub struct Concierge {
@@ -41,7 +42,7 @@ impl Concierge {
     }
 
     /// Broadcast a payload to all clients.
-    pub async fn broadcast_all(&self, payload: Payload<'_>) -> Result<()> {
+    pub async fn broadcast_all(&self, payload: Payload<'_>) -> Result<(), WsError> {
         ws::broadcast_all(self, payload).await
     }
 
@@ -93,13 +94,13 @@ impl Concierge {
 
     /// Remove a client from clientspace, namespace, their owned groups, and
     /// them from any of their subscribed groups.
-    pub async fn remove_client(&self, uuid: Uuid) -> Result<Client> {
+    pub async fn remove_client(&self, uuid: Uuid) -> Result<Client, WsError> {
         let client = self
             .clients
             .write()
             .await
             .remove(&uuid)
-            .ok_or_else(|| anyhow!("Tried to remove a client that does not exist"))?;
+            .ok_or_else(|| WsError::InternalError)?;
         // Remove from namespace
         self.remove_name(client.name()).await;
         // Remove any owned groups
@@ -114,7 +115,7 @@ impl Concierge {
         // Connection must have an incoming socket address
         if let Some(addr) = addr {
             if let Err(err) = ws::handle_socket_conn(self, socket, addr).await {
-                error!("WS error: {}", err);
+                error!("WS error: {:?}", err);
             }
         } else {
             warn!("Client joined without address.");
@@ -127,7 +128,9 @@ impl Concierge {
 
     /// Handle file server GET requests
     pub async fn handle_file_get(&self, auth: Uuid, tail: &str) -> Result<FsFileReply, Rejection> {
-        fs::handle_file_get(self, auth, tail).await
+        fs::handle_file_get(self, auth, tail)
+            .await
+            .map_err(|err| err.rejection())
     }
 
     /// Handle file server PUT requests
@@ -137,7 +140,9 @@ impl Concierge {
         tail: &str,
         stream: impl Buf,
     ) -> Result<StatusCode, Rejection> {
-        fs::handle_file_put(self, auth, tail, stream).await
+        fs::handle_file_put(self, auth, tail, stream)
+            .await
+            .map_err(|err| err.rejection())
     }
 
     /// Handle file server DELETE requests
@@ -146,7 +151,9 @@ impl Concierge {
         auth: Uuid,
         tail: &str,
     ) -> Result<StatusCode, Rejection> {
-        fs::handle_file_delete(self, auth, tail).await
+        fs::handle_file_delete(self, auth, tail)
+            .await
+            .map_err(|err| err.rejection())
     }
 }
 
@@ -166,7 +173,7 @@ impl Group {
     }
 
     /// Broadcast a payload to all connected client of a certain group.
-    pub async fn broadcast(&self, concierge: &Concierge, payload: Payload<'_>) -> Result<()> {
+    pub async fn broadcast(&self, concierge: &Concierge, payload: Payload<'_>) -> Result<(), WsError> {
         ws::broadcast(concierge, self, payload).await
     }
 }
