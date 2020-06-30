@@ -7,7 +7,6 @@ use crate::{
     clients::Client,
     payload::{ok, Payload},
 };
-use anyhow::{anyhow, Result};
 use fs::FsFileReply;
 use log::{debug, error, warn};
 use std::{
@@ -100,7 +99,7 @@ impl Concierge {
             .write()
             .await
             .remove(&uuid)
-            .ok_or_else(|| WsError::InternalError)?;
+            .ok_or_else(|| WsError::Internal)?;
         // Remove from namespace
         self.remove_name(client.name()).await;
         // Remove any owned groups
@@ -173,7 +172,11 @@ impl Group {
     }
 
     /// Broadcast a payload to all connected client of a certain group.
-    pub async fn broadcast(&self, concierge: &Concierge, payload: Payload<'_>) -> Result<(), WsError> {
+    pub async fn broadcast(
+        &self,
+        concierge: &Concierge,
+        payload: Payload<'_>,
+    ) -> Result<(), WsError> {
         ws::broadcast(concierge, self, payload).await
     }
 }

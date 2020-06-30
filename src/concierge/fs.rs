@@ -1,7 +1,7 @@
 //! This file manages the file server part of the Concierge.
 
 use super::Concierge;
-use anyhow::Result;
+pub use error::FsError;
 use log::debug;
 use std::{ffi::OsStr, path::Path};
 use tokio::{
@@ -12,33 +12,37 @@ use tokio_util::codec::{BytesCodec, FramedRead};
 use uuid::Uuid;
 use warp::{
     hyper::{Body, Response, StatusCode},
-    Buf, Rejection, reject::Reject,
+    Buf,
 };
+
+mod error {
+    use warp::{reject::Reject, Rejection};
+
+    #[derive(Debug, Copy, Clone)]
+    pub enum FsError {
+        Unknown,
+        Encoding,
+        FileNotFound,
+        IoError,
+        NotAFile,
+        Forbidden,
+        BadAuthorization,
+    }
+
+    impl Reject for FsError {}
+
+    impl FsError {
+        pub fn rejection(self) -> Rejection {
+            warp::reject::custom(self)
+        }
+    }
+}
 
 /// Base path of the file system.
 macro_rules! base_path {
     () => {
         Path::new(".").join("fs")
     };
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum FsError {
-    Unknown,
-    Encoding,
-    FileNotFound,
-    IoError,
-    NotAFile,
-    Forbidden,
-    BadAuthorization,
-}
-
-impl Reject for FsError {}
-
-impl FsError {
-    pub fn rejection(self) -> Rejection {
-        warp::reject::custom(self)
-    }
 }
 
 pub struct FsFileReply {

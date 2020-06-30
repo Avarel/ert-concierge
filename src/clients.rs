@@ -1,5 +1,4 @@
 use crate::{concierge::WsError, payload::{Origin, Payload}};
-use anyhow::{anyhow, Result};
 use flume::{unbounded, Receiver, Sender};
 use std::collections::HashSet;
 use tokio::sync::RwLock;
@@ -53,11 +52,11 @@ impl Client {
 
     /// Send a payload.
     pub fn send(&self, payload: Payload) -> Result<(), WsError> {
-        self.send_ws_msg(Message::text(serde_json::to_string(&payload).map_err(|_| WsError::EncodeError)?))
+        self.send_ws_msg(Message::text(serde_json::to_string(&payload)?))
     }
 
     /// Send a WebSocket message.
     pub fn send_ws_msg(&self, msg: Message) -> Result<(), WsError> {
-        self.tx.send(msg).map_err(|_| WsError::SendError)
+        self.tx.send(msg).map_err(|_| WsError::Channel)
     }
 }
