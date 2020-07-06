@@ -27,20 +27,24 @@ The group must first be created using `CREATE_GROUP` before anyone can subscribe
 **This payload must be the first payload sent
 within 5 seconds of establishing the socket connection**, else the
 connection will be dropped. When the concierge receives this payload, it will check
-that the `name` does not conflict with the current namespace. If everything goes well, a `HELLO` payload will be sent to the client.
+that the `name` does not conflict with the current namespace. If everything goes 
+well, a `HELLO` payload will be sent to the client. The server versioning should
+follow semantic versioning.
 
 ### Structure
 ```typescript
 {
     "operation": "IDENTIFY",
-    "name": string
+    "name": string,
+    "version": string,
+    "secret": string | undefined,
 }
 ```
 ### Example
 ```json
-{ "operation": "IDENTIFY", "name": "anthony" }
-{ "operation": "IDENTIFY", "name": "brendan" }
-{ "operation": "IDENTIFY", "name": "simulation" }
+{ "operation": "IDENTIFY", "name": "anthony", "version": "0.1.0" }
+{ "operation": "IDENTIFY", "name": "brendan", "version": "0.1.0" }
+{ "operation": "IDENTIFY", "name": "simulation", "version": "0.1.0" }
 ```
 ## Message
 These payloads have special fields for targeting
@@ -246,19 +250,21 @@ subscriptions.
 ## Hello
 This payload is sent upon successful identification.
 The payload will also contain a universally unique identifier `uuid`
-that acts as a file server key.
+that acts as a file server key and the version of the server.
 ### Structure
 ```typescript
 {
     "operation": "HELLO",
-    "uuid": string
+    "uuid": string,
+    "version": string
 }
 ```
 ### Example
 ```json
 {
     "operation": "HELLO",
-    "uuid": "73fcc768-d724-47e2-a101-a45298188f47"
+    "uuid": "73fcc768-d724-47e2-a101-a45298188f47",
+    "version": "0.1.0"
 }
 ```
 ## Group Subscribers List
