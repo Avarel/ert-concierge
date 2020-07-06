@@ -10,6 +10,7 @@ pub use error::WsError;
 use futures::{future, pin_mut, SinkExt, Stream, StreamExt};
 use log::{debug, info, trace, warn};
 use payload::{Origin, Target};
+use semver::{Version, VersionReq};
 use std::{net::SocketAddr, path::Path, time::Duration};
 use tokio::{sync::mpsc::UnboundedReceiver, time::timeout};
 use uuid::Uuid;
@@ -78,7 +79,20 @@ async fn handle_identification(socket: &mut WebSocket) -> Result<String, u16> {
             .to_str()
             .and_then(|s| serde_json::from_str(s).map_err(|_| ()))
         {
-            if let Payload::Identify { name } = payload {
+            if let Payload::Identify {
+                name,
+                version,
+                secret,
+            } = payload
+            {
+                if secret != crate::SECRET {
+                    return Err(close_codes::BAD_SECRET);
+                } else if !VersionReq::parse(crate::VERSION)
+                    .unwrap()
+                    .matches(&Version::parse(version).unwrap())
+                {
+                    return Err(close_codes::BAD_VERSION);
+                }
                 return Ok(name.to_owned());
             } else {
                 return Err(close_codes::NO_AUTH);
@@ -192,7 +206,10 @@ async fn handle_client(
         .await
         .get(&client_uuid)
         .unwrap()
-        .send(Payload::Hello { uuid: client_uuid })?;
+        .send(Payload::Hello {
+            uuid: client_uuid,
+            version: crate::VERSION,
+        })?;
 
     // Irrelevant implementation detail: pinning prevents pointer invalidation
     pin_mut!(incoming_handler, receive_from_others);
@@ -329,7 +346,7 @@ async fn handle_payload(
                         uuid: client.uuid(),
                     })
                     .collect::<Vec<_>>();
-                client.send(Payload::GroupSubs {
+                client.send(Payload::GroupSubList {
                     group: &group.name,
                     clients,
                 })?;
@@ -355,7 +372,7 @@ async fn handle_payload(
         Payload::FetchSubs => {
             let groups = concierge.groups.read().await;
             let group_names = groups.iter().map(|(s, _)| s.as_str()).collect::<Vec<_>>();
-            client.send(Payload::Subs {
+            client.send(Payload::SubList {
                 groups: group_names,
             })?
         }

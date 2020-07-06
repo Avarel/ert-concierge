@@ -14,6 +14,8 @@ this period will also immediately drop the connection with either:
 * `4003` NO_AUTH: a normal payload was sent prior to identification.
 * `4004` AUTH_FAILED: authorization failed due to timeout.
 * `4005` DUPLICATE_AUTH: namespace conflict in the concierge (pick another `name`!).
+* `4006` BAD_SECRET: expected secret does not match gateway secret.
+* `4007` BAD_VERSION: expected version is not compatible with gateway version (update your client).
 
 Successful identification will result in a `HELLO` payload being sent to the client, along with a UUID that acts as the [file server](./FILESYSTEM.md) key.
 

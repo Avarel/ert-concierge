@@ -18,11 +18,12 @@ use log::{debug, info};
 use std::{net::SocketAddr, sync::Arc};
 use tokio::runtime::Builder;
 use uuid::Uuid;
-use warp::{path::Tail, Filter};
+use warp::{path::Tail, Filter, hyper::header};
 
 // isten on every available network interface
-pub const IP: [u8; 4] = [0, 0, 0, 0];
-pub const WS_PORT: u16 = 64209;
+pub const SOCKET_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 64209);
+pub const VERSION: &str = "0.1.0";
+pub const SECRET: Option<&str> = None;
 
 fn main() -> Result<()> {
     // Setup the logging
@@ -45,7 +46,7 @@ async fn serve() -> Result<()> {
 
     info!("Starting up the server.");
 
-    let addr = SocketAddr::from((IP, WS_PORT));
+    let addr = SocketAddr::from(SOCKET_ADDR);
 
     let ws_route = {
         let concierge = concierge.clone();
@@ -67,7 +68,7 @@ async fn serve() -> Result<()> {
         warp::get()
             .and(warp::path("fs"))
             .and(warp::path::tail())
-            .and(warp::header::<Uuid>("Authorization"))
+            .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
             .and_then(move |path: Tail, auth: Uuid| {
                 let concierge = concierge.clone();
                 async move { concierge.handle_file_get(auth, path.as_str()).await }
@@ -79,7 +80,7 @@ async fn serve() -> Result<()> {
         warp::put()
             .and(warp::path("fs"))
             .and(warp::path::tail())
-            .and(warp::header::<Uuid>("Authorization"))
+            .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
             // .and(warp::body::content_length_limit(20971520))
             .and(warp::body::aggregate())
             .and_then(move |path: Tail, auth: Uuid, stream| {
@@ -92,7 +93,7 @@ async fn serve() -> Result<()> {
         warp::delete()
             .and(warp::path("fs"))
             .and(warp::path::tail())
-            .and(warp::header::<Uuid>("Authorization"))
+            .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
             .and_then(move |path: Tail, auth: Uuid| {
                 let concierge = concierge.clone();
                 async move { concierge.handle_file_delete(auth, path.as_str()).await }

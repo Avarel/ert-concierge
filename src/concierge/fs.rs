@@ -11,7 +11,7 @@ use tokio::{
 use tokio_util::codec::{BytesCodec, FramedRead};
 use uuid::Uuid;
 use warp::{
-    hyper::{Body, Response, StatusCode},
+    hyper::{Body, Response, StatusCode, header},
     Buf,
 };
 
@@ -63,10 +63,11 @@ impl warp::Reply for FsFileReply {
     fn into_response(self) -> Response<Body> {
         // FramedRead reads the file in chunks and reuses a buffer to save memory.
         let stream = FramedRead::new(self.file, BytesCodec::new());
+        
         Response::builder()
             .status(StatusCode::ACCEPTED)
             .header(
-                "Content-Disposition",
+                header::CONTENT_DISPOSITION.as_str(),
                 format!("attachment; filename=\"{}\"", self.file_name),
             )
             .body(Body::wrap_stream(stream))

@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{value::RawValue, Value};
 use uuid::Uuid;
 
 pub mod ok {
@@ -113,6 +113,8 @@ pub mod close_codes {
     pub const NO_AUTH: u16 = 4003;
     pub const AUTH_FAILED: u16 = 4004;
     pub const DUPLICATE_AUTH: u16 = 4005;
+    pub const BAD_SECRET: u16 = 4006;
+    pub const BAD_VERSION: u16 = 4007;
 }
 
 pub type GroupId<'a> = &'a str;
@@ -122,15 +124,19 @@ pub type GroupId<'a> = &'a str;
 ///
 /// # Example
 /// ```json
-/// { "operation": "ABCDEFG", "data": { "foo": "bar" }}
+/// { "type": "ABCDEFG", "data": { "foo": "bar" }}
 /// ```
 #[derive(Serialize, Deserialize, Clone)]
-#[serde(tag = "operation", rename_all = "SCREAMING_SNAKE_CASE")]
+#[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Payload<'a> {
     /// This payload must be the first payload sent
     /// within 5 seconds of establishing the socket connection, else the
     /// connection will be dropped.
-    Identify { name: &'a str },
+    Identify {
+        name: &'a str,
+        version: &'a str,
+        secret: Option<&'a str>,
+    },
     /// These payloads have special fields for targeting
     /// other users or plugins. The origin fields are ignored if they are
     /// sent to the concierge, since the identification process happens
@@ -155,7 +161,8 @@ pub enum Payload<'a> {
         #[serde(skip_deserializing)]
         origin: Option<Origin<'a>>,
         // Data field.
-        data: Value,
+        #[serde(borrow)]
+        data: &'a RawValue,
     },
     /// Create a group such that every subscriber
     /// will receive the message targeted towards that group.
@@ -177,10 +184,11 @@ pub enum Payload<'a> {
     FetchSubs,
     /// This payload is sent upon successful identification.
     /// The payload will also contain a universally unique identifier
-    /// that acts as a file server key.
-    Hello { uuid: Uuid },
-    /// Returns all the client (subscribed to the group) names as an array of strings.
-    GroupSubs {
+    /// that acts as a file server key. The payload also returns
+    /// the server's version.
+    Hello { uuid: Uuid, version: &'a str },
+    /// Returns all of the clients (subscribed to the group) an array of origin structs.
+    GroupSubList {
         group: GroupId<'a>,
         clients: Vec<Origin<'a>>,
     },
@@ -189,7 +197,7 @@ pub enum Payload<'a> {
     /// This payload lists all of the clients registered with the concierge.
     ClientList { clients: Vec<Origin<'a>> },
     /// This payload lists all of the connecting client's subscriptions.
-    Subs { groups: Vec<&'a str> },
+    SubList { groups: Vec<&'a str> },
     /// A payload broadcasted whenever a new client joins. This is not
     /// emitted to newly joining clients.
     ClientJoin {

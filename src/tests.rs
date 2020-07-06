@@ -7,7 +7,7 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 use ws::WsClient;
 
 mod ws {
-    use crate::{payload::Payload, IP, WS_PORT};
+    use crate::{payload::Payload, SOCKET_ADDR};
     use futures::{SinkExt, StreamExt};
     use std::net::SocketAddr;
     use tokio::net::TcpStream;
@@ -73,13 +73,13 @@ mod ws {
     }
 
     pub fn local_url() -> String {
-        let addr = SocketAddr::from((IP, WS_PORT));
+        let addr = SocketAddr::from(SOCKET_ADDR);
         format!("ws://{}/ws", addr)
     }
 }
 
 fn identify(string: &str) -> Payload<'_> {
-    Payload::Identify { name: string }
+    Payload::Identify { name: string, version: crate::VERSION, secret: None }
 }
 
 #[tokio::test]
