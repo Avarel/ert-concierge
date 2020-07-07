@@ -13,7 +13,7 @@ mod payload;
 mod tests;
 
 use anyhow::Result;
-use concierge::Concierge;
+use concierge::{Group, Concierge};
 use log::{debug, info};
 use std::{net::SocketAddr, sync::Arc};
 use tokio::runtime::Builder;
@@ -37,13 +37,21 @@ fn main() -> Result<()> {
         .enable_all()
         .build()
         .unwrap();
-    runtime.block_on(serve())
+    runtime.block_on(setup())
 }
 
-async fn serve() -> Result<()> {
+async fn setup() -> Result<()> {
     // Wrap the server in an atomic ref-counter, to make it safe to work with in between threads.
     let concierge = Arc::new(Concierge::new());
 
+    // Create a chat group
+    let chat_name = "chat".to_owned();
+    concierge.groups.write().await.insert(chat_name.to_owned(), Group::new(chat_name, Uuid::nil()));
+
+    serve(concierge).await
+}
+
+async fn serve(concierge: Arc<Concierge>) -> Result<()> {
     info!("Starting up the server.");
 
     let addr = SocketAddr::from(SOCKET_ADDR);

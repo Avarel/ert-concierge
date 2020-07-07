@@ -70,10 +70,10 @@ pub mod err {
         }
     }
 
-    pub const fn protocol() -> Payload<'static> {
+    pub fn protocol(string: Option<&str>) -> Payload<'static> {
         Payload::Status {
             code: 4002,
-            data: None,
+            data: string.map(str::to_owned).map(Value::String),
         }
     }
 
@@ -149,21 +149,13 @@ pub enum Payload<'a> {
         /// (using name or uuid), or a group.
         target: Target<'a>,
         /// Data field.
+        // #[serde(borrow)]
         data: Value,
     },
     /// Subscribe to a group's broadcast.
     Subscribe { group: GroupId<'a> },
     /// Unsubscribe from a group's broadcast.
     Unsubscribe { group: GroupId<'a> },
-    /// Broadcast to every client connected to the concierge.
-    Broadcast {
-        // Origin of the message.
-        #[serde(skip_deserializing)]
-        origin: Option<Origin<'a>>,
-        // Data field.
-        #[serde(borrow)]
-        data: &'a RawValue,
-    },
     /// Create a group such that every subscriber
     /// will receive the message targeted towards that group.
     CreateGroup { group: GroupId<'a> },
@@ -225,6 +217,14 @@ pub enum Payload<'a> {
 pub struct Origin<'a> {
     pub name: &'a str,
     pub uuid: Uuid,
+    pub group: Option<&'a str>,
+}
+
+impl<'a> Origin<'a> {
+    pub fn with_group(mut self, group: GroupId<'a>) -> Origin<'a> {
+        self.group = Some(group);
+        self
+    }
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone)]
@@ -236,4 +236,6 @@ pub enum Target<'a> {
     Uuid { uuid: Uuid },
     /// Target a group name.
     Group { group: GroupId<'a> },
+    /// Target every client connected to the concierge.
+    All {},
 }

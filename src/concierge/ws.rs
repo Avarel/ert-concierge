@@ -260,12 +260,15 @@ pub async fn handle_incoming_messages<E>(
 ) -> Result<(), WsError> {
     while let Some(Ok(message)) = incoming.next().await {
         if let Ok(string) = message.to_str() {
-            if let Ok(payload) = serde_json::from_str::<Payload>(string) {
-                handle_payload(uuid, concierge, payload).await?;
-            } else {
-                let clients = concierge.clients.read().await;
-                let client = clients.get(&uuid).unwrap();
-                client.send(payload::err::protocol())?;
+            match serde_json::from_str::<Payload>(string) {
+                Ok(payload) => {
+                    handle_payload(uuid, concierge, payload).await?;
+                }
+                Err(err) => {
+                    let clients = concierge.clients.read().await;
+                    let client = clients.get(&uuid).unwrap();
+                    client.send(payload::err::protocol(Some(&err.to_string())))?;
+                }
             }
         }
     }
@@ -326,15 +329,6 @@ async fn handle_payload(
                 client.send(payload::err::no_such_group(group))?;
             }
         }
-        Payload::Broadcast { data, .. } => {
-            concierge
-                .broadcast_all(Payload::Broadcast {
-                    origin: Some(client.origin_receipt()),
-                    data,
-                })
-                .await?;
-            client.send(payload::ok::message_sent())?;
-        }
         Payload::FetchGroupSubs { group } => {
             if let Some(group) = concierge.groups.read().await.get(group) {
                 let clients = group
@@ -344,6 +338,7 @@ async fn handle_payload(
                     .map(|client| Origin {
                         name: client.name(),
                         uuid: client.uuid(),
+                        group: None,
                     })
                     .collect::<Vec<_>>();
                 client.send(Payload::GroupSubList {
@@ -358,6 +353,7 @@ async fn handle_payload(
                 .map(|(&uuid, client)| Origin {
                     name: client.name(),
                     uuid,
+                    group: None,
                 })
                 .collect::<Vec<_>>();
             client.send(Payload::ClientList { clients })?;
@@ -426,7 +422,7 @@ async fn handle_message(
                     .broadcast(
                         concierge,
                         Payload::Message {
-                            origin: Some(client.origin_receipt()),
+                            origin: Some(client.origin_receipt().with_group(&group.name)),
                             target,
                             data,
                         },
@@ -436,6 +432,16 @@ async fn handle_message(
             } else {
                 client.send(payload::err::no_such_group(group))
             }
+        }
+        Target::All {} => {
+            concierge
+                .broadcast_all(Payload::Message {
+                    origin: Some(client.origin_receipt()),
+                    target,
+                    data,
+                })
+                .await?;
+            client.send(payload::ok::message_sent())
         }
     }
 }

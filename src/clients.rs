@@ -47,6 +47,7 @@ impl Client {
         Origin {
             uuid: self.uuid,
             name: &self.name,
+            group: None
         }
     }
 
