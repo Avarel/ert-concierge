@@ -1,72 +1,95 @@
 use crate::payload::Payload;
 use anyhow::Result;
+use futures::{future, pin_mut};
 use std::time::Duration;
 use tokio::time::delay_for;
 use tokio_tungstenite::tungstenite::protocol::Message;
-use futures::{pin_mut, future};
+use ws::WsClient;
 
 mod ws {
-    use crate::{payload::Payload, IP, WS_PORT};
+    use crate::{payload::Payload, SOCKET_ADDR};
     use futures::{SinkExt, StreamExt};
     use std::net::SocketAddr;
     use tokio::net::TcpStream;
-    use tokio_tungstenite::{connect_async, tungstenite::protocol::Message, WebSocketStream};
+    use tokio_tungstenite::{tungstenite::protocol::Message, WebSocketStream};
 
     pub type WebSocket = WebSocketStream<TcpStream>;
 
-    pub async fn connect() -> WebSocket {
-        let addr = SocketAddr::from((IP, WS_PORT));
-
-        let connect_addr = format!("ws://{}/ws", addr);
-        let url = url::Url::parse(&connect_addr).unwrap();
-
-        connect_async(url)
-            .await
-            .expect("Failed to connect to socket")
-            .0
+    pub struct WsClient {
+        ws_stream: WebSocket,
     }
-
-    pub async fn expect_message(ws_stream: &mut WebSocket) -> Message {
-        ws_stream
-            .next()
-            .await
-            .expect("No payload")
-            .expect("Protocol error")
-    }
-
-    pub async fn expect_string(ws_stream: &mut WebSocket) -> String {
-        expect_message(ws_stream).await.to_string()
-    }
-
-    pub async fn send_text(ws_stream: &mut WebSocket, string: impl ToString) {
-        ws_stream
-            .send(Message::Text(string.to_string()))
-            .await
-            .unwrap();
-    }
-
-    pub async fn recv_hello(ws_stream: &mut WebSocket) -> bool {
-        let string = expect_string(ws_stream).await;
-        if let Payload::Hello { .. } = serde_json::from_str::<Payload>(&string).unwrap() {
-            true
-        } else {
-            false
+    
+    impl WsClient {
+        pub async fn connect_local() -> Self {
+            Self::connect(&local_url()).await
         }
+
+        pub async fn connect(connect_addr: &str) -> Self {
+            let (ws_stream, _) = tokio_tungstenite::connect_async(connect_addr)
+                .await
+                .expect("Failed to connect");
+            Self { ws_stream }
+        }
+    
+        pub async fn send_message(&mut self, payload: Payload<'_>) {
+            self.send_text(serde_json::to_string(&payload).unwrap()).await
+        }
+    
+        pub async fn expect_message(&mut self) -> Message {
+            self.ws_stream
+                .next()
+                .await
+                .expect("No payload")
+                .expect("Protocol error")
+        }
+
+        pub async fn expect_string(&mut self) -> String {
+            self.expect_message().await.to_string()
+        }
+    
+        pub fn into_inner(self) -> WebSocket {
+            self.ws_stream
+        }
+
+        pub async fn close(&mut self) {
+            self.ws_stream.close(None).await.expect("Failed to close stream")
+        }
+
+        pub async fn send_text(&mut self, string: impl ToString) {
+            self.ws_stream
+                .send(Message::Text(string.to_string()))
+                .await
+                .unwrap();
+        }
+    
+        pub async fn recv_hello(&mut self) -> bool {
+            let string = self.expect_string().await;
+            if let Payload::Hello { .. } = serde_json::from_str::<Payload>(&string).unwrap() {
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    pub fn local_url() -> String {
+        let addr = SocketAddr::from(SOCKET_ADDR);
+        format!("ws://{}/ws", addr)
     }
 }
 
-fn identify(string: &str) -> String {
-    serde_json::to_string(&Payload::Identify { name: string }).unwrap()
+fn identify(string: &str) -> Payload<'_> {
+    Payload::Identify { name: string, version: crate::VERSION, secret: None }
 }
 
 #[tokio::test]
 async fn basic_identification() -> Result<()> {
-    let ref mut ws_stream = ws::connect().await;
+    let ref mut ws = WsClient::connect_local().await;
 
-    ws::send_text(ws_stream, identify("a")).await;
-    let result = ws::recv_hello(ws_stream).await;
+    ws.send_message(identify("a")).await;
+    let result = ws.recv_hello().await;
 
-    ws_stream.close(None).await?;
+    ws.close().await;
 
     assert!(result, "No hello");
     Ok(())
@@ -74,46 +97,46 @@ async fn basic_identification() -> Result<()> {
 
 #[tokio::test]
 async fn duplicate_identificaiton() -> Result<()> {
-    let ref mut ws_stream_1 = ws::connect().await;
-    let ref mut ws_stream_2 = ws::connect().await;
-    ws::send_text(ws_stream_1, identify("b")).await;
+    let ref mut ws_1 = WsClient::connect_local().await;
+    let ref mut ws_2 = WsClient::connect_local().await;
+    ws_1.send_message(identify("b")).await;
     delay_for(Duration::from_millis(50)).await;
-    ws::send_text(ws_stream_2, identify("b")).await;
+    ws_2.send_message(identify("b")).await;
 
-    if let Message::Close(_) = ws::expect_message(ws_stream_2).await {
-        assert!(ws::recv_hello(ws_stream_1).await);
-        ws_stream_1.close(None).await?;
+    if let Message::Close(_) = ws_2.expect_message().await {
+        assert!(ws_1.recv_hello().await);
+        ws_1.close().await;
         Ok(())
     } else {
-        ws_stream_1.close(None).await?;
-        ws_stream_2.close(None).await?;
+        ws_1.close().await;
+        ws_2.close().await;
         panic!("WS did not close")
     }
 }
 
 #[tokio::test]
 async fn duplicate_identificaiton_concurrent() -> Result<()> {
-    let ref mut ws_stream_1 = ws::connect().await;
-    let ref mut ws_stream_2 = ws::connect().await;
-    
+    let ref mut ws_1 = WsClient::connect_local().await;
+    let ref mut ws_2 = WsClient::connect_local().await;
+
     {
-        let send1 = ws::send_text(ws_stream_1, identify("c"));
-        let send2 = ws::send_text(ws_stream_2, identify("c"));
+        let send1 = ws_1.send_message(identify("c"));
+        let send2 = ws_2.send_message(identify("c"));
         pin_mut!(send1, send2);
         future::join(send1, send2).await;
     }
 
-    if let Message::Close(_) = ws::expect_message(ws_stream_2).await {
-        assert!(ws::recv_hello(ws_stream_1).await);
-        ws_stream_1.close(None).await?;
+    if let Message::Close(_) = ws_2.expect_message().await {
+        assert!(ws_1.recv_hello().await);
+        ws_1.close().await;
         Ok(())
-    } else if let Message::Close(_) = ws::expect_message(ws_stream_1).await {
-        assert!(ws::recv_hello(ws_stream_2).await);
-        ws_stream_2.close(None).await?;
+    } else if let Message::Close(_) = ws_1.expect_message().await {
+        assert!(ws_2.recv_hello().await);
+        ws_2.close().await;
         Ok(())
     } else {
-        ws_stream_1.close(None).await?;
-        ws_stream_2.close(None).await?;
+        ws_1.close().await;
+        ws_2.close().await;
         panic!("WS did not close")
     }
 }

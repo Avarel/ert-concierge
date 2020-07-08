@@ -13,36 +13,48 @@ mod payload;
 mod tests;
 
 use anyhow::Result;
-use concierge::Concierge;
-use log::{debug, error, info};
+use concierge::{Group, Concierge};
+use log::{debug, info};
 use std::{net::SocketAddr, sync::Arc};
+use tokio::runtime::Builder;
 use uuid::Uuid;
-use warp::{path::Tail, Filter};
+use warp::{path::Tail, Filter, hyper::header};
 
-// Local host
-pub const IP: [u8; 4] = [127, 0, 0, 1];
-pub const WS_PORT: u16 = 8080;
+// isten on every available network interface
+pub const SOCKET_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 64209);
+pub const VERSION: &str = "0.1.0";
+pub const SECRET: Option<&str> = None;
 
-// Internal error for the warp framework
-#[derive(Debug)]
-struct InternalConciergeError(anyhow::Error);
-impl warp::reject::Reject for InternalConciergeError {}
-fn internal_concierge_error(err: anyhow::Error) -> warp::Rejection {
-    warp::reject::custom(InternalConciergeError(err))
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
+    // Setup the logging
     env_logger::Builder::new()
         .filter_level(log::LevelFilter::Debug)
         .init();
 
+    // Setup the runtime
+    let mut runtime = Builder::new()
+        .threaded_scheduler()
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(setup())
+}
+
+async fn setup() -> Result<()> {
     // Wrap the server in an atomic ref-counter, to make it safe to work with in between threads.
     let concierge = Arc::new(Concierge::new());
 
+    // Create a chat group
+    let chat_name = "chat".to_owned();
+    concierge.groups.write().await.insert(chat_name.to_owned(), Group::new(chat_name, Uuid::nil()));
+
+    serve(concierge).await
+}
+
+async fn serve(concierge: Arc<Concierge>) -> Result<()> {
     info!("Starting up the server.");
 
-    let addr = SocketAddr::from((IP, WS_PORT));
+    let addr = SocketAddr::from(SOCKET_ADDR);
 
     let ws_route = {
         let concierge = concierge.clone();
@@ -54,9 +66,7 @@ async fn main() -> Result<()> {
                 debug!("Incoming TCP connection. (ip: {:?})", addr);
                 let concierge = concierge.clone();
                 ws.on_upgrade(move |websocket| async move {
-                    if let Err(err) = concierge.handle_socket_conn(websocket, addr).await {
-                        error!("Error: {}", err);
-                    }
+                    concierge.handle_socket_conn(websocket, addr).await
                 })
             })
     };
@@ -66,15 +76,10 @@ async fn main() -> Result<()> {
         warp::get()
             .and(warp::path("fs"))
             .and(warp::path::tail())
-            .and(warp::header::<Uuid>("Authorization"))
+            .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
             .and_then(move |path: Tail, auth: Uuid| {
-                let server = concierge.clone();
-                async move {
-                    server
-                        .handle_file_get(auth, path.as_str())
-                        .await
-                        .map_err(internal_concierge_error)
-                }
+                let concierge = concierge.clone();
+                async move { concierge.handle_file_get(auth, path.as_str()).await }
             })
     };
 
@@ -83,17 +88,12 @@ async fn main() -> Result<()> {
         warp::put()
             .and(warp::path("fs"))
             .and(warp::path::tail())
-            .and(warp::header::<Uuid>("Authorization"))
+            .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
             // .and(warp::body::content_length_limit(20971520))
             .and(warp::body::aggregate())
             .and_then(move |path: Tail, auth: Uuid, stream| {
-                let server = concierge.clone();
-                async move {
-                    server
-                        .handle_file_put2(auth, path.as_str(), stream)
-                        .await
-                        .map_err(internal_concierge_error)
-                }
+                let concierge = concierge.clone();
+                async move { concierge.handle_file_put(auth, path.as_str(), stream).await }
             })
     };
 
@@ -101,15 +101,10 @@ async fn main() -> Result<()> {
         warp::delete()
             .and(warp::path("fs"))
             .and(warp::path::tail())
-            .and(warp::header::<Uuid>("Authorization"))
+            .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
             .and_then(move |path: Tail, auth: Uuid| {
-                let server = concierge.clone();
-                async move {
-                    server
-                        .handle_file_delete(auth, path.as_str())
-                        .await
-                        .map_err(internal_concierge_error)
-                }
+                let concierge = concierge.clone();
+                async move { concierge.handle_file_delete(auth, path.as_str()).await }
             })
     };
 
@@ -118,7 +113,12 @@ async fn main() -> Result<()> {
         .or(fs_upload_route)
         .or(fs_delete_route);
 
-    warp::serve(routes).run(addr).await;
+    warp::serve(routes)
+        // .tls()
+        // .cert_path("./tls/cert.pem")
+        // .key_path("./tls/key.rsa")
+        .run(addr)
+        .await;
 
     Ok(())
 }
