@@ -401,38 +401,61 @@ such as error response or responses to certain commands.
 ```typescript
 {
     "operation": "STATUS",
-    "code": number, 
-    "data": string | undefined
+    "code": string /* see status codes */,
+    "seq": number | undefined,
+    /* ... */
 }
 ```
 ### Example
 ```json
 {
     "operation": "STATUS",
-    "code": 420,
-    "data": "The cake was a lie."
+    "code": "OK",
+    "seq": 329
 }
 ```
 #### Status Codes
-* `2000` OK 
-* `2001` MESSAGE_SENT
-* `2002` SUBSCRIBED (in response to `SUBSCRIBE`)
-    * `data: string`: The group the client subscribed to.
-* `2003` UNSUBSCRIBED (in response to `UNSUBSCRIBE`, `DELETE_GROUP`, and the group being deleted because the owner of the group left the concierge)
-    * `data: string`: The group the client unsubscribed from.
-* `2004` CREATED_GROUP (in response to `CREATE_GROUP`)
-    * `data: string`: The group created;
-* `2005` DELETED_GROUP (in response to `DELETE_GROUP`)
-    * `data: string`: The group deleted.
+Unless indicated otherwise, these statuses always have a sequence number attached to them.
+Sequence numbers are based on the `n`-th **text** payload received by the concierge. The `seq` field
+thus indicates what this status payload is in response to. If the `seq` field is missing, then it means
+that this was a status update due to changes not made by the connecting client.
+* `OK`
+* `MESSAGE_SENT`
+    * Fired in response to `MESSAGE`.
+* `SUBSCRIBED`
+    * `group: string`: The group the client subscribed to.
+* `UNSUBSCRIBED`
+    * Fired in response to `UNSUBSCRIBE`, `DELETE_GROUP`, and the group being deleted because the owner of the group left the concierge.
+    * **May not have a `seq` field** if the client did not send a `UNSUBSCRIBE` payload (due to the group being deleted by the owner, etc).
+    * `group: string`: The group the client unsubscribed from.
+* `CREATED_GROUP` 
+    * Fired in response to `CREATE_GROUP`.
+    * **May not have a `seq` field** if the client did not send a `CREATE_GROUP` payload (fired as a status when someone else creates a group).
+    * `group: string`: The group created;
+* `DELETED_GROUP`
+    * Fired in response to `DELETE_GROUP`.
+    * **May not have a `seq` field** if the client did not send a `DELETE_GROUP` payload (fired as a status when someone else deletes a group).
+    * `group: string`: The group deleted.
 
-* `4000` BAD
-* `4001` UNSUPORTED
-* `4002` PROTOCOL (Server failed to decode, or failed to deserialize data to an accepted format)
-* `4003` GROUP_ALREADY_CREATED (in response to `CREATE_GROUP`)
-    * `data: string`: The name of the group already created.
-* `4004` NO_SUCH_NAME (in response to `MESSAGE`)
-    * `data: string`: The name unrecognized by the server.
-* `4005` NO_SUCH_UUID (in response to `MESSAGE`)
-    * `data: string`: The UUID unrecognized by the server.
-* `4006` NO_SUCH_GROUP (in response to `MESSAGE`, `DELETE_GROUP`, `SUBSCRIBE`, `UNSUBSCRIBE`)
-    * `data: string`: The group unrecognized by the server.
+* `BAD`
+* `UNSUPORTED`
+    * Fired due to an unsupported payload (ie. concierge receiving a `HELLO` payload).
+* `PROTOCOL` 
+    * Fired when server fails to decode, or fails to deserialize data to an accepted format.
+    * `desc: string`: Reason that the server failed to understand the payload.
+* `GROUP_ALREADY_CREATED` 
+    * In response to `CREATE_GROUP`.
+    * Fired in response to `CREATE_GROUP`.
+    * `group: string`: The name of the group already created.
+* `NO_SUCH_NAME`
+    * In response to `MESSAGE`.
+    * Fired when the `target` field points to a name, but the name is not found in the namespace.
+    * `name: string`: The name unrecognized by the server.
+* `NO_SUCH_UUID`
+    * In response to `MESSAGE`.
+    * Fired when the `target` fields points to a UUID, but the uuid is not recognized.
+    * `uuid: string`: The UUID unrecognized by the server.
+* `NO_SUCH_GROUP` 
+    * In response to `MESSAGE`, `DELETE_GROUP`, `SUBSCRIBE`, `UNSUBSCRIBE`.
+    * Fired when the `target` fields point to a group, but the group is not present in the concierge.
+    * `group: string`: The group unrecognized by the server.
