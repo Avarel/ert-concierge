@@ -350,10 +350,6 @@ async fn handle_payload(
         Payload::DeleteGroup { group } => {
             if concierge.remove_group(group, client.uuid()).await {
                 client.send(payload::ok::deleted_group(Some(seq), group))?;
-                drop(clients); // Drop the guard early
-                concierge
-                    .broadcast_all_except(payload::ok::deleted_group(None, group), client_uuid)
-                    .await?;
             } else {
                 client.send(payload::err::no_such_group(seq, group))?;
             }

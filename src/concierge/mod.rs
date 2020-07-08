@@ -11,7 +11,8 @@ use fs::FsFileReply;
 use log::{debug, error, warn};
 use std::{
     collections::{HashMap, HashSet},
-    net::SocketAddr, sync::Arc,
+    net::SocketAddr,
+    sync::Arc,
 };
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -46,17 +47,31 @@ impl Concierge {
     }
 
     /// Broadcast a payload to all clients except the excluded client.
-    pub async fn broadcast_all_except(&self, payload: Payload<'_>, uuid: Uuid) -> Result<(), WsError> {
+    pub async fn broadcast_all_except(
+        &self,
+        payload: Payload<'_>,
+        uuid: Uuid,
+    ) -> Result<(), WsError> {
         ws::broadcast_all_except(self, payload, uuid).await
     }
 
     /// Remove a group if a client is the owner of that group.
+    ///
+    /// # NOTE
+    /// This will broadcast an `UNSUBSCRIBED` status to everyone connected to the group.
+    /// It will also broadcast a `GROUP_DELETE` status to everyone connected to the concierge
+    /// except the owner. The caller must handle telling the owner that their group has
+    /// been deleted (so that they can attach a sequence number).
     pub async fn remove_group(&self, group_name: &str, owner_id: Uuid) -> bool {
         let mut groups = self.groups.write().await;
 
         if let Some(group) = groups.get(group_name) {
             if group.owner == owner_id {
                 ws::broadcast(self, group, ok::unsubscribed(None, group_name))
+                    .await
+                    .ok();
+                // Note: The caller will handle telling the owner
+                ws::broadcast_all_except(self, ok::deleted_group(None, group_name), owner_id)
                     .await
                     .ok();
                 groups.remove(group_name);
@@ -68,7 +83,7 @@ impl Concierge {
     }
 
     /// Remove all groups owned by a client.
-    pub async fn remove_groups_owned_by(&self, owner_id: Uuid) {
+    async fn remove_groups_owned_by(&self, owner_id: Uuid) {
         let mut groups = self.groups.write().await;
         let removing = groups
             .iter()
@@ -79,6 +94,10 @@ impl Concierge {
         for key in removing {
             let group = groups.remove(&key).unwrap();
             ws::broadcast(self, &group, ok::unsubscribed(None, &key))
+                .await
+                .ok();
+            // NOTE: This is only called when the owner leaves, so we can safely ignore the owner
+            ws::broadcast_all(self, ok::deleted_group(None, &key))
                 .await
                 .ok();
         }
@@ -131,7 +150,11 @@ impl Concierge {
     }
 
     /// Handle file server GET requests
-    pub async fn handle_file_get(self: Arc<Self>, auth: Uuid, tail: &str) -> Result<FsFileReply, Rejection> {
+    pub async fn handle_file_get(
+        self: Arc<Self>,
+        auth: Uuid,
+        tail: &str,
+    ) -> Result<FsFileReply, Rejection> {
         fs::handle_file_get(&self, auth, tail)
             .await
             .map_err(|err| err.rejection())
