@@ -1,4 +1,4 @@
-# ERT Concierge Physics
+# ERT Concierge - Babylon.JS
 This is the Babylon.JS front-end for the ERT concierge.
 
 ## Building and Running

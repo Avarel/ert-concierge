@@ -1,8 +1,15 @@
 [package]
-name = "concierge"
+name = "ert_concierge"
 version = "0.1.0"
 authors = ["An Tran <avarelpm@gmail.com>"]
 edition = "2018"
+
+[workspace]
+members = [
+    "physics_sim",
+    "physics_sim/physics",
+    "physics_sim/concierge_bot"
+]
 
 [dependencies]
 # Async support
@@ -32,4 +39,5 @@ tokio-tungstenite = "0.10"
 reqwest = { version = "0.10.6", features = ["stream"] }
 
 [profile.release]
+panic = "abort"
 lto = true
