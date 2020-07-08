@@ -12,9 +12,8 @@
 
 use std::env;
 
-use flume::{unbounded, Sender};
 use futures::{future, pin_mut, StreamExt, SinkExt};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::{sync::mpsc::{UnboundedSender, unbounded_channel}, io::{AsyncReadExt, AsyncWriteExt}};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use anyhow::Result;
 
@@ -31,7 +30,7 @@ async fn main() -> Result<()> {
     // This is our channels for messages.
     // rx: (receive) where messages are received
     // tx: (transmit) where we send messages
-    let (stdin_tx, mut stdin_rx) = unbounded();
+    let (stdin_tx, mut stdin_rx) = unbounded_channel();
 
     // Spawn a task for reading from stdin
     tokio::spawn(read_stdin(stdin_tx));
@@ -73,7 +72,7 @@ async fn main() -> Result<()> {
 
 // Our helper method which will read data from stdin and send it along the
 // sender provided.
-async fn read_stdin(tx: Sender<Message>) {
+async fn read_stdin(tx: UnboundedSender<Message>) {
     let mut stdin = tokio::io::stdin();
     loop {
         let mut buf = vec![0; 1024];

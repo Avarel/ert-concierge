@@ -1,96 +1,107 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashSet;
 use uuid::Uuid;
 
-pub mod ok_payloads {
+pub mod ok {
     use super::Payload;
-    use serde_json::Value;
+    use super::StatusPayload;
 
-    pub const OK: Payload = Payload::Status {
-        code: 2000,
-        data: None,
-    };
-
-    pub const MESSAGE_SENT: Payload = Payload::Status {
-        code: 2001,
-        data: None,
-    };
-
-    pub fn subscribed(group: &str) -> Payload {
+    #[allow(dead_code)]
+    pub const fn ok(seq: usize) -> Payload<'static> {
         Payload::Status {
-            code: 2002,
-            data: Some(Value::String(group.to_owned())),
+            seq: Some(seq),
+            data: StatusPayload::Ok
         }
     }
 
-    pub fn unsubscribed(group: &str) -> Payload {
+    pub fn message_sent(seq: usize) -> Payload<'static> {
         Payload::Status {
-            code: 2003,
-            data: Some(Value::String(group.to_owned())),
+            seq: Some(seq),
+            data: StatusPayload::MessageSent,
         }
     }
 
-    pub fn created_group(group: &str) -> Payload {
+    pub fn subscribed(seq: usize, group: &str) -> Payload {
         Payload::Status {
-            code: 2004,
-            data: Some(Value::String(group.to_owned())),
+            seq: Some(seq),
+            data: StatusPayload::Subscribed { group }
         }
     }
 
-    pub fn deleted_group(group: &str) -> Payload {
+    pub fn unsubscribed(seq: Option<usize>, group: &str) -> Payload {
         Payload::Status {
-            code: 2005,
-            data: Some(Value::String(group.to_owned())),
+            seq,
+            data: StatusPayload::Unsubscribed { group }
+        }
+    }
+
+    pub fn created_group(seq: Option<usize>, group: &str) -> Payload {
+        Payload::Status {
+            seq,
+            data: StatusPayload::GroupCreated { group }
+        }
+    }
+
+    pub fn deleted_group(seq: Option<usize>, group: &str) -> Payload {
+        Payload::Status {
+            seq,
+            data: StatusPayload::GroupDeleted { group }
         }
     }
 }
 
-pub mod err_payloads {
+pub mod err {
     use super::Payload;
-    use serde_json::Value;
+    use super::StatusPayload;
     use uuid::Uuid;
 
-    pub const BAD: Payload = Payload::Status {
-        code: 4000,
-        data: None,
-    };
-
-    pub const UNSUPPORTED: Payload = Payload::Status {
-        code: 4001,
-        data: None,
-    };
-
-    pub const PROTOCOL: Payload = Payload::Status {
-        code: 4002,
-        data: None,
-    };
-
-    pub fn group_already_created(group: &str) -> Payload {
+    #[allow(dead_code)]
+    pub const fn bad(seq: usize) -> Payload<'static> {
         Payload::Status {
-            code: 4003,
-            data: Some(Value::String(group.to_owned())),
+            seq: Some(seq),
+            data: StatusPayload::Bad
         }
     }
 
-    pub fn no_such_name(name: &str) -> Payload {
+    pub fn unsupported(seq: usize) -> Payload<'static> {
         Payload::Status {
-            code: 4004,
-            data: Some(Value::String(name.to_owned())),
+            seq: Some(seq),
+            data: StatusPayload::Unsupported
         }
     }
 
-    pub fn no_such_uuid(uuid: Uuid) -> Payload<'static> {
+    pub fn protocol(seq: usize, desc: &str) -> Payload {
         Payload::Status {
-            code: 4005,
-            data: Some(Value::String(uuid.to_string())),
+            seq: Some(seq),
+            data: StatusPayload::Protocol { desc }
         }
     }
 
-    pub fn no_such_group(group: &str) -> Payload {
+    pub fn group_already_created(seq: usize, group: &str) -> Payload {
         Payload::Status {
-            code: 4006,
-            data: Some(Value::String(group.to_owned())),
+            seq: Some(seq),
+            data: StatusPayload::GroupAlreadyCreated { group }
+        }
+    }
+
+    pub fn no_such_name(seq: usize, name: &str) -> Payload {
+        Payload::Status {
+            seq: Some(seq),
+            data: StatusPayload::NoSuchName { name }
+        }
+    }
+
+    pub fn no_such_uuid(seq: usize, uuid: Uuid) -> Payload<'static> {
+        Payload::Status {
+            seq: Some(seq),
+            data: StatusPayload::NoSuchUuid { uuid }
+        }
+    }
+
+    pub fn no_such_group(seq: usize, group: &str) -> Payload {
+        Payload::Status {
+            seq: Some(seq),
+            data: StatusPayload::NoSuchGroup { group }
         }
     }
 }
@@ -102,6 +113,8 @@ pub mod close_codes {
     pub const NO_AUTH: u16 = 4003;
     pub const AUTH_FAILED: u16 = 4004;
     pub const DUPLICATE_AUTH: u16 = 4005;
+    pub const BAD_SECRET: u16 = 4006;
+    pub const BAD_VERSION: u16 = 4007;
 }
 
 pub type GroupId<'a> = &'a str;
@@ -111,15 +124,19 @@ pub type GroupId<'a> = &'a str;
 ///
 /// # Example
 /// ```json
-/// { "operation": "ABCDEFG", "data": { "foo": "bar" }}
+/// { "type": "ABCDEFG", "data": { "foo": "bar" }}
 /// ```
 #[derive(Serialize, Deserialize, Clone)]
-#[serde(tag = "operation", rename_all = "SCREAMING_SNAKE_CASE")]
+#[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Payload<'a> {
     /// This payload must be the first payload sent
     /// within 5 seconds of establishing the socket connection, else the
     /// connection will be dropped.
-    Identify { name: &'a str },
+    Identify {
+        name: &'a str,
+        version: &'a str,
+        secret: Option<&'a str>,
+    },
     /// These payloads have special fields for targeting
     /// other users or plugins. The origin fields are ignored if they are
     /// sent to the concierge, since the identification process happens
@@ -132,20 +149,13 @@ pub enum Payload<'a> {
         /// (using name or uuid), or a group.
         target: Target<'a>,
         /// Data field.
+        // #[serde(borrow)]
         data: Value,
     },
     /// Subscribe to a group's broadcast.
     Subscribe { group: GroupId<'a> },
     /// Unsubscribe from a group's broadcast.
     Unsubscribe { group: GroupId<'a> },
-    /// Broadcast to every client connected to the concierge.
-    Broadcast {
-        // Origin of the message.
-        #[serde(skip_deserializing)]
-        origin: Option<Origin<'a>>,
-        // Data field.
-        data: Value,
-    },
     /// Create a group such that every subscriber
     /// will receive the message targeted towards that group.
     CreateGroup { group: GroupId<'a> },
@@ -166,19 +176,20 @@ pub enum Payload<'a> {
     FetchSubs,
     /// This payload is sent upon successful identification.
     /// The payload will also contain a universally unique identifier
-    /// that acts as a file server key.
-    Hello { uuid: Uuid },
-    /// Returns all the client (subscribed to the group) names as an array of strings.
-    GroupSubs {
+    /// that acts as a file server key. The payload also returns
+    /// the server's version.
+    Hello { uuid: Uuid, version: &'a str },
+    /// Returns all of the clients (subscribed to the group) an array of origin structs.
+    GroupSubList {
         group: GroupId<'a>,
-        clients: Vec<OwnedOrigin>,
+        clients: Vec<Origin<'a>>,
     },
     /// This payload lists all of the groups registered with the concierge.
-    GroupList { groups: Vec<String> },
+    GroupList { groups: Vec<&'a str> },
     /// This payload lists all of the clients registered with the concierge.
-    ClientList { clients: Vec<OwnedOrigin> },
+    ClientList { clients: Vec<Origin<'a>> },
     /// This payload lists all of the connecting client's subscriptions.
-    Subs { groups: HashSet<String> },
+    SubList { groups: Vec<&'a str> },
     /// A payload broadcasted whenever a new client joins. This is not
     /// emitted to newly joining clients.
     ClientJoin {
@@ -194,18 +205,32 @@ pub enum Payload<'a> {
     /// Status payload sent by the concierge. May happen for various reasons
     /// such as error response.
     Status {
-        /// Error code.
-        code: u16,
-        /// Error message.
-        data: Option<Value>,
+        /// Sequence number. This may not always be applicable since status
+        /// events are sometimes fired automatically and not in response to
+        /// an input from the socket.
+        seq: Option<usize>,
+        /// Data of the status.
+        #[serde(flatten)]
+        data: StatusPayload<'a>,
     },
 }
 
-/// Origin but the name field is owned.
-#[derive(Serialize, Deserialize, Clone)]
-pub struct OwnedOrigin {
-    pub name: String,
-    pub uuid: Uuid,
+#[derive(Serialize, Deserialize, Copy, Clone)]
+#[serde(tag = "code", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum StatusPayload<'a> {
+    Ok,
+    MessageSent,
+    Subscribed { group: GroupId<'a> },
+    Unsubscribed { group: GroupId<'a> },
+    GroupCreated { group: GroupId<'a> },
+    GroupDeleted { group: GroupId<'a> },
+    Bad,
+    Unsupported,
+    Protocol { desc: &'a str },
+    GroupAlreadyCreated { group: GroupId<'a> },
+    NoSuchName { name: &'a str },
+    NoSuchUuid { uuid: Uuid },
+    NoSuchGroup { group: GroupId<'a> }
 }
 
 /// An origin receipt for certain payloads.
@@ -213,6 +238,14 @@ pub struct OwnedOrigin {
 pub struct Origin<'a> {
     pub name: &'a str,
     pub uuid: Uuid,
+    pub group: Option<&'a str>,
+}
+
+impl<'a> Origin<'a> {
+    pub fn with_group(mut self, group: GroupId<'a>) -> Origin<'a> {
+        self.group = Some(group);
+        self
+    }
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone)]
@@ -224,4 +257,6 @@ pub enum Target<'a> {
     Uuid { uuid: Uuid },
     /// Target a group name.
     Group { group: GroupId<'a> },
+    /// Target every client connected to the concierge.
+    All {},
 }

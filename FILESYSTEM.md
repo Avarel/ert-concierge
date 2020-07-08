@@ -2,12 +2,9 @@
 The file system is available to all clients connected to the concierge through
 the websocket. File transfers are facilitated by regular HTTP requests.
 
-All connecting clients are given their own `./fs/client_name/` folder that stores
-their files. The client folder is deleted when the connecting client disconnects
-from the server.
+All connecting clients are given their own `./fs/client_name/` folder that stores their files. The client folder is deleted when the connecting client disconnects from the server.
 
-All HTTP requests to the server must have an `Authorization` header attached
-with a `uuid` value obtained sent from a `HELLO` [websocket payload](./PAYLOAD.md).
+All HTTP requests to the server must have an `Authorization` header attached with a `uuid` value obtained sent from a `HELLO` [websocket payload](./PAYLOAD.md).
 
 ## Upload Files
 * Create a `PUT` HTTP request to `./fs/client_name/file.extension`.
