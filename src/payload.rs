@@ -35,16 +35,16 @@ pub mod ok {
         }
     }
 
-    pub fn created_group(seq: usize, group: &str) -> Payload {
+    pub fn created_group(seq: Option<usize>, group: &str) -> Payload {
         Payload::Status {
-            seq: Some(seq),
+            seq,
             data: StatusPayload::GroupCreated { group }
         }
     }
 
-    pub fn deleted_group(seq: usize, group: &str) -> Payload {
+    pub fn deleted_group(seq: Option<usize>, group: &str) -> Payload {
         Payload::Status {
-            seq: Some(seq),
+            seq,
             data: StatusPayload::GroupDeleted { group }
         }
     }

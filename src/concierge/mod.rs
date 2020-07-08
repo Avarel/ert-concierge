@@ -45,6 +45,11 @@ impl Concierge {
         ws::broadcast_all(self, payload).await
     }
 
+    /// Broadcast a payload to all clients except the excluded client.
+    pub async fn broadcast_all_except(&self, payload: Payload<'_>, uuid: Uuid) -> Result<(), WsError> {
+        ws::broadcast_all_except(self, payload, uuid).await
+    }
+
     /// Remove a group if a client is the owner of that group.
     pub async fn remove_group(&self, group_name: &str, owner_id: Uuid) -> bool {
         let mut groups = self.groups.write().await;

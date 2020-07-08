@@ -70,6 +70,23 @@ pub(super) async fn broadcast_all(
     Ok(())
 }
 
+/// Broadcast to all connected clients except the excluded client.
+pub(super) async fn broadcast_all_except(
+    concierge: &Concierge,
+    payload: Payload<'_>,
+    excluded: Uuid,
+) -> Result<(), WsError> {
+    let message = Message::text(serde_json::to_string(&payload)?);
+    let clients = concierge.clients.read().await;
+    for (uuid, client) in clients.iter() {
+        if *uuid == excluded {
+            continue;
+        }
+        client.send_ws_msg(message.clone())?;
+    }
+    Ok(())
+}
+
 /// Handle the first 5 seconds of identification.
 async fn handle_identification(socket: &mut WebSocket) -> Result<String, u16> {
     // Protocol: Expect a payload that identifies the client within 5 seconds.
@@ -289,6 +306,7 @@ async fn handle_payload(
 
     match payload {
         Payload::Message { target, data, .. } => {
+            drop(clients);
             handle_message(client_uuid, concierge, seq, target, data).await?
         }
         Payload::Subscribe { group } => {
@@ -320,14 +338,22 @@ async fn handle_payload(
                     group.to_owned(),
                     Group::new(group.to_owned(), client.uuid()),
                 );
-                client.send(payload::ok::created_group(seq, group))?;
+                client.send(payload::ok::created_group(Some(seq), group))?;
+                drop(clients); // Drop the guard early
+                concierge
+                    .broadcast_all_except(payload::ok::created_group(None, group), client_uuid)
+                    .await?;
             } else {
                 client.send(payload::err::group_already_created(seq, group))?;
             }
         }
         Payload::DeleteGroup { group } => {
             if concierge.remove_group(group, client.uuid()).await {
-                client.send(payload::ok::deleted_group(seq, group))?;
+                client.send(payload::ok::deleted_group(Some(seq), group))?;
+                drop(clients); // Drop the guard early
+                concierge
+                    .broadcast_all_except(payload::ok::deleted_group(None, group), client_uuid)
+                    .await?;
             } else {
                 client.send(payload::err::no_such_group(seq, group))?;
             }
