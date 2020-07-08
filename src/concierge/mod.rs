@@ -51,7 +51,7 @@ impl Concierge {
 
         if let Some(group) = groups.get(group_name) {
             if group.owner == owner_id {
-                ws::broadcast(self, group, ok::unsubscribed(group_name))
+                ws::broadcast(self, group, ok::unsubscribed(None, group_name))
                     .await
                     .ok();
                 groups.remove(group_name);
@@ -73,7 +73,7 @@ impl Concierge {
 
         for key in removing {
             let group = groups.remove(&key).unwrap();
-            ws::broadcast(self, &group, ok::unsubscribed(&key))
+            ws::broadcast(self, &group, ok::unsubscribed(None, &key))
                 .await
                 .ok();
         }

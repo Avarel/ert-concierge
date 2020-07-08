@@ -1,107 +1,107 @@
 use serde::{Deserialize, Serialize};
-use serde_json::{value::RawValue, Value};
+use serde_json::Value;
 use uuid::Uuid;
 
 pub mod ok {
     use super::Payload;
-    use serde_json::Value;
+    use super::StatusPayload;
 
     #[allow(dead_code)]
-    pub const fn ok() -> Payload<'static> {
+    pub const fn ok(seq: usize) -> Payload<'static> {
         Payload::Status {
-            code: 2000,
-            data: None,
+            seq: Some(seq),
+            data: StatusPayload::Ok
         }
     }
 
-    pub const fn message_sent() -> Payload<'static> {
+    pub fn message_sent(seq: usize) -> Payload<'static> {
         Payload::Status {
-            code: 2001,
-            data: None,
+            seq: Some(seq),
+            data: StatusPayload::MessageSent,
         }
     }
 
-    pub fn subscribed(group: &str) -> Payload {
+    pub fn subscribed(seq: usize, group: &str) -> Payload {
         Payload::Status {
-            code: 2002,
-            data: Some(Value::String(group.to_owned())),
+            seq: Some(seq),
+            data: StatusPayload::Subscribed { group }
         }
     }
 
-    pub fn unsubscribed(group: &str) -> Payload {
+    pub fn unsubscribed(seq: Option<usize>, group: &str) -> Payload {
         Payload::Status {
-            code: 2003,
-            data: Some(Value::String(group.to_owned())),
+            seq,
+            data: StatusPayload::Unsubscribed { group }
         }
     }
 
-    pub fn created_group(group: &str) -> Payload {
+    pub fn created_group(seq: usize, group: &str) -> Payload {
         Payload::Status {
-            code: 2004,
-            data: Some(Value::String(group.to_owned())),
+            seq: Some(seq),
+            data: StatusPayload::GroupCreated { group }
         }
     }
 
-    pub fn deleted_group(group: &str) -> Payload {
+    pub fn deleted_group(seq: usize, group: &str) -> Payload {
         Payload::Status {
-            code: 2005,
-            data: Some(Value::String(group.to_owned())),
+            seq: Some(seq),
+            data: StatusPayload::GroupDeleted { group }
         }
     }
 }
 
 pub mod err {
     use super::Payload;
-    use serde_json::Value;
+    use super::StatusPayload;
     use uuid::Uuid;
 
     #[allow(dead_code)]
-    pub const fn bad() -> Payload<'static> {
+    pub const fn bad(seq: usize) -> Payload<'static> {
         Payload::Status {
-            code: 4000,
-            data: None,
+            seq: Some(seq),
+            data: StatusPayload::Bad
         }
     }
 
-    pub const fn unsupported() -> Payload<'static> {
+    pub fn unsupported(seq: usize) -> Payload<'static> {
         Payload::Status {
-            code: 4001,
-            data: None,
+            seq: Some(seq),
+            data: StatusPayload::Unsupported
         }
     }
 
-    pub fn protocol(string: Option<&str>) -> Payload<'static> {
+    pub fn protocol(seq: usize, desc: &str) -> Payload {
         Payload::Status {
-            code: 4002,
-            data: string.map(str::to_owned).map(Value::String),
+            seq: Some(seq),
+            data: StatusPayload::Protocol { desc }
         }
     }
 
-    pub fn group_already_created(group: &str) -> Payload {
+    pub fn group_already_created(seq: usize, group: &str) -> Payload {
         Payload::Status {
-            code: 4003,
-            data: Some(Value::String(group.to_owned())),
+            seq: Some(seq),
+            data: StatusPayload::GroupAlreadyCreated { group }
         }
     }
 
-    pub fn no_such_name(name: &str) -> Payload {
+    pub fn no_such_name(seq: usize, name: &str) -> Payload {
         Payload::Status {
-            code: 4004,
-            data: Some(Value::String(name.to_owned())),
+            seq: Some(seq),
+            data: StatusPayload::NoSuchName { name }
         }
     }
 
-    pub fn no_such_uuid(uuid: Uuid) -> Payload<'static> {
+    pub fn no_such_uuid(seq: usize, uuid: Uuid) -> Payload<'static> {
         Payload::Status {
-            code: 4005,
-            data: Some(Value::String(uuid.to_string())),
+            seq: Some(seq),
+            data: StatusPayload::NoSuchUuid { uuid }
         }
     }
 
-    pub fn no_such_group(group: &str) -> Payload {
+    pub fn no_such_group(seq: usize, group: &str) -> Payload {
         Payload::Status {
-            code: 4006,
-            data: Some(Value::String(group.to_owned())),
+            seq: Some(seq),
+            data: StatusPayload::NoSuchGroup { group }
         }
     }
 }
@@ -205,11 +205,32 @@ pub enum Payload<'a> {
     /// Status payload sent by the concierge. May happen for various reasons
     /// such as error response.
     Status {
-        /// Error code.
-        code: u16,
-        /// Error message.
-        data: Option<Value>,
+        /// Sequence number. This may not always be applicable since status
+        /// events are sometimes fired automatically and not in response to
+        /// an input from the socket.
+        seq: Option<usize>,
+        /// Data of the status.
+        #[serde(flatten)]
+        data: StatusPayload<'a>,
     },
+}
+
+#[derive(Serialize, Deserialize, Copy, Clone)]
+#[serde(tag = "code", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum StatusPayload<'a> {
+    Ok,
+    MessageSent,
+    Subscribed { group: GroupId<'a> },
+    Unsubscribed { group: GroupId<'a> },
+    GroupCreated { group: GroupId<'a> },
+    GroupDeleted { group: GroupId<'a> },
+    Bad,
+    Unsupported,
+    Protocol { desc: &'a str },
+    GroupAlreadyCreated { group: GroupId<'a> },
+    NoSuchName { name: &'a str },
+    NoSuchUuid { uuid: Uuid },
+    NoSuchGroup { group: GroupId<'a> }
 }
 
 /// An origin receipt for certain payloads.

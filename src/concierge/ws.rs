@@ -258,18 +258,20 @@ pub async fn handle_incoming_messages<E>(
     concierge: &Concierge,
     mut incoming: impl Stream<Item = Result<Message, E>> + Unpin,
 ) -> Result<(), WsError> {
+    let mut seq = 0;
     while let Some(Ok(message)) = incoming.next().await {
         if let Ok(string) = message.to_str() {
             match serde_json::from_str::<Payload>(string) {
                 Ok(payload) => {
-                    handle_payload(uuid, concierge, payload).await?;
+                    handle_payload(uuid, concierge, seq, payload).await?;
                 }
                 Err(err) => {
                     let clients = concierge.clients.read().await;
                     let client = clients.get(&uuid).unwrap();
-                    client.send(payload::err::protocol(Some(&err.to_string())))?;
+                    client.send(payload::err::protocol(seq, &err.to_string()))?;
                 }
             }
+            seq += 1;
         }
     }
 
@@ -279,6 +281,7 @@ pub async fn handle_incoming_messages<E>(
 async fn handle_payload(
     client_uuid: Uuid,
     concierge: &Concierge,
+    seq: usize,
     payload: Payload<'_>,
 ) -> Result<(), WsError> {
     let clients = concierge.clients.read().await;
@@ -286,25 +289,25 @@ async fn handle_payload(
 
     match payload {
         Payload::Message { target, data, .. } => {
-            handle_message(client_uuid, concierge, target, data).await?
+            handle_message(client_uuid, concierge, seq, target, data).await?
         }
         Payload::Subscribe { group } => {
             let mut groups = concierge.groups.write().await;
             if let Some(group) = groups.get_mut(group) {
                 group.clients.insert(client.uuid());
                 client.groups.write().await.insert(group.name.to_owned());
-                client.send(payload::ok::subscribed(&group.name))?;
+                client.send(payload::ok::subscribed(seq, &group.name))?;
             } else {
-                client.send(payload::err::no_such_group(group))?;
+                client.send(payload::err::no_such_group(seq, group))?;
             }
         }
         Payload::Unsubscribe { group } => {
             let mut groups = concierge.groups.write().await;
             if let Some(group) = groups.get_mut(group) {
                 group.clients.remove(&client.uuid());
-                client.send(payload::ok::unsubscribed(&group.name))?;
+                client.send(payload::ok::unsubscribed(Some(seq), &group.name))?;
             } else {
-                client.send(payload::err::no_such_group(group))?;
+                client.send(payload::err::no_such_group(seq, group))?;
             }
 
             let mut groups = client.groups.write().await;
@@ -317,16 +320,16 @@ async fn handle_payload(
                     group.to_owned(),
                     Group::new(group.to_owned(), client.uuid()),
                 );
-                client.send(payload::ok::created_group(group))?;
+                client.send(payload::ok::created_group(seq, group))?;
             } else {
-                client.send(payload::err::group_already_created(group))?;
+                client.send(payload::err::group_already_created(seq, group))?;
             }
         }
         Payload::DeleteGroup { group } => {
             if concierge.remove_group(group, client.uuid()).await {
-                client.send(payload::ok::deleted_group(group))?;
+                client.send(payload::ok::deleted_group(seq, group))?;
             } else {
-                client.send(payload::err::no_such_group(group))?;
+                client.send(payload::err::no_such_group(seq, group))?;
             }
         }
         Payload::FetchGroupSubs { group } => {
@@ -372,7 +375,7 @@ async fn handle_payload(
                 groups: group_names,
             })?
         }
-        _ => client.send(payload::err::unsupported())?,
+        _ => client.send(payload::err::unsupported(seq))?,
     }
     Ok(())
 }
@@ -380,6 +383,7 @@ async fn handle_payload(
 async fn handle_message(
     client_uuid: Uuid,
     concierge: &Concierge,
+    seq: usize,
     target: Target<'_>,
     data: serde_json::Value,
 ) -> Result<(), WsError> {
@@ -399,9 +403,9 @@ async fn handle_message(
                     target,
                     data,
                 })?;
-                client.send(payload::ok::message_sent())
+                client.send(payload::ok::message_sent(seq))
             } else {
-                client.send(payload::err::no_such_name(name))
+                client.send(payload::err::no_such_name(seq, name))
             }
         }
         Target::Uuid { uuid } => {
@@ -411,9 +415,9 @@ async fn handle_message(
                     target,
                     data,
                 })?;
-                client.send(payload::ok::message_sent())
+                client.send(payload::ok::message_sent(seq))
             } else {
-                client.send(payload::err::no_such_uuid(uuid))
+                client.send(payload::err::no_such_uuid(seq, uuid))
             }
         }
         Target::Group { group } => {
@@ -428,9 +432,9 @@ async fn handle_message(
                         },
                     )
                     .await?;
-                client.send(payload::ok::message_sent())
+                client.send(payload::ok::message_sent(seq))
             } else {
-                client.send(payload::err::no_such_group(group))
+                client.send(payload::err::no_such_group(seq, group))
             }
         }
         Target::All {} => {
@@ -441,7 +445,7 @@ async fn handle_message(
                     data,
                 })
                 .await?;
-            client.send(payload::ok::message_sent())
+            client.send(payload::ok::message_sent(seq))
         }
     }
 }
