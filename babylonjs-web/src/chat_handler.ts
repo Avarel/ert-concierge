@@ -109,7 +109,7 @@ export class ChatHandler extends ConciergeAPI.ServiceEventHandler {
             return;
         }
         if (this.output.text.length != 0) {
-            this.output.text += "\nz";
+            this.output.text += "\n";
         } 
         this.output.text += `${message.origin!.name}: ${message.data}`;
     }
