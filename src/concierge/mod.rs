@@ -5,7 +5,7 @@ mod ws;
 
 use crate::{
     clients::Client,
-    payload::{ok, Payload},
+    payload::ok,
 };
 use fs::FsFileReply;
 use log::{debug, error, warn};
@@ -18,6 +18,7 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 use warp::{hyper::StatusCode, ws::WebSocket, Buf, Rejection};
 pub use ws::WsError;
+use serde::Serialize;
 
 /// Central struct that stores the concierge data.
 pub struct Concierge {
@@ -42,14 +43,14 @@ impl Concierge {
     }
 
     /// Broadcast a payload to all clients.
-    pub async fn broadcast_all(&self, payload: Payload<'_>) -> Result<(), WsError> {
+    pub async fn broadcast_all(&self, payload: impl Serialize) -> Result<(), WsError> {
         ws::broadcast_all(self, payload).await
     }
 
     /// Broadcast a payload to all clients except the excluded client.
     pub async fn broadcast_all_except(
         &self,
-        payload: Payload<'_>,
+        payload: impl Serialize,
         uuid: Uuid,
     ) -> Result<(), WsError> {
         ws::broadcast_all_except(self, payload, uuid).await
@@ -203,7 +204,7 @@ impl Group {
     pub async fn broadcast(
         &self,
         concierge: &Concierge,
-        payload: Payload<'_>,
+        payload: impl Serialize,
     ) -> Result<(), WsError> {
         ws::broadcast(concierge, self, payload).await
     }

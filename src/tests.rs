@@ -47,6 +47,7 @@ mod ws {
             self.expect_message().await.to_string()
         }
     
+        #[allow(dead_code)]
         pub fn into_inner(self) -> WebSocket {
             self.ws_stream
         }

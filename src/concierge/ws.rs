@@ -9,8 +9,10 @@ use crate::{
 pub use error::WsError;
 use futures::{future, pin_mut, SinkExt, Stream, StreamExt};
 use log::{debug, info, trace, warn};
-use payload::{Origin, Target};
+use payload::{Origin, PayloadMessageRaw, Target};
 use semver::{Version, VersionReq};
+use serde::Serialize;
+use serde_json::value::RawValue;
 use std::{net::SocketAddr, path::Path, time::Duration};
 use tokio::{sync::mpsc::UnboundedReceiver, time::timeout};
 use uuid::Uuid;
@@ -43,7 +45,7 @@ mod error {
 pub(super) async fn broadcast(
     concierge: &Concierge,
     group: &Group,
-    payload: Payload<'_>,
+    payload: impl Serialize,
 ) -> Result<(), WsError> {
     let message = Message::text(serde_json::to_string(&payload)?);
     let clients = concierge.clients.read().await;
@@ -60,7 +62,7 @@ pub(super) async fn broadcast(
 /// Broadcast to all connected clients.
 pub(super) async fn broadcast_all(
     concierge: &Concierge,
-    payload: Payload<'_>,
+    payload: impl Serialize,
 ) -> Result<(), WsError> {
     let message = Message::text(serde_json::to_string(&payload)?);
     let clients = concierge.clients.read().await;
@@ -73,7 +75,7 @@ pub(super) async fn broadcast_all(
 /// Broadcast to all connected clients except the excluded client.
 pub(super) async fn broadcast_all_except(
     concierge: &Concierge,
-    payload: Payload<'_>,
+    payload: impl Serialize,
     excluded: Uuid,
 ) -> Result<(), WsError> {
     let message = Message::text(serde_json::to_string(&payload)?);
@@ -278,14 +280,24 @@ pub async fn handle_incoming_messages<E>(
     let mut seq = 0;
     while let Some(Ok(message)) = incoming.next().await {
         if let Ok(string) = message.to_str() {
-            match serde_json::from_str::<Payload>(string) {
-                Ok(payload) => {
-                    handle_payload(uuid, concierge, seq, payload).await?;
-                }
-                Err(err) => {
-                    let clients = concierge.clients.read().await;
-                    let client = clients.get(&uuid).unwrap();
-                    client.send(payload::err::protocol(seq, &err.to_string()))?;
+            if let Ok(PayloadMessageRaw {
+                t: "MESSAGE",
+                target,
+                data,
+                ..
+            }) = serde_json::from_str(string)
+            {
+                handle_raw_message(uuid, concierge, seq, target, data).await?;
+            } else {
+                match serde_json::from_str::<Payload>(string) {
+                    Ok(payload) => {
+                        handle_payload(uuid, concierge, seq, payload).await?;
+                    }
+                    Err(err) => {
+                        let clients = concierge.clients.read().await;
+                        let client = clients.get(&uuid).unwrap();
+                        client.send(payload::err::protocol(seq, &err.to_string()))?;
+                    }
                 }
             }
             seq += 1;
@@ -306,8 +318,10 @@ async fn handle_payload(
 
     match payload {
         Payload::Message { target, data, .. } => {
+            warn!("Concierge attempted the slow message path!");
             drop(clients);
-            handle_message(client_uuid, concierge, seq, target, data).await?
+            let data = serde_json::value::to_raw_value(&data)?;
+            handle_raw_message(client_uuid, concierge, seq, target, &data).await?
         }
         Payload::Subscribe { group } => {
             let mut groups = concierge.groups.write().await;
@@ -402,15 +416,86 @@ async fn handle_payload(
     Ok(())
 }
 
-async fn handle_message(
+// async fn handle_message(
+//     client_uuid: Uuid,
+//     concierge: &Concierge,
+//     seq: usize,
+//     target: Target<'_>,
+//     data: serde_json::Value,
+// ) -> Result<(), WsError> {
+//     let clients = concierge.clients.read().await;
+//     let client = clients.get(&client_uuid).unwrap();
+//     match target {
+//         Target::Name { name } => {
+//             if let Some(target_client) = concierge
+//                 .namespace
+//                 .read()
+//                 .await
+//                 .get(name)
+//                 .and_then(|id| clients.get(&id))
+//             {
+//                 target_client.send(Payload::Message {
+//                     origin: Some(client.origin_receipt()),
+//                     target,
+//                     data,
+//                 })?;
+//                 client.send(payload::ok::message_sent(seq))
+//             } else {
+//                 client.send(payload::err::no_such_name(seq, name))
+//             }
+//         }
+//         Target::Uuid { uuid } => {
+//             if let Some(target_client) = clients.get(&uuid) {
+//                 target_client.send(Payload::Message {
+//                     origin: Some(client.origin_receipt()),
+//                     target,
+//                     data,
+//                 })?;
+//                 client.send(payload::ok::message_sent(seq))
+//             } else {
+//                 client.send(payload::err::no_such_uuid(seq, uuid))
+//             }
+//         }
+//         Target::Group { group } => {
+//             if let Some(group) = concierge.groups.read().await.get(group) {
+//                 group
+//                     .broadcast(
+//                         concierge,
+//                         Payload::Message {
+//                             origin: Some(client.origin_receipt().with_group(&group.name)),
+//                             target,
+//                             data,
+//                         },
+//                     )
+//                     .await?;
+//                 client.send(payload::ok::message_sent(seq))
+//             } else {
+//                 client.send(payload::err::no_such_group(seq, group))
+//             }
+//         }
+//         Target::All {} => {
+//             concierge
+//                 .broadcast_all(Payload::Message {
+//                     origin: Some(client.origin_receipt()),
+//                     target,
+//                     data,
+//                 })
+//                 .await?;
+//             client.send(payload::ok::message_sent(seq))
+//         }
+//     }
+// }
+
+async fn handle_raw_message(
     client_uuid: Uuid,
     concierge: &Concierge,
     seq: usize,
     target: Target<'_>,
-    data: serde_json::Value,
+    data: &RawValue,
 ) -> Result<(), WsError> {
     let clients = concierge.clients.read().await;
     let client = clients.get(&client_uuid).unwrap();
+    let origin = Some(client.origin_receipt());
     match target {
         Target::Name { name } => {
             if let Some(target_client) = concierge
@@ -420,11 +505,7 @@ async fn handle_message(
                 .get(name)
                 .and_then(|id| clients.get(&id))
             {
-                target_client.send(Payload::Message {
-                    origin: Some(client.origin_receipt()),
-                    target,
-                    data,
-                })?;
+                target_client.send(PayloadMessageRaw::new(origin, target, data))?;
                 client.send(payload::ok::message_sent(seq))
             } else {
                 client.send(payload::err::no_such_name(seq, name))
@@ -432,11 +513,7 @@ async fn handle_message(
         }
         Target::Uuid { uuid } => {
             if let Some(target_client) = clients.get(&uuid) {
-                target_client.send(Payload::Message {
-                    origin: Some(client.origin_receipt()),
-                    target,
-                    data,
-                })?;
+                target_client.send(PayloadMessageRaw::new(origin, target, data))?;
                 client.send(payload::ok::message_sent(seq))
             } else {
                 client.send(payload::err::no_such_uuid(seq, uuid))
@@ -444,28 +521,18 @@ async fn handle_message(
         }
         Target::Group { group } => {
             if let Some(group) = concierge.groups.read().await.get(group) {
+                let origin = origin.map(|o| o.with_group(&group.name));
                 group
-                    .broadcast(
-                        concierge,
-                        Payload::Message {
-                            origin: Some(client.origin_receipt().with_group(&group.name)),
-                            target,
-                            data,
-                        },
-                    )
+                    .broadcast(concierge, PayloadMessageRaw::new(origin, target, data))
                     .await?;
                 client.send(payload::ok::message_sent(seq))
             } else {
                 client.send(payload::err::no_such_group(seq, group))
             }
         }
-        Target::All {} => {
+        Target::All => {
             concierge
-                .broadcast_all(Payload::Message {
-                    origin: Some(client.origin_receipt()),
-                    target,
-                    data,
-                })
+                .broadcast_all(PayloadMessageRaw::new(origin, target, data))
                 .await?;
             client.send(payload::ok::message_sent(seq))
         }

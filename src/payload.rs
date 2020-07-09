@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{value::RawValue, Value};
 use uuid::Uuid;
 
 pub mod ok {
@@ -119,6 +119,39 @@ pub mod close_codes {
 
 pub type GroupId<'a> = &'a str;
 
+/// HACK(Avarel): Serde deserialize bugs up when it sees a RawValue in a tagged
+/// enum, so we have to reconstruct this and try to deserialize this version
+/// first.
+///
+/// A MESSAGE payload that uses RawValue instead, so that the serialization
+/// and deserialization process does not attempt to do anything with
+/// the data (saving CPU cycles).
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PayloadMessageRaw<'a> {
+    #[serde(rename = "type")]
+    pub t: &'a str,
+    /// Origin of the message.
+    #[serde(skip_deserializing)]
+    pub origin: Option<Origin<'a>>,
+    /// Target of the message. This can be a single user
+    /// (using name or uuid), or a group.
+    pub target: Target<'a>,
+    /// Data field.
+    #[serde(borrow)]
+    pub data: &'a RawValue,
+}
+
+impl<'a> PayloadMessageRaw<'a> {
+    pub fn new(origin: Option<Origin<'a>>, target: Target<'a>, data: &'a RawValue) -> Self {
+        PayloadMessageRaw {
+            t: "MESSAGE",
+            origin,
+            target,
+            data
+        }
+    }
+}
+
 /// Packets sent from the client to the Gateway API are encapsulated within a
 /// gateway payload object and must have the proper operation and data object set.
 ///
@@ -126,7 +159,7 @@ pub type GroupId<'a> = &'a str;
 /// ```json
 /// { "type": "ABCDEFG", "data": { "foo": "bar" }}
 /// ```
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Payload<'a> {
     /// This payload must be the first payload sent
@@ -141,6 +174,8 @@ pub enum Payload<'a> {
     /// other users or plugins. The origin fields are ignored if they are
     /// sent to the concierge, since the identification process happens
     /// per socket. The data field is transmitted verbatim.
+    ///
+    /// When relaying payloads, prefer to use PayloadMessageRaw instead.
     Message {
         /// Origin of the message.
         #[serde(skip_deserializing)]
@@ -149,7 +184,6 @@ pub enum Payload<'a> {
         /// (using name or uuid), or a group.
         target: Target<'a>,
         /// Data field.
-        // #[serde(borrow)]
         data: Value,
     },
     /// Subscribe to a group's broadcast.
@@ -215,7 +249,7 @@ pub enum Payload<'a> {
     },
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 #[serde(tag = "code", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum StatusPayload<'a> {
     Ok,
@@ -234,7 +268,7 @@ pub enum StatusPayload<'a> {
 }
 
 /// An origin receipt for certain payloads.
-#[derive(Serialize, Deserialize, Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub struct Origin<'a> {
     pub name: &'a str,
     pub uuid: Uuid,
@@ -248,7 +282,7 @@ impl<'a> Origin<'a> {
     }
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Target<'a> {
     /// Target a client name.
@@ -258,5 +292,5 @@ pub enum Target<'a> {
     /// Target a group name.
     Group { group: GroupId<'a> },
     /// Target every client connected to the concierge.
-    All {},
+    All,
 }

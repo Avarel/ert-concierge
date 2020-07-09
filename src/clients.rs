@@ -1,11 +1,12 @@
 use crate::{
     concierge::WsError,
-    payload::{Origin, Payload},
+    payload::Origin,
 };
 use std::collections::HashSet;
 use tokio::sync::{mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender}, RwLock};
 use uuid::Uuid;
 use warp::ws::Message;
+use serde::Serialize;
 
 pub struct Client {
     /// Client id.
@@ -52,7 +53,7 @@ impl Client {
     }
 
     /// Send a payload.
-    pub fn send(&self, payload: Payload) -> Result<(), WsError> {
+    pub fn send(&self, payload: impl Serialize) -> Result<(), WsError> {
         self.send_ws_msg(Message::text(serde_json::to_string(&payload)?))
     }
 
