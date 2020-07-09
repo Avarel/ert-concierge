@@ -27,7 +27,12 @@ cargo run --release
 ```bash
 cargo run -p physics_sim --release  
 ```
-The physics simulation should only be ran after the central server has been launched.
+The physics simulation should only be ran after the central server has been launched. This will connect the physics simulation to a locally-hosted central server.
+#### Connecting to External Central Server
+In the case that the central server and physics simulation is not located on the same machine, you can run the following instead:
+```bash
+cargo run -p physics_sim --release ws://ADDRESS:64209/ws
+```
 
 ## Warning
 The `tls/` folder represents example certificate and key for use with SSL (they are **very unsecure**), not for use in production.
