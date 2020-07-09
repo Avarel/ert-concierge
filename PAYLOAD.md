@@ -37,7 +37,8 @@ follow semantic versioning.
     "operation": "IDENTIFY",
     "name": string,
     "version": string,
-    "secret": string | undefined,
+    "secret": string 
+            | undefined,
 }
 ```
 ### Example
@@ -63,10 +64,12 @@ The `data` field is transmitted verbatim.
 ```typescript
 {
     "operation": "MESSAGE",
-    "origin": { "name": string, "uuid": string } | undefined,
+    "origin": { "name": string, "uuid": string }
+            | undefined,
     "target": { "type": "NAME", "name": string } 
-            | { "type": "UUID",  "uuid": string }
+            | { "type": "UUID", "uuid": string }
             | { "type": "GROUP", "group": string },
+            | { "type": "ALL" },
     "data": any
 }
 ```
@@ -143,7 +146,8 @@ Broadcast to every client connected to the concierge.
 ```typescript
 {
     "operation": "BROADCAST",
-    "origin": { "name": string, "uuid": string } | undefined,
+    "origin": { "name": string, "uuid": string }
+            | undefined,
     "data": any
 }
 ```

@@ -22,7 +22,7 @@ async fn main() -> Result<()> {
     // Connect to specific address provided in command arguments, or fall back to default
     let connect_addr = env::args()
         .nth(1)
-        .unwrap_or_else(|| "ws://127.0.0.1:8080/ws".to_string());
+        .unwrap_or_else(|| "ws://127.0.0.1:64209/ws".to_string());
 
     // Parse into a Url
     let url = url::Url::parse(&connect_addr).unwrap();

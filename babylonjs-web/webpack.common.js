@@ -2,7 +2,8 @@ const path = require("path");
 
 module.exports = {
     entry: {
-        index: './src/index.ts',
+        index: './src/ts/index.ts',
+        style: './src/scss/style.scss',
     },
     output: {
         filename: '[name].bundle.js',
@@ -18,7 +19,20 @@ module.exports = {
     },
     module: {
         rules: [
-            { test: /\.tsx?$/, loader: "ts-loader" }
+            {
+                test: /\.tsx?$/,
+                loader: "ts-loader"
+            },
+            {
+                test: /\.s[ac]ss$/,
+                use: [
+                    {
+                        loader: 'file-loader',
+                        options: { name: '[name].min.css' }
+                    },
+                    'sass-loader'
+                ]
+            },
         ]
     },
     optimization: {

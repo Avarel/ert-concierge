@@ -7,6 +7,9 @@
     "devDependencies": {
         "babylonjs": "^4.2.0-alpha.23",
         "babylonjs-gui": "^4.2.0-alpha.23",
+        "file-loader": "^6.0.0",
+        "sass": "^1.26.10",
+        "sass-loader": "^9.0.2",
         "ts-loader": "^7.0.5",
         "typescript": "^3.9.5",
         "webpack": "^4.43.0",
