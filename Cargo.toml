@@ -6,6 +6,7 @@ edition = "2018"
 
 [workspace]
 members = [
+    "concierge_api_rs",
     "physics_sim",
     "physics_sim/physics",
     "physics_sim/concierge_bot"
@@ -31,6 +32,8 @@ env_logger = "0.7.1"
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 # Semantic versioning
 semver = "0.10.0"
+# Payloads
+concierge_api_rs = { path = "./concierge_api_rs" }
 
 # Developer dependences, not present in src code
 [dev-dependencies]

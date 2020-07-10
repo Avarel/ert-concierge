@@ -1,12 +1,9 @@
-// File server backend
+/// File server backend
 mod fs;
-// Websocket backend
+/// Websocket backend
 mod ws;
 
-use crate::{
-    clients::Client,
-    payload::ok,
-};
+use crate::clients::Client;
 use fs::FsFileReply;
 use log::{debug, error, warn};
 use std::{
@@ -19,6 +16,7 @@ use uuid::Uuid;
 use warp::{hyper::StatusCode, ws::WebSocket, Buf, Rejection};
 pub use ws::WsError;
 use serde::Serialize;
+use concierge_api_rs::status::ok;
 
 /// Central struct that stores the concierge data.
 pub struct Concierge {

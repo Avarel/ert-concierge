@@ -2,20 +2,17 @@
 //! handle for the Concierge. Some functions are delegated to from the Concierge.
 
 use super::{Concierge, Group};
-use crate::{
-    clients::Client,
-    payload::{self, close_codes, Payload},
-};
+use crate::clients::Client;
 pub use error::WsError;
 use futures::{future, pin_mut, SinkExt, Stream, StreamExt};
 use log::{debug, info, trace, warn};
-use payload::{JsonPayload, PayloadRawMessage, Target, StatusPayload, ClientPayload};
 use semver::{Version, VersionReq};
 use serde::Serialize;
 use std::{borrow::Cow, net::SocketAddr, path::Path, time::Duration};
 use tokio::{sync::mpsc::UnboundedReceiver, time::timeout};
 use uuid::Uuid;
 use warp::ws::{Message, WebSocket};
+use concierge_api_rs::{close_codes, JsonPayload, status::{err, StatusPayload, ok}, payload::{Payload, PayloadRawMessage, ClientPayload, Target}};
 
 mod error {
     #[derive(Debug, Copy, Clone)]
@@ -301,7 +298,7 @@ pub async fn handle_incoming_messages<E>(
                     Err(err) => {
                         let clients = concierge.clients.read().await;
                         let client = clients.get(&uuid).unwrap();
-                        client.send(payload::err::protocol(seq, &err.to_string()))?;
+                        client.send(err::protocol(seq, &err.to_string()))?;
                     }
                 }
             }
@@ -339,18 +336,18 @@ async fn handle_payload(
             if let Some(group) = groups.get_mut(group) {
                 group.clients.insert(client.uuid());
                 client.groups.write().await.insert(group.name.to_owned());
-                client.send(payload::ok::subscribed(seq, &group.name))?;
+                client.send(ok::subscribed(seq, &group.name))?;
             } else {
-                client.send(payload::err::no_such_group(seq, group))?;
+                client.send(err::no_such_group(seq, group))?;
             }
         }
         Payload::Unsubscribe { group } => {
             let mut groups = concierge.groups.write().await;
             if let Some(group) = groups.get_mut(group) {
                 group.clients.remove(&client.uuid());
-                client.send(payload::ok::unsubscribed(Some(seq), &group.name))?;
+                client.send(ok::unsubscribed(Some(seq), &group.name))?;
             } else {
-                client.send(payload::err::no_such_group(seq, group))?;
+                client.send(err::no_such_group(seq, group))?;
             }
 
             let mut groups = client.groups.write().await;
@@ -363,20 +360,20 @@ async fn handle_payload(
                     group.to_owned(),
                     Group::new(group.to_owned(), client.uuid()),
                 );
-                client.send(payload::ok::created_group(Some(seq), group))?;
+                client.send(ok::created_group(Some(seq), group))?;
                 drop(clients); // Drop the guard early
                 concierge
-                    .broadcast_all_except(payload::ok::created_group(None, group), client_uuid)
+                    .broadcast_all_except(ok::created_group(None, group), client_uuid)
                     .await?;
             } else {
-                client.send(payload::err::group_already_created(seq, group))?;
+                client.send(err::group_already_created(seq, group))?;
             }
         }
         Payload::GroupDelete { group } => {
             if concierge.remove_group(group, client.uuid()).await {
-                client.send(payload::ok::deleted_group(Some(seq), group))?;
+                client.send(ok::deleted_group(Some(seq), group))?;
             } else {
-                client.send(payload::err::no_such_group(seq, group))?;
+                client.send(err::no_such_group(seq, group))?;
             }
         }
         Payload::FetchGroupSubscribers { group } => {
@@ -428,7 +425,7 @@ async fn handle_payload(
                 groups: group_names,
             })?
         }
-        _ => client.send(payload::err::unsupported(seq))?,
+        _ => client.send(err::unsupported(seq))?,
     }
     Ok(())
 }
@@ -522,17 +519,17 @@ async fn handle_raw_message(
                 .and_then(|id| clients.get(&id))
             {
                 target_client.send(payload.with_origin(client_payload.to_origin()))?;
-                client.send(payload::ok::message_sent(seq))
+                client.send(ok::message_sent(seq))
             } else {
-                client.send(payload::err::no_such_name(seq, name))
+                client.send(err::no_such_name(seq, name))
             }
         }
         Target::Uuid { uuid } => {
             if let Some(target_client) = clients.get(&uuid) {
                 target_client.send(payload.with_origin(client_payload.to_origin()))?;
-                client.send(payload::ok::message_sent(seq))
+                client.send(ok::message_sent(seq))
             } else {
-                client.send(payload::err::no_such_uuid(seq, uuid))
+                client.send(err::no_such_uuid(seq, uuid))
             }
         }
         Target::Group { group } => {
@@ -541,14 +538,14 @@ async fn handle_raw_message(
                 group
                     .broadcast(concierge, payload.with_origin(origin))
                     .await?;
-                client.send(payload::ok::message_sent(seq))
+                client.send(ok::message_sent(seq))
             } else {
-                client.send(payload::err::no_such_group(seq, group))
+                client.send(err::no_such_group(seq, group))
             }
         }
         Target::All => {
             concierge.broadcast_all(payload.with_origin(client_payload.to_origin())).await?;
-            client.send(payload::ok::message_sent(seq))
+            client.send(ok::message_sent(seq))
         }
     }
 }

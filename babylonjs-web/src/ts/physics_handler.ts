@@ -90,6 +90,7 @@ export class PhysicsHandler extends ConciergeAPI.ServiceEventHandler {
     }
 
     onSubscribe() {
+        console.log("Fetching...")
         this.client.sendJSON({
             type: "MESSAGE",
             target: {
@@ -157,18 +158,16 @@ export class PhysicsHandler extends ConciergeAPI.ServiceEventHandler {
         let shape = this.shapes.get(id);
         if (shape) {
             shape.moveTo(vec2f2vector2(centroid));
-        } else {
-            console.warn("Shape ", id, " not registered with client")
-        }
+        } 
+        
     }
 
     private updateColor(id: string, color: DeepImmutable<RgbColor>) {
         let shape = this.shapes.get(id);
         if (shape) {
             shape.setColor(tuple2color3(color));
-        } else {
-            console.warn("Shape ", id, " not registered with client")
-        }
+        } 
+        
     }
 
     private processPhysicsPayload(payload: DeepImmutable<PhysicsPayload>) {

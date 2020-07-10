@@ -6,7 +6,6 @@
 
 mod clients;
 mod concierge;
-mod payload;
 
 // Only compile this module for tests.
 #[cfg(test)]

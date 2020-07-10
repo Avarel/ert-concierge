@@ -1,12 +1,10 @@
-use crate::{
-    concierge::WsError,
-    payload::{ClientPayload, Origin},
-};
+use crate::concierge::WsError;
 use std::{borrow::Cow, collections::HashSet};
 use tokio::sync::{mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender}, RwLock};
 use uuid::Uuid;
 use warp::ws::Message;
 use serde::Serialize;
+use concierge_api_rs::payload::ClientPayload;
 
 pub struct Client {
     /// Client id.

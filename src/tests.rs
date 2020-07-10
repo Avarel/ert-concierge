@@ -4,14 +4,15 @@ use std::time::Duration;
 use tokio::time::delay_for;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use ws::WsClient;
-use crate::payload::JsonPayload;
+use concierge_api_rs::JsonPayload;
 
 mod ws {
-    use crate::{payload::{JsonPayload, Payload}, SOCKET_ADDR};
     use futures::{SinkExt, StreamExt};
     use std::net::SocketAddr;
     use tokio::net::TcpStream;
     use tokio_tungstenite::{tungstenite::protocol::Message, WebSocketStream};
+    use concierge_api_rs::{payload::Payload, JsonPayload};
+    use crate::SOCKET_ADDR;
 
     pub type WebSocket = WebSocketStream<TcpStream>;
 

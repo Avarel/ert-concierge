@@ -1,4 +1,4 @@
-use crate::concierge_api::Payload as ConciergePayload;
+use concierge_api_rs::payload::Payload as ConciergePayload;
 use cs3_physics::{polygon::Polygon, vector::Vec2f};
 use serde::{Deserialize, Serialize};
 

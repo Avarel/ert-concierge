@@ -385,6 +385,8 @@ export abstract class ServiceEventHandler extends EventHandler {
                     this.onUnsubscribe();
                 }
                 break;
+            default:
+                console.log(status.code);
         }
     }
 }

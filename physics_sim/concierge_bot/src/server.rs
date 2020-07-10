@@ -1,6 +1,9 @@
-use crate::concierge_api::{Origin, Target};
 use crate::physics_payload::{EntityDump, EntityUpdate, Payload, PhysicsPayload};
 use anyhow::Result;
+use concierge_api_rs::{
+    payload::{ClientPayload, Origin, Target},
+    status::StatusPayload,
+};
 use cs3_physics::{
     ecs::{colliders::Shape, kinetics::Pos, Id, Rgb},
     specs::prelude::*,
@@ -88,7 +91,7 @@ async fn create_server_future<'a>(
         .send_message(Payload::Identify {
             name: crate::PHYSICS_ENGINE_NAME,
             version: "0.1.0",
-            secret: None
+            secret: None,
         })
         .await;
 
@@ -122,26 +125,30 @@ pub async fn incoming_loop<E>(
 ) -> Result<()> {
     while let Some(Ok(message)) = incoming.next().await {
         if let Ok(string) = message.to_text() {
-            if let Ok(payload) = serde_json::from_str::<Payload>(string) {
-                match payload {
-                    Payload::Message {
-                        origin: Some(Origin { uuid, .. }),
-                        data,
-                        ..
-                    } => match data {
-                        PhysicsPayload::FetchEntities => eds_queue.lock().unwrap().push(uuid),
-                        PhysicsPayload::ToggleColor { id } => {
-                            cus_queue.lock().unwrap().push(id.to_string())
-                        }
-                        _ => {}
-                    },
-                    Payload::Status { code } => {
-                        if code != "MESSAGE_SENT" {
-                            println!("{}", code);
-                        }
+            match serde_json::from_str::<Payload>(string) {
+                Ok(Payload::Message {
+                    origin:
+                        Some(Origin {
+                            client: ClientPayload { uuid, .. },
+                            ..
+                        }),
+                    data,
+                    ..
+                }) => match data {
+                    PhysicsPayload::FetchEntities => eds_queue.lock().unwrap().push(uuid),
+                    PhysicsPayload::ToggleColor { id } => {
+                        cus_queue.lock().unwrap().push(id.to_string())
                     }
                     _ => {}
+                },
+                Ok(Payload::Status { data, .. }) => {
+                    if let StatusPayload::MessageSent = data {
+                        // ignore
+                    } else {
+                        println!("{:?}", data);
+                    }
                 }
+                _ => {}
             }
         }
     }
