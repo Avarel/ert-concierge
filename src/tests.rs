@@ -1,13 +1,13 @@
-use crate::payload::Payload;
 use anyhow::Result;
 use futures::{future, pin_mut};
 use std::time::Duration;
 use tokio::time::delay_for;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use ws::WsClient;
+use crate::payload::JsonPayload;
 
 mod ws {
-    use crate::{payload::Payload, SOCKET_ADDR};
+    use crate::{payload::{JsonPayload, Payload}, SOCKET_ADDR};
     use futures::{SinkExt, StreamExt};
     use std::net::SocketAddr;
     use tokio::net::TcpStream;
@@ -31,7 +31,7 @@ mod ws {
             Self { ws_stream }
         }
     
-        pub async fn send_message(&mut self, payload: Payload<'_>) {
+        pub async fn send_message(&mut self, payload: JsonPayload<'_>) {
             self.send_text(serde_json::to_string(&payload).unwrap()).await
         }
     
@@ -65,7 +65,7 @@ mod ws {
     
         pub async fn recv_hello(&mut self) -> bool {
             let string = self.expect_string().await;
-            if let Payload::Hello { .. } = serde_json::from_str::<Payload>(&string).unwrap() {
+            if let Payload::Hello { .. } = serde_json::from_str::<JsonPayload>(&string).unwrap() {
                 true
             } else {
                 false
@@ -79,8 +79,8 @@ mod ws {
     }
 }
 
-fn identify(string: &str) -> Payload<'_> {
-    Payload::Identify { name: string, version: crate::VERSION, secret: None }
+fn identify(string: &str) -> JsonPayload<'_> {
+    JsonPayload::Identify { name: string, version: crate::VERSION, secret: None }
 }
 
 #[tokio::test]

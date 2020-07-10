@@ -1,8 +1,8 @@
 use crate::{
     concierge::WsError,
-    payload::Origin,
+    payload::{ClientPayload, Origin},
 };
-use std::collections::HashSet;
+use std::{borrow::Cow, collections::HashSet};
 use tokio::sync::{mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender}, RwLock};
 use uuid::Uuid;
 use warp::ws::Message;
@@ -44,11 +44,10 @@ impl Client {
     }
 
     /// Utility method to construct an origin receipt on certain payloads.
-    pub fn origin_receipt(&self) -> Origin<'_> {
-        Origin {
+    pub fn make_payload(&self) -> ClientPayload<'_> {
+        ClientPayload {
             uuid: self.uuid,
-            name: &self.name,
-            group: None
+            name: Cow::Borrowed(&self.name)
         }
     }
 

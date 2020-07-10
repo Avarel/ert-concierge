@@ -23,9 +23,12 @@ export type DeepImmutableObject<T> = {
 
 export type DeepImmutableArray<T> = ReadonlyArray<DeepImmutable<T>>;
 
-export interface Origin {
+export interface ClientPayload {
     name: string,
     uuid: Uuid,
+}
+
+export interface Origin extends ClientPayload {
     group?: string,
 }
 
@@ -69,32 +72,30 @@ export namespace Payloads {
     }
     export type Subscribe = BasePayload<"SUBSCRIBE"> & GroupField;
     export type Unsubscribe = BasePayload<"UNSUBSCRIBE"> & GroupField;
-    export type CreateGroup = BasePayload<"CREATE_GROUP"> & GroupField;
-    export type DeleteGroup = BasePayload<"DELETE_GROUP"> & GroupField;
-    export type FetchGroupSubs = BasePayload<"FETCH_GROUP_SUB_LIST"> & GroupField;
-    export type FetchGroupList = BasePayload<"FETCH_GROUP_LIST">;
-    export type FetchClientList = BasePayload<"FETCH_CLIENT_LIST">;
-    export type FetchSubList = BasePayload<"FETCH_SUB_LIST">;
+    export type CreateGroup = BasePayload<"GROUP_CREATE"> & GroupField;
+    export type DeleteGroup = BasePayload<"GROUP_DELETE"> & GroupField;
+    export type FetchGroupSubs = BasePayload<"FETCH_GROUP_SUBSCRIBERS"> & GroupField;
+    export type FetchGroupList = BasePayload<"FETCH_GROUPS">;
+    export type FetchClientList = BasePayload<"FETCH_CLIENTS">;
+    export type FetchSubList = BasePayload<"FETCH_SUBSCRIPTIONS">;
     export interface Hello extends BasePayload<"HELLO"> {
         uuid: Uuid,
         version: string
     }
-    export interface GroupSubs extends BasePayload<"GROUP_SUB_LIST">, GroupField {
-        clients: Origin[]
+    export interface GroupSubscriptions extends BasePayload<"GROUP_SUBSCRIBERS">, GroupField {
+        clients: ClientPayload[]
     }
-    export interface GroupList extends BasePayload<"GROUP_LIST"> {
+    export interface GroupList extends BasePayload<"GROUPS"> {
         groups: string[]
     }
-    export interface ClientList extends BasePayload<"CLIENT_LIST"> {
-        clients: Origin[]
+    export interface ClientList extends BasePayload<"CLIENTS"> {
+        clients: ClientPayload[]
     }
-    export interface SubList extends BasePayload<"SUB_LIST"> {
+    export interface Subscriptions extends BasePayload<"SUBSCRIPTIONS"> {
         groups: string[],
     }
-    export type ClientJoin = BasePayload<"CLIENT_JOIN"> & Origin;
-    export type ClientLeave = BasePayload<"CLIENT_LEAVE"> & Origin;
 
-    namespace Statuses {
+    namespace StatusPayload {
         /** These statuses may be sequenced. */ 
         export interface BaseStatus<T extends string> extends BasePayload<"STATUS"> {
             code: T
@@ -105,6 +106,8 @@ export namespace Payloads {
             seq: number,
         }
 
+        export type ClientJoined = BaseStatus<"CLIENT_JOINED"> & ClientPayload;
+        export type ClientLeft = BaseStatus<"CLIENT_LEFT"> & ClientPayload;
         export type Ok = SequencedStatus<"OK">;
         export type MessageSent = SequencedStatus<"MESSAGE_SENT">;
         export type Subscribed = SequencedStatus<"SUBSCRIBED"> & GroupField;
@@ -131,14 +134,15 @@ export namespace Payloads {
 
         export type Status = Ok | MessageSent | Subscribed | Unsubscribed
             | GroupCreated | GroupDeleted | Bad | Unsupported | Protocol
-            | GroupAlreadyCreated | NoSuchName | NoSuchUuid | NoSuchGroup;
+            | GroupAlreadyCreated | NoSuchName | NoSuchUuid | NoSuchGroup
+            | ClientJoined | ClientLeft;
     }
-    export type Status = Statuses.Status;
+    export type Status = StatusPayload.Status;
 
     export type GenericPayload<M> = Identify | Message<M> | Subscribe | Unsubscribe
         | CreateGroup | DeleteGroup | FetchGroupSubs
-        | FetchGroupList | FetchSubList | Hello | GroupSubs | GroupList
-        | ClientList | SubList | ClientJoin | ClientLeave | Status;
+        | FetchGroupList | FetchSubList | Hello | GroupSubscriptions | GroupList
+        | ClientList | Subscriptions | Status;
 }
 export type GenericPayload<T> = Payloads.GenericPayload<T>;
 
@@ -279,23 +283,17 @@ export abstract class EventHandler implements RawHandler {
             case "HELLO":
                 this.onRecvHello?.(payload);
                 break;
-            case "GROUP_SUB_LIST":
+            case "GROUP_SUBSCRIBERS":
                 this.onRecvGroupSubs?.(payload);
                 break;
-            case "GROUP_LIST":
+            case "GROUPS":
                 this.onRecvGroupList?.(payload);
                 break;
-            case "CLIENT_LIST":
+            case "CLIENTS":
                 this.onRecvClientList?.(payload);
                 break;
-            case "SUB_LIST":
-                this.onRecvSubs?.(payload);
-                break;
-            case "CLIENT_JOIN":
-                this.onRecvClientJoin?.(payload);
-                break;
-            case "CLIENT_LEAVE":
-                this.onRecvClientLeave?.(payload);
+            case "SUBSCRIPTIONS":
+                this.onRecvSubscriptions?.(payload);
                 break;
             case "STATUS":
                 this.onRecvStatus?.(payload);
@@ -305,12 +303,10 @@ export abstract class EventHandler implements RawHandler {
 
     onRecvMessage?(message: Payloads.Message<any>): void;
     onRecvHello?(hello: Payloads.Hello): void;
-    onRecvGroupSubs?(groupSubs: Payloads.GroupSubs): void;
+    onRecvGroupSubs?(groupSubs: Payloads.GroupSubscriptions): void;
     onRecvGroupList?(groupList: Payloads.GroupList): void;
     onRecvClientList?(clientList: Payloads.ClientList): void;
-    onRecvSubs?(subs: Payloads.SubList): void;
-    onRecvClientJoin?(clientJoin: Payloads.ClientJoin): void;
-    onRecvClientLeave?(clientLeave: Payloads.ClientLeave): void;
+    onRecvSubscriptions?(subs: Payloads.Subscriptions): void;
     onRecvStatus?(status: Payloads.Status): void;
 }
 
@@ -333,7 +329,7 @@ export abstract class ServiceEventHandler extends EventHandler {
 
     onRecvHello(_event: Payloads.Hello) {
         this.client.sendJSON({
-            type: "FETCH_GROUP_LIST"
+            type: "FETCH_GROUPS"
         })
     }
 

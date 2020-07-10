@@ -1,3 +1,6 @@
+//! Partial concierge API reimplementation.
+//! TODO(An): extract to own package
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -16,10 +19,10 @@ pub enum Payload<'a, T> {
         target: Target<'a>,
         data: T,
     },
-    CreateGroup {
+    GroupCreate {
         group: GroupId<'a>,
     },
-    DeleteGroup {
+    GroupDelete {
         group: GroupId<'a>,
     },
     Hello {

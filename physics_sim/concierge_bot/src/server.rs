@@ -95,7 +95,7 @@ async fn create_server_future<'a>(
     if let Message::Text(string) = client.next_message().await {
         if let Payload::Hello { .. } = serde_json::from_str(&string).unwrap() {
             client
-                .send_message(Payload::CreateGroup {
+                .send_message(Payload::GroupCreate {
                     group: crate::PHYSICS_ENGINE_GROUP,
                 })
                 .await;
