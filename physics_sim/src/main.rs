@@ -1,17 +1,17 @@
-mod rendering;
+// mod rendering;
 
-use rendering::{sdl_wrapper::SDLWrapper, render::*, IsDone, TimeSys};
+// use rendering::{sdl_wrapper::SDLWrapper, render::*, IsDone, TimeSys};
 use cs3_physics::{
     ecs::{colliders::*, dynamics::*, kinetics::*, *},
     polygon::Polygon,
     specs::prelude::*,
-    vector::{Vec2, Vec2f},
+    vector::Vec2f,
 };
 use std::{sync::{atomic::{Ordering, AtomicBool}, Arc}, time::Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
-    let wrapper = SDLWrapper::init(Vec2::ZERO, Vec2::new(1000.0, 1000.0))?;
+    // let wrapper = SDLWrapper::init(Vec2::ZERO, Vec2::new(1000.0, 1000.0))?;
 
     let mut world = World::new();
     world.register::<Id>();
