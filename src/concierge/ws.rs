@@ -119,6 +119,7 @@ async fn handle_identification(socket: &mut WebSocket) -> Result<String, u16> {
     Err(close_codes::AUTH_FAILED)
 }
 
+/// Create a new client.
 async fn make_client(
     concierge: &Concierge,
     name: String,
@@ -238,6 +239,7 @@ async fn handle_client(
     Ok(())
 }
 
+/// Remove the client from the concierge.
 async fn remove_client(concierge: &Concierge, client_uuid: Uuid) -> Result<(), WsError> {
     // let client = concierge.clients.get(&client_uuid).unwrap();
     // let client_name = client.name();
@@ -309,6 +311,7 @@ pub async fn handle_incoming_messages<E>(
     Ok(())
 }
 
+/// Handles incoming JSON payloads.
 async fn handle_payload(
     client_uuid: Uuid,
     concierge: &Concierge,
@@ -500,6 +503,7 @@ async fn handle_payload(
 //     }
 // }
 
+/// Handles raw message payloads.
 async fn handle_raw_message(
     client_uuid: Uuid,
     concierge: &Concierge,

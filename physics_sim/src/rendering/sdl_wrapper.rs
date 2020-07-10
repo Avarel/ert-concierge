@@ -167,7 +167,7 @@ impl SDLWrapper {
                 } => {
                     return true;
                 }
-                Event::KeyDown { .. } | Event::KeyUp { .. } => self.event_queue.push(event),
+                // Event::KeyDown { .. } | Event::KeyUp { .. } => self.event_queue.push(event),
                 _ => {}
             }
         }

@@ -33,10 +33,12 @@ impl Client {
         (instance, rx)
     }
 
+    /// Returns the Uuid of the client.
     pub fn uuid(&self) -> Uuid {
         self.uuid
     }
 
+    /// Returns the name of the client.
     pub fn name(&self) -> &str {
         &self.name
     }

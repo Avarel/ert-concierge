@@ -1,6 +1,4 @@
-/// File server backend
 mod fs;
-/// Websocket backend
 mod ws;
 
 use crate::clients::Client;

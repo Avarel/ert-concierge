@@ -1,13 +1,13 @@
 mod rendering;
 
-use rendering::{sdl_wrapper::SDLWrapper, render::*, IsDone};
+use rendering::{sdl_wrapper::SDLWrapper, render::*, IsDone, TimeSys};
 use cs3_physics::{
     ecs::{colliders::*, dynamics::*, kinetics::*, *},
     polygon::Polygon,
     specs::prelude::*,
     vector::{Vec2, Vec2f},
 };
-use std::time::Duration;
+use std::{sync::{atomic::{Ordering, AtomicBool}, Arc}, time::Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
@@ -105,13 +105,25 @@ async fn main() -> Result<(), String> {
         .with(eds, "eds", &[])
         .with(cus, "cus", &[])
         .with(pds, "pds", &[])
-        .with_thread_local(RenderSys(wrapper))
+        // .with_thread_local(RenderSys(wrapper))
+        .with_thread_local(TimeSys::new())
         .build();
 
     world.insert(DeltaTime(Duration::from_secs(1)));
-    world.insert(IsDone(false));
+    // world.insert(IsDone(false));
 
-    while !world.read_resource::<IsDone>().0 {
+    // while !world.read_resource::<IsDone>().0 {
+    //     dispatcher.dispatch(&mut world);
+    //     world.maintain();
+    // }
+
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    }).expect("Error setting Ctrl-C handler");
+
+    while running.load(Ordering::SeqCst) {
         dispatcher.dispatch(&mut world);
         world.maintain();
     }

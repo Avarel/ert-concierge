@@ -184,6 +184,7 @@ export class Client {
         if (this.socket == undefined) {
             throw new Error("Socket is not connected")
         }
+        // console.log(JSON.stringify(payload));
         this.socket.send(JSON.stringify(payload));
         let tmp = this.seq;
         this.seq += 1;
@@ -385,8 +386,6 @@ export abstract class ServiceEventHandler extends EventHandler {
                     this.onUnsubscribe();
                 }
                 break;
-            default:
-                console.log(status.code);
         }
     }
 }

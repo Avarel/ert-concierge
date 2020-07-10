@@ -1,8 +1,7 @@
+use crate::status::StatusPayload;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use uuid::Uuid;
-use crate::status::StatusPayload;
-
 
 /// A client payload.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -11,10 +10,11 @@ pub struct ClientPayload<'a> {
     #[serde(borrow)]
     pub name: Cow<'a, str>,
     /// Uuid of the client.
-    pub uuid: Uuid
+    pub uuid: Uuid,
 }
 
 impl<'a> ClientPayload<'a> {
+    /// Convert the client payload into an origin payload.
     pub fn to_origin(self) -> Origin<'a> {
         Origin {
             client: self,
