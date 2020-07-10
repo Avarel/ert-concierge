@@ -184,7 +184,7 @@ export class Client {
         if (this.socket == undefined) {
             throw new Error("Socket is not connected")
         }
-        // console.log(JSON.stringify(payload));
+        // console.log("SEND", JSON.stringify(payload));
         this.socket.send(JSON.stringify(payload));
         let tmp = this.seq;
         this.seq += 1;
@@ -358,6 +358,7 @@ export abstract class ServiceEventHandler extends EventHandler {
     abstract onUnsubscribe(): void;
 
     onRecvStatus(status: Payloads.Status): void {
+        // console.log("RECV", JSON.stringify(status));
         switch (status.code) {
             case "NO_SUCH_GROUP":
                 if (status.group == this.group) {

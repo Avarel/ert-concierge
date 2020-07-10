@@ -173,7 +173,7 @@ export class PhysicsHandler extends ConciergeAPI.ServiceEventHandler {
     private processPhysicsPayload(payload: DeepImmutable<PhysicsPayload>) {
         switch (payload.type) {
             case "ENTITY_DUMP":
-                // console.log(JSON.stringify(payload));
+                // console.log("RECV", JSON.stringify(payload));
                 console.log("Dumping entities!");
                 this.clearShapes();
                 for (let entity of payload.entities) {
@@ -181,17 +181,17 @@ export class PhysicsHandler extends ConciergeAPI.ServiceEventHandler {
                 }
                 break;
             case "POSITION_DUMP":
-                // console.log(JSON.stringify(payload));
+                // console.log("RECV", JSON.stringify(payload));
                 for (let update of payload.updates) {
                     this.updateShape(update.id, update.position);
                 }
                 break;
             case "COLOR_UPDATE":
-                // console.log(JSON.stringify(payload));
+                // console.log("RECV", JSON.stringify(payload));
                 this.updateColor(payload.id, payload.color);
                 break;
             default:
-                // console.log(JSON.stringify(payload));
+                // console.log("RECV", JSON.stringify(payload));
                 break;
         }
     }
