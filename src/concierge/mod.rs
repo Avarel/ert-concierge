@@ -2,8 +2,10 @@ mod fs;
 mod ws;
 
 use crate::clients::Client;
+use concierge_api_rs::status::ok;
 use fs::FsFileReply;
 use log::{debug, error, warn};
+use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
     net::SocketAddr,
@@ -13,8 +15,6 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 use warp::{hyper::StatusCode, ws::WebSocket, Buf, Rejection};
 pub use ws::WsError;
-use serde::Serialize;
-use concierge_api_rs::status::ok;
 
 /// Central struct that stores the concierge data.
 pub struct Concierge {
@@ -52,35 +52,55 @@ impl Concierge {
         ws::broadcast_all_except(self, payload, uuid).await
     }
 
+    /// Create a group if it currently does not exist in the concierge.
+    /// Returns `true` if the group was created.
+    ///
+    /// # NOTE
+    /// This will broadcast an `GROUP_CREATED` status to everyone connected to the concierge.
+    /// The caller must handle telling the owner that the group has been created.
+    pub async fn create_group(&self, group_name: &str, owner_id: Uuid) -> Result<bool, WsError> {
+        let mut groups = self.groups.write().await;
+        if !groups.contains_key(group_name) {
+            groups.insert(
+                group_name.to_owned(),
+                Group::new(group_name.to_owned(), owner_id),
+            );
+            self.broadcast_all_except(ok::created_group(None, group_name), owner_id)
+                .await?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
     /// Remove a group if a client is the owner of that group.
+    /// Returns `true` if the group was removed.
     ///
     /// # NOTE
     /// This will broadcast an `UNSUBSCRIBED` status to everyone connected to the group.
     /// It will also broadcast a `GROUP_DELETE` status to everyone connected to the concierge
     /// except the owner. The caller must handle telling the owner that their group has
     /// been deleted (so that they can attach a sequence number).
-    pub async fn remove_group(&self, group_name: &str, owner_id: Uuid) -> bool {
+    pub async fn remove_group(&self, group_name: &str, owner_id: Uuid) -> Result<bool, WsError> {
         let mut groups = self.groups.write().await;
 
         if let Some(group) = groups.get(group_name) {
             if group.owner == owner_id {
                 ws::broadcast(self, group, ok::unsubscribed(None, group_name))
-                    .await
-                    .ok();
+                    .await?;
                 // Note: The caller will handle telling the owner
                 ws::broadcast_all_except(self, ok::deleted_group(None, group_name), owner_id)
-                    .await
-                    .ok();
+                    .await?;
                 groups.remove(group_name);
-                return true;
+                return Ok(true);
             }
         }
 
-        return false;
+        return Ok(false);
     }
 
     /// Remove all groups owned by a client.
-    async fn remove_groups_owned_by(&self, owner_id: Uuid) {
+    async fn remove_groups_owned_by(&self, owner_id: Uuid) -> Result<(), WsError> {
         let mut groups = self.groups.write().await;
         let removing = groups
             .iter()
@@ -91,13 +111,12 @@ impl Concierge {
         for key in removing {
             let group = groups.remove(&key).unwrap();
             ws::broadcast(self, &group, ok::unsubscribed(None, &key))
-                .await
-                .ok();
+                .await?;
             // NOTE: This is only called when the owner leaves, so we can safely ignore the owner
             ws::broadcast_all(self, ok::deleted_group(None, &key))
-                .await
-                .ok();
+                .await?;
         }
+        return Ok(())
     }
 
     /// Remove a client from all groups.
@@ -124,7 +143,7 @@ impl Concierge {
         // Remove from namespace
         self.remove_name(client.name()).await;
         // Remove any owned groups
-        self.remove_groups_owned_by(client.uuid()).await;
+        self.remove_groups_owned_by(client.uuid()).await?;
         // Remove from groups
         self.remove_from_all_groups(client.uuid()).await;
         Ok(client)

@@ -152,7 +152,7 @@ pub enum Payload<'a, T> {
     FetchClients,
     /// This payload asks for the connecting client's
     /// subscriptions.
-    FetchSubs,
+    FetchSubscriptions,
     /// This payload is sent upon successful identification.
     /// The payload will also contain a universally unique identifier
     /// that acts as a file server key. The payload also returns

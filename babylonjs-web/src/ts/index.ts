@@ -2,6 +2,7 @@ import { Renderer } from "./renderer";
 import * as ConciergeAPI from "./concierge_api";
 import { PhysicsHandler } from "./physics_handler";
 import { ChatHandler } from "./chat_handler";
+import { PlanetsHandler } from "./planets_handler";
 
 let canvas = document.querySelector<HTMLCanvasElement>("#renderCanvas");
 if (!canvas) {
@@ -34,6 +35,9 @@ client.handlers.push(physicsHandler);
 
 let chatHandler = new ChatHandler(client, renderer);
 client.handlers.push(chatHandler);
+
+let planetHandler = new PlanetsHandler(client, renderer);
+client.handlers.push(planetHandler);
 
 renderer.start();
 

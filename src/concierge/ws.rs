@@ -47,7 +47,7 @@ pub(super) async fn broadcast(
     let clients = concierge.clients.read().await;
     for uuid in group.clients.iter() {
         if let Some(client) = clients.get(uuid) {
-            client.send_ws_msg(message.clone())?;
+            client.send_ws_msg(message.clone()).ok();
         } else {
             warn!("Group had an invalid client id");
         }
@@ -63,7 +63,7 @@ pub(super) async fn broadcast_all(
     let message = Message::text(serde_json::to_string(&payload)?);
     let clients = concierge.clients.read().await;
     for (_, client) in clients.iter() {
-        client.send_ws_msg(message.clone())?;
+        client.send_ws_msg(message.clone()).ok();
     }
     Ok(())
 }
@@ -357,23 +357,14 @@ async fn handle_payload(
             groups.remove(group);
         }
         Payload::GroupCreate { group } => {
-            let mut groups = concierge.groups.write().await;
-            if !groups.contains_key(group) {
-                groups.insert(
-                    group.to_owned(),
-                    Group::new(group.to_owned(), client.uuid()),
-                );
+            if concierge.create_group(group, client_uuid).await? {
                 client.send(ok::created_group(Some(seq), group))?;
-                drop(clients); // Drop the guard early
-                concierge
-                    .broadcast_all_except(ok::created_group(None, group), client_uuid)
-                    .await?;
             } else {
                 client.send(err::group_already_created(seq, group))?;
             }
         }
         Payload::GroupDelete { group } => {
-            if concierge.remove_group(group, client.uuid()).await {
+            if concierge.remove_group(group, client.uuid()).await? {
                 client.send(ok::deleted_group(Some(seq), group))?;
             } else {
                 client.send(err::no_such_group(seq, group))?;
@@ -417,7 +408,7 @@ async fn handle_payload(
                 groups: group_names,
             })?;
         }
-        Payload::FetchSubs => {
+        Payload::FetchSubscriptions => {
             let groups = concierge.groups.read().await;
             let group_names = groups
                 .iter()

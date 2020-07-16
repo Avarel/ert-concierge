@@ -1,6 +1,6 @@
 import * as ConciergeAPI from "./concierge_api";
-import { DeepImmutable, Vector2, DeepImmutableArray, Color3, ExecuteCodeAction } from "babylonjs";
-import { Renderer, Shape } from "./renderer";
+import { DeepImmutable, Vector2, DeepImmutableArray, Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, PolygonMeshBuilder, StandardMaterial, ActionManager, MeshBuilder, Mesh } from "babylonjs";
+import { Renderer } from "./renderer";
 
 export interface Vec2f {
     x: number,
@@ -69,11 +69,47 @@ function tuple2color3(tuple: DeepImmutable<RgbColor>): Color3 {
     return new Color3(clamp(tuple[0]), clamp(tuple[1]), clamp(tuple[2]))
 }
 
+class PolygonShape {
+    centroid: Vector3;
+    mesh: Mesh;
+
+    private constructor(centroid: Vector3, mesh: Mesh) {
+        this.centroid = centroid;
+        this.mesh = mesh;
+    }
+
+    static createPolygon(centroid: Vector3, points: Vector2[], scene: Scene, color: Color3, scale: number = 1): PolygonShape {
+        let corners = points.map((v) => v.scale(scale));
+        let poly_tri = new PolygonMeshBuilder("polytri", corners, scene);
+        let mesh = poly_tri.build(undefined, 50);
+        mesh.position.y += 50;
+
+        var mat = new StandardMaterial("myMaterial", scene);
+        mat.diffuseColor = color;
+        mesh.material = mat;
+
+        mesh.actionManager = new ActionManager(scene);
+
+        return new PolygonShape(centroid, mesh);
+    }
+
+    setColor(color: DeepImmutableObject<Color3>) {
+        (this.mesh.material! as StandardMaterial).diffuseColor! = color;
+    }
+
+    moveTo(point: DeepImmutableObject<Vector3>) {
+        let translate = point.subtract(this.centroid);
+
+        this.mesh.position.addInPlace(translate);
+        this.centroid.set(point.x, point.y, point.z);
+    }
+}
+
 export class PhysicsHandler extends ConciergeAPI.ServiceEventHandler {
     readonly renderer: Renderer;
     readonly client: ConciergeAPI.Client;
 
-    private shapes: Map<string, Shape>;
+    private shapes: Map<string, PolygonShape>;
 
     constructor(client: ConciergeAPI.Client, renderer: Renderer) {
         super(client, PHYSICS_ENGINE_GROUP);
@@ -118,9 +154,9 @@ export class PhysicsHandler extends ConciergeAPI.ServiceEventHandler {
         }
     }
 
-    createPolygon(id: string, centroid: Vector2, points: Vector2[], color: Color3, scale: number = 1): Shape {
+    createPolygon(id: string, centroid: Vector2, points: Vector2[], color: Color3, scale: number = 1): PolygonShape {
         if (this.renderer.scene) {
-            let shape = Shape.createPolygon(id, centroid, points, this.renderer.scene, color, scale);
+            let shape = PolygonShape.createPolygon(new Vector3(centroid.x, 0, centroid.y), points, this.renderer.scene, color, scale);
             this.shapes.set(id, shape);
             this.renderer.generator?.addShadowCaster(shape.mesh);
             return shape;
@@ -157,17 +193,16 @@ export class PhysicsHandler extends ConciergeAPI.ServiceEventHandler {
     private updateShape(id: string, centroid: Vec2f) {
         let shape = this.shapes.get(id);
         if (shape) {
-            shape.moveTo(vec2f2vector2(centroid));
-        } 
-        
+            shape.moveTo(new Vector3(centroid.x, 0, centroid.y));
+        }
     }
 
     private updateColor(id: string, color: DeepImmutable<RgbColor>) {
         let shape = this.shapes.get(id);
         if (shape) {
             shape.setColor(tuple2color3(color));
-        } 
-        
+        }
+
     }
 
     private processPhysicsPayload(payload: DeepImmutable<PhysicsPayload>) {
