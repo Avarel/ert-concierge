@@ -102,20 +102,39 @@ export namespace Sidebar {
             return createElement("div", ["icon"]);
         }
 
+        clear() {
+            for (let icon of this.icons) {
+                icon.element.remove();
+            }
+            this.icons.length = 0;
+        }
+
         addImageIcon(name: string, link: string) {
             let iconDiv = this.baseIcon();
+
             let imgElement = createElement("img");
             imgElement.setAttribute("src", link);
             iconDiv.appendChild(imgElement);
+
+            let tooltipElement = createElement("div", ["tooltip"]);
+            tooltipElement.innerText = name;
+            iconDiv.append(tooltipElement);
+
             this.rootElement.appendChild(iconDiv);
             this.icons.push({ name, element: iconDiv });
         }
 
         addInitialIcon(name: string, text: string) {
             let iconDiv = this.baseIcon();
+
             let pElement = createElement("p");
-            pElement.innerText = text;
+            pElement.innerText = text.toUpperCase();
             iconDiv.appendChild(pElement);
+
+            let tooltipElement = createElement("div", ["tooltip"]);
+            tooltipElement.innerText = name;
+            iconDiv.append(tooltipElement);
+
             this.rootElement.appendChild(iconDiv);
             this.icons.push({ name, element: iconDiv });
         }

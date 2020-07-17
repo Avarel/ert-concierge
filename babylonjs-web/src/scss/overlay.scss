@@ -43,25 +43,62 @@ body {
         height: 70px;
         margin-bottom: 10px;
         box-sizing: border-box;
-        background: black;
-        color: white;
-        border-radius: 35px;
-        cursor: pointer;
-        transition: border-radius 0.2s;
-        overflow: hidden;
-        
+        position: relative;
+
         &:hover {
-            border-radius: 10px;
+            .tooltip {
+                visibility: visible;
+                opacity: 1;
+            }
+        }
+
+        .tooltip {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            transition: opacity .6s;
+            z-index: 101;
+            width: calc(100% + 20px);
+            margin-left: -10px;
+            text-align: center;
+            margin-top: 5px;
+            border-radius: 5px;
+            font-family: monospace;
+            padding: 5px 0;
+            background-color: rgb(64, 69, 72);
+            color: white;
+            word-break: break-all;
+            
+
+            &::after {
+                content: "";
+                position: absolute;
+                bottom: 100%;
+                left: 50%;
+                margin-left: -5px;
+                border-width: 5px;
+                border-style: solid;
+                border-color: transparent transparent #555 transparent;
+            }
         }
         
         img {
             height: 100%;
             width: 100%;
+            background: black;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: border-radius 0.2s;
+
+            &:hover {
+                border-radius: 10px;
+            }
         }
         
         p {
-            height: 100%;
-            width: 100%;
+            @extend img;
+
+            color: white;
             line-height: 70px;
             text-align: center;
             font-size: 40px;
@@ -113,6 +150,21 @@ body {
         margin-right: 5px;
         display: flex;
         flex-direction: row;
+
+        .window-drawer {
+            background: green;
+            height: $drawer-height;
+            width: 80px;
+            text-align: center;
+            line-height: 30px;
+            border-radius: 5px 5px 0 0;
+            cursor: pointer;
+        
+            @include small-screen {
+                bottom: 40px;
+                left: 15px;
+            }
+        }
         
         .tab {
             background: grey;
@@ -122,29 +174,17 @@ body {
     }
 
     .body {
-        background: #111;
+        background: white;
         height: calc(100% - 40px);
         border-radius: 5px;
-        color: white;
-    }
-}
-
-.header .window-drawer {
-    background: green;
-    height: $drawer-height;
-    width: 80px;
-    text-align: center;
-    line-height: 30px;
-    border-radius: 5px 5px 0 0;
-    cursor: pointer;
-
-    @include small-screen {
-        bottom: 40px;
-        left: 15px;
+        overflow: hidden;
+        color: black;
     }
 }
 
 #chat {
+    background: #111;
+    color: white;
     height: 100%;
     display: flex;
     flex-direction: column;

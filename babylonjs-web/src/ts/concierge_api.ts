@@ -140,7 +140,7 @@ export namespace Payloads {
     export type Status = StatusPayload.Status;
 
     export type GenericPayload<M> = Identify | Message<M> | Subscribe | Unsubscribe
-        | CreateGroup | DeleteGroup | FetchGroupSubs
+        | CreateGroup | DeleteGroup | FetchGroupSubs | FetchClientList
         | FetchGroupList | FetchSubList | Hello | GroupSubscriptions | GroupList
         | ClientList | Subscriptions | Status;
 }
