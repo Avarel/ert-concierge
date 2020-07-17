@@ -1,9 +1,10 @@
 const path = require("path");
+const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
     entry: {
-        index: './src/ts/index.ts',
         style: './src/scss/style.scss',
+        index: './src/ts/index.ts'
     },
     output: {
         filename: '[name].bundle.js',
@@ -14,6 +15,12 @@ module.exports = {
         'babylonjs': "BABYLON",
         'babylonjs-gui': "BABYLON.GUI"
     },
+    plugins: [
+        new HtmlWebpackPlugin({
+            template: './src/pug/index.pug',
+            inject: true
+        })
+    ],
     resolve: {
         extensions: [".ts"]
     },
@@ -26,13 +33,17 @@ module.exports = {
             {
                 test: /\.s[ac]ss$/,
                 use: [
-                    {
-                        loader: 'file-loader',
-                        options: { name: '[name].min.css' }
-                    },
+                    // Creates `style` nodes from JS strings
+                    'style-loader',
+                    // Translates CSS into CommonJS
+                    'css-loader',
                     'sass-loader'
                 ]
             },
+            {
+                test: /\.pug$/,
+                loaders: ['pug-loader']
+            }
         ]
     },
     optimization: {

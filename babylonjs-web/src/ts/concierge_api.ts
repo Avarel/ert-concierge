@@ -245,6 +245,7 @@ export class Client {
 
             if (payload.type == "HELLO") {
                 this.uuid = payload.uuid;
+                this.seq = 0;
             }
 
             for (let handler of this.handlers) {
@@ -317,6 +318,7 @@ export abstract class EventHandler implements RawHandler {
 export abstract class ServiceEventHandler extends EventHandler {
     readonly client: Client;
     protected group: string;
+    protected subscribed: boolean = false;
 
     constructor(client: Client, group: string) {
         super();
@@ -330,12 +332,13 @@ export abstract class ServiceEventHandler extends EventHandler {
 
     onRecvHello(_event: Payloads.Hello) {
         this.client.sendJSON({
-            type: "FETCH_GROUPS"
+            type: "FETCH_GROUP_SUBSCRIBERS",
+            group: this.group
         })
     }
 
-    onRecvGroupList(event: Payloads.GroupList) {
-        if (event.groups.includes(this.group)) {
+    onRecvGroupSubs(event: Payloads.GroupSubscriptions) {
+        if (event.group == this.group) {
             this.subscribe(this.group);
         }
     }
@@ -378,12 +381,14 @@ export abstract class ServiceEventHandler extends EventHandler {
             case "SUBSCRIBED":
                 if (status.group == this.group) {
                     console.log("Subscribed to `", this.group, "`.");
+                    this.subscribed = true;
                     this.onSubscribe();
                 }
                 break;
             case "UNSUBSCRIBED":
                 if (status.group == this.group) {
                     console.log("Unsubscribed from `", this.group, "`.");
+                    this.subscribed = false;
                     this.onUnsubscribe();
                 }
                 break;

@@ -6,6 +6,7 @@
         "noImplicitAny": true,
         "strictNullChecks": true,
         "noImplicitThis": true,
+        "noImplicitReturns": true,
         "removeComments": true,
         "suppressImplicitAnyIndexErrors": true,
         "sourceMap": true,

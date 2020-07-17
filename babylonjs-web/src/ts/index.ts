@@ -3,6 +3,7 @@ import * as ConciergeAPI from "./concierge_api";
 import { PhysicsHandler } from "./physics_handler";
 import { ChatHandler } from "./chat_handler";
 import { PlanetsHandler } from "./planets_handler";
+import { Chat } from "./overlay";
 
 let canvas = document.querySelector<HTMLCanvasElement>("#renderCanvas");
 if (!canvas) {
@@ -33,7 +34,9 @@ let client = new ConciergeAPI.Client(person, url, true);
 let physicsHandler = new PhysicsHandler(client, renderer);
 client.handlers.push(physicsHandler);
 
-let chatHandler = new ChatHandler(client, renderer);
+let chatUI = new Chat.UI(document.querySelector<HTMLElement>("#chat")!);
+
+let chatHandler = new ChatHandler(client, chatUI);
 client.handlers.push(chatHandler);
 
 let planetHandler = new PlanetsHandler(client, renderer);
