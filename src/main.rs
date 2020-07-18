@@ -23,6 +23,7 @@ use warp::{hyper::header, path::Tail, Filter};
 pub const SOCKET_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 64209);
 pub const VERSION: &str = "0.1.0";
 pub const SECRET: Option<&str> = None;
+pub const SUBPROTOCOL: &str = "ert-concierge";
 
 fn main() -> Result<()> {
     // Setup the logging
@@ -77,7 +78,7 @@ async fn serve(concierge: Arc<Concierge>) -> Result<()> {
             //     warp::reply::with_header(
             //         reply,
             //         header::SEC_WEBSOCKET_PROTOCOL.as_str(),
-            //         "ert-concierge",
+            //         SUBPROTOCOL,
             //     )
             // });
     };
