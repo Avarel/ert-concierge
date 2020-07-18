@@ -12,12 +12,12 @@ mod concierge;
 mod tests;
 
 use anyhow::Result;
-use concierge::{Group, Concierge};
+use concierge::{Concierge, Group};
 use log::{debug, info};
-use std::{net::SocketAddr, sync::Arc};
+use std::{convert::Infallible, net::SocketAddr, sync::Arc};
 use tokio::runtime::Builder;
 use uuid::Uuid;
-use warp::{path::Tail, Filter, hyper::header};
+use warp::{hyper::header, path::Tail, Filter};
 
 // isten on every available network interface
 pub const SOCKET_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 64209);
@@ -45,7 +45,11 @@ async fn setup() -> Result<()> {
 
     // Create a chat group
     let chat_name = "chat".to_owned();
-    concierge.groups.write().await.insert(chat_name.to_owned(), Group::new(chat_name, Uuid::nil()));
+    concierge
+        .groups
+        .write()
+        .await
+        .insert(chat_name.to_owned(), Group::new(chat_name, Uuid::nil()));
 
     serve(concierge).await
 }
@@ -68,17 +72,26 @@ async fn serve(concierge: Arc<Concierge>) -> Result<()> {
                     concierge.handle_socket_conn(websocket, addr).await
                 })
             })
+            // Enable in 0.2.0
+            // .map(|reply| {
+            //     warp::reply::with_header(
+            //         reply,
+            //         header::SEC_WEBSOCKET_PROTOCOL.as_str(),
+            //         "ert-concierge",
+            //     )
+            // });
     };
 
     let fs_download_route = {
         let concierge = concierge.clone();
         warp::get()
             .and(warp::path("fs"))
+            .and(warp::path::param::<String>())
             .and(warp::path::tail())
             .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
-            .and_then(move |path: Tail, auth: Uuid| {
+            .and_then(move |name: String, path: Tail, auth: Uuid| {
                 let concierge = concierge.clone();
-                async move { concierge.handle_file_get(auth, path.as_str()).await }
+                async move { concierge.handle_file_get(name, auth, path.as_str()).await }
             })
     };
 
@@ -86,24 +99,65 @@ async fn serve(concierge: Arc<Concierge>) -> Result<()> {
         let concierge = concierge.clone();
         warp::put()
             .and(warp::path("fs"))
+            .and(warp::path::param::<String>())
             .and(warp::path::tail())
             .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
             // .and(warp::body::content_length_limit(20971520))
             .and(warp::body::aggregate())
-            .and_then(move |path: Tail, auth: Uuid, stream| {
+            .and_then(move |name: String, path: Tail, auth: Uuid, stream| {
                 let concierge = concierge.clone();
-                async move { concierge.handle_file_put(auth, path.as_str(), stream).await }
+                async move {
+                    concierge
+                        .handle_file_put(name, auth, path.as_str(), stream)
+                        .await
+                }
             })
+    };
+
+    let fs_upload_multipart = {
+        // use tokio::fs::OpenOptions;
+        // use tokio::prelude::*;
+        // use warp::multipart::FormData;
+        // use warp::hyper::body::Buf;
+        // warp::put()
+        //     .and(warp::path("fs"))
+        //     .and(warp::path::param::<String>())
+        //     .and(warp::path::tail())
+        //     .and(warp::multipart::form())
+        //     .and_then(|name: String, path: Tail, mut multipart: FormData| async move {
+        //         use futures::StreamExt;
+
+        //         let mut file = OpenOptions::new()
+        //             .create(true)
+        //             .write(true)
+        //             .open("./tmp/example_file.txt")
+        //             .await
+        //             .unwrap();
+
+        //         while let Some(Ok(part)) = multipart.next().await {
+        //             let mut stream = part.stream();
+        //             while let Some(Ok(buf)) = stream.next().await {
+        //                 file.write_all(buf.bytes()).await.unwrap();
+        //             }
+        //         }
+
+        //         Ok::<_, Infallible>(warp::reply())
+        //     });
     };
 
     let fs_delete_route = {
         warp::delete()
             .and(warp::path("fs"))
+            .and(warp::path::param::<String>())
             .and(warp::path::tail())
             .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
-            .and_then(move |path: Tail, auth: Uuid| {
+            .and_then(move |name: String, path: Tail, auth: Uuid| {
                 let concierge = concierge.clone();
-                async move { concierge.handle_file_delete(auth, path.as_str()).await }
+                async move {
+                    concierge
+                        .handle_file_delete(name, auth, path.as_str())
+                        .await
+                }
             })
     };
 

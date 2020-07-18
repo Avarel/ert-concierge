@@ -3,7 +3,7 @@
 use super::Concierge;
 pub use error::FsError;
 use log::debug;
-use std::{ffi::OsStr, path::Path};
+use std::{ffi::OsStr, path::{PathBuf, Path}};
 use tokio::{
     fs::{File, OpenOptions},
     io::AsyncWriteExt,
@@ -38,11 +38,12 @@ mod error {
     }
 }
 
-/// Base path of the file system.
-macro_rules! base_path {
-    () => {
-        Path::new(".").join("fs")
-    };
+pub fn base_path(name: &str) -> PathBuf {
+    let mut buf = PathBuf::new();
+    buf.push(".");
+    buf.push("fs");
+    buf.push(name);
+    buf
 }
 
 pub struct FsFileReply {
@@ -82,10 +83,11 @@ impl warp::Reply for FsFileReply {
 
 pub async fn handle_file_get(
     concierge: &Concierge,
+    name: String,
     auth: Uuid,
-    string: &str,
+    tail: &str,
 ) -> Result<FsFileReply, FsError> {
-    debug!("Received GET request (auth: {}, path: {})", auth, string);
+    debug!("Received GET request (name: {}, auth: {}, path: {})", name, auth, tail);
 
     // Check that the key is registered with the concierge.
     if !concierge.clients.read().await.contains_key(&auth) {
@@ -93,8 +95,7 @@ pub async fn handle_file_get(
     }
 
     // Construct the file path.
-    let tail_path = Path::new(string);
-    let file_path = base_path!().join(tail_path);
+    let file_path = base_path(&name).join(tail);
 
     // Check that the file path is legal.
     let file_name = file_path
@@ -117,10 +118,11 @@ pub async fn handle_file_get(
 
 pub async fn handle_file_delete(
     concierge: &Concierge,
+    name: String,
     auth: Uuid,
-    string: &str,
+    tail: &str,
 ) -> Result<StatusCode, FsError> {
-    debug!("Received delete request (auth: {}, path: {})", auth, string);
+    debug!("Received DELETE request (name: {}, auth: {}, path: {})", name, auth, tail);
 
     // Check that a client with the auth UUID exists in the concierge.
     let clients = concierge.clients.read().await;
@@ -128,14 +130,12 @@ pub async fn handle_file_delete(
         .get(&auth)
         .ok_or_else(|| FsError::BadAuthorization)?;
 
-    // Check that the client has access to the path.
-    let tail_path = Path::new(string);
-    if !tail_path.starts_with(Path::new(client.name())) {
+    if client.name() != name {
         return Err(FsError::Forbidden);
     }
 
     // Construct the path and remove the file.
-    let file_path = base_path!().join(tail_path);
+    let file_path = base_path(&name).join(tail);
     tokio::fs::remove_file(file_path)
         .await
         .map_err(|_| FsError::FileNotFound)?;
@@ -145,11 +145,12 @@ pub async fn handle_file_delete(
 
 pub async fn handle_file_put(
     concierge: &Concierge,
+    name: String,
     auth: Uuid,
-    string: &str,
+    tail: &str,
     mut body: impl Buf,
 ) -> Result<StatusCode, FsError> {
-    debug!("Received upload request (auth: {}, path: {})", auth, string);
+    debug!("Received upload request (name: {}, auth: {}, path: {})", name, auth, tail);
 
     // Check that a client with the auth UUID exists in the concierge.
     let clients = concierge.clients.read().await;
@@ -157,14 +158,12 @@ pub async fn handle_file_put(
         .get(&auth)
         .ok_or_else(|| FsError::BadAuthorization)?;
 
-    // Check that the client has access to the path.
-    let tail_path = Path::new(string);
-    if !tail_path.starts_with(Path::new(client.name())) {
+    if client.name() != name {
         return Err(FsError::Forbidden);
     }
 
     // Construct the path and create the directories recursively.
-    let file_path = base_path!().join(tail_path);
+    let file_path = base_path(&name).join(tail);
     tokio::fs::create_dir_all(file_path.parent().unwrap())
         .await
         .map_err(|_| FsError::Unknown)?;
