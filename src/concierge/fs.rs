@@ -3,15 +3,17 @@
 use super::Concierge;
 pub use error::FsError;
 use log::debug;
-use std::{ffi::OsStr, path::{PathBuf, Path}};
+use std::{ffi::OsStr, path::PathBuf};
 use tokio::{
     fs::{File, OpenOptions},
     io::AsyncWriteExt,
+    stream::StreamExt,
 };
 use tokio_util::codec::{BytesCodec, FramedRead};
 use uuid::Uuid;
 use warp::{
-    hyper::{Body, Response, StatusCode, header},
+    hyper::{header, Body, Response, StatusCode},
+    multipart::FormData,
     Buf,
 };
 
@@ -64,7 +66,7 @@ impl warp::Reply for FsFileReply {
     fn into_response(self) -> Response<Body> {
         // FramedRead reads the file in chunks and reuses a buffer to save memory.
         let stream = FramedRead::new(self.file, BytesCodec::new());
-        
+
         Response::builder()
             .status(StatusCode::ACCEPTED)
             .header(
@@ -87,7 +89,10 @@ pub async fn handle_file_get(
     auth: Uuid,
     tail: &str,
 ) -> Result<FsFileReply, FsError> {
-    debug!("Received GET request (name: {}, auth: {}, path: {})", name, auth, tail);
+    debug!(
+        "Received GET request (name: {}, auth: {}, path: {})",
+        name, auth, tail
+    );
 
     // Check that the key is registered with the concierge.
     if !concierge.clients.read().await.contains_key(&auth) {
@@ -122,7 +127,10 @@ pub async fn handle_file_delete(
     auth: Uuid,
     tail: &str,
 ) -> Result<StatusCode, FsError> {
-    debug!("Received DELETE request (name: {}, auth: {}, path: {})", name, auth, tail);
+    debug!(
+        "Received DELETE request (name: {}, auth: {}, path: {})",
+        name, auth, tail
+    );
 
     // Check that a client with the auth UUID exists in the concierge.
     let clients = concierge.clients.read().await;
@@ -150,7 +158,10 @@ pub async fn handle_file_put(
     tail: &str,
     mut body: impl Buf,
 ) -> Result<StatusCode, FsError> {
-    debug!("Received upload request (name: {}, auth: {}, path: {})", name, auth, tail);
+    debug!(
+        "Received upload request (name: {}, auth: {}, path: {})",
+        name, auth, tail
+    );
 
     // Check that a client with the auth UUID exists in the concierge.
     let clients = concierge.clients.read().await;
@@ -182,6 +193,54 @@ pub async fn handle_file_put(
         file.write_all(bytes).await.map_err(|_| FsError::IoError)?;
         let n = bytes.len();
         body.advance(n);
+    }
+
+    Ok(StatusCode::CREATED)
+}
+
+pub async fn handle_file_put_multipart(
+    concierge: &Concierge,
+    name: String,
+    auth: Uuid,
+    tail: &str,
+    mut data: FormData,
+) -> Result<StatusCode, FsError> {
+    debug!(
+        "Received upload[multipart] request (name: {}, auth: {}, path: {})",
+        name, auth, tail
+    );
+
+    // Check that a client with the auth UUID exists in the concierge.
+    let clients = concierge.clients.read().await;
+    let client = clients
+        .get(&auth)
+        .ok_or_else(|| FsError::BadAuthorization)?;
+
+    if client.name() != name {
+        return Err(FsError::Forbidden);
+    }
+
+    // Construct the path and create the directories recursively.
+    let file_path = base_path(&name).join(tail);
+    tokio::fs::create_dir_all(file_path.parent().unwrap())
+        .await
+        .map_err(|_| FsError::Unknown)?;
+
+    while let Some(Ok(mut part)) = data.next().await {
+        // Open the file.
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(match part.filename() {
+                Some(file_name) => file_path.with_file_name(file_name),
+                None => file_path.clone(),
+            })
+            .await
+            .map_err(|_| FsError::FileNotFound)?;
+
+        if let Some(Ok(buf)) =  part.data().await {
+            file.write_all(buf.bytes()).await.unwrap();
+        }
     }
 
     Ok(StatusCode::CREATED)
