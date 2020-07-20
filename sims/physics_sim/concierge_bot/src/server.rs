@@ -92,6 +92,7 @@ async fn create_server_future<'a>(
             name: crate::PHYSICS_ENGINE_NAME,
             version: "0.1.0",
             secret: None,
+            tags: Some(vec!["simulation"])
         })
         .await;
 

@@ -81,7 +81,7 @@ mod ws {
 }
 
 fn identify(string: &str) -> JsonPayload<'_> {
-    JsonPayload::Identify { name: string, version: crate::VERSION, secret: None }
+    JsonPayload::Identify { name: string, version: crate::VERSION, secret: None, tags: None }
 }
 
 #[tokio::test]

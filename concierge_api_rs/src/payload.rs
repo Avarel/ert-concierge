@@ -11,6 +11,8 @@ pub struct ClientPayload<'a> {
     pub name: Cow<'a, str>,
     /// Uuid of the client.
     pub uuid: Uuid,
+    /// Tags of the client.
+    pub tags: Vec<&'a str>,
 }
 
 impl<'a> ClientPayload<'a> {
@@ -115,6 +117,7 @@ pub enum Payload<'a, T> {
         name: &'a str,
         version: &'a str,
         secret: Option<&'a str>,
+        tags: Option<Vec<&'a str>>,
     },
     /// These payloads have special fields for targeting
     /// other users or plugins. The origin fields are ignored if they are

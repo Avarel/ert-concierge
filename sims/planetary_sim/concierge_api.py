@@ -30,20 +30,22 @@ class DiscriminatedSerialize(Serialize):
 
 
 class ClientPayload(Serialize):
-    def __init__(self, name: str, uuid: str):
+    def __init__(self, name: str, uuid: str, tags: Optional[List[str]] = None):
         self.name = name
         self.uuid = uuid
+        self.tags = tags
 
     @staticmethod
     def from_object(obj: object_type) -> Optional[ClientPayload]:
         if obj.get("name") != None and obj.get("uuid") != None:
-            return ClientPayload(obj["name"], obj["uuid"])
+            return ClientPayload(obj["name"], obj["uuid"], obj.get("tags"))
         return None
 
     def to_object(self) -> object_type:
         return {
             "name": self.name,
-            "uuid": self.uuid
+            "uuid": self.uuid,
+            "tags": self.tags
         }
 
 
@@ -127,23 +129,25 @@ class Payload(DiscriminatedSerialize):
 
 
 class Identify(Payload):
-    def __init__(self, name: str, version: str, secret: Optional[str] = None):
+    def __init__(self, name: str, version: str, secret: Optional[str] = None, tags: Optional[List[str]] = None):
         super().__init__("IDENTIFY")
         self.name = name
         self.version = version
         self.secret = secret
+        self.tags = tags
 
     @staticmethod
     def from_object(obj: object_type) -> Optional[Identify]:
         if obj.get("name") != None and obj.get("version") != None:
-            return Identify(obj["name"], obj["version"], obj.get("secret"))
+            return Identify(obj["name"], obj["version"], obj.get("secret"), obj.get("tags"))
         return None
 
     def to_object(self) -> object_type:
         return self.make_object({
             "name": self.name,
             "version": self.version,
-            "secret": self.secret
+            "secret": self.secret,
+            "tags": self.tags
         })
 
 

@@ -3,6 +3,12 @@
 
 use super::{Concierge, Group};
 use crate::clients::Client;
+use concierge_api_rs::{
+    close_codes,
+    payload::{Payload, PayloadRawMessage, Target},
+    status::{err, ok, StatusPayload},
+    JsonPayload,
+};
 pub use error::WsError;
 use futures::{future, pin_mut, SinkExt, Stream, StreamExt};
 use log::{debug, info, trace, warn};
@@ -12,7 +18,6 @@ use std::{borrow::Cow, net::SocketAddr, path::Path, time::Duration};
 use tokio::{sync::mpsc::UnboundedReceiver, time::timeout};
 use uuid::Uuid;
 use warp::ws::{Message, WebSocket};
-use concierge_api_rs::{close_codes, JsonPayload, status::{err, StatusPayload, ok}, payload::{Payload, PayloadRawMessage, ClientPayload, Target}};
 
 mod error {
     #[derive(Debug, Copy, Clone)]
@@ -86,7 +91,7 @@ pub(super) async fn broadcast_all_except(
 }
 
 /// Handle the first 5 seconds of identification.
-async fn handle_identification(socket: &mut WebSocket) -> Result<String, u16> {
+async fn handle_identification(socket: &mut WebSocket) -> Result<(String, Vec<String>), u16> {
     // Protocol: Expect a payload that identifies the client within 5 seconds.
     if let Ok(Some(Ok(msg))) = timeout(Duration::from_secs(5), socket.next()).await {
         // debug!("{:?}", msg);
@@ -98,6 +103,7 @@ async fn handle_identification(socket: &mut WebSocket) -> Result<String, u16> {
                 name,
                 version,
                 secret,
+                tags,
             } = payload
             {
                 if secret != crate::SECRET {
@@ -108,7 +114,15 @@ async fn handle_identification(socket: &mut WebSocket) -> Result<String, u16> {
                 {
                     return Err(close_codes::BAD_VERSION);
                 }
-                return Ok(name.to_owned());
+
+                // Convert the tags to owned
+                let tags = tags
+                    .unwrap_or_else(|| Vec::new())
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect();
+
+                return Ok((name.to_owned(), tags));
             } else {
                 return Err(close_codes::NO_AUTH);
             }
@@ -123,6 +137,7 @@ async fn handle_identification(socket: &mut WebSocket) -> Result<String, u16> {
 async fn make_client(
     concierge: &Concierge,
     name: String,
+    tags: Vec<String>,
     socket: &mut WebSocket,
 ) -> Result<(Uuid, UnboundedReceiver<Message>), WsError> {
     // Acquire a write lock to prevent race condition
@@ -146,7 +161,7 @@ async fn make_client(
     // Add to namespace
     namespace.insert(name.clone(), uuid);
     // Create the client struct
-    let (client, rx) = Client::new(uuid, name);
+    let (client, rx) = Client::new(uuid, name, tags);
 
     broadcast_all(
         concierge,
@@ -154,7 +169,7 @@ async fn make_client(
             seq: None,
             data: StatusPayload::ClientJoined {
                 data: client.make_payload(),
-            }
+            },
         },
     )
     .await?;
@@ -173,9 +188,9 @@ pub async fn handle_socket_conn(
     // Protocol: Expect a payload that identifies the client within 5 seconds.
     match handle_identification(&mut socket).await {
         // Got the identification data successfully.
-        Ok(name) => {
+        Ok((name, tags)) => {
             debug!("Identification successful. (ip: {}, name: {})", addr, name);
-            let (uuid, rx) = make_client(concierge, name, &mut socket).await?;
+            let (uuid, rx) = make_client(concierge, name, tags, &mut socket).await?;
             handle_client(concierge, uuid, rx, socket).await?;
             remove_client(concierge, uuid).await?;
             Ok(())
@@ -256,7 +271,7 @@ async fn remove_client(concierge: &Concierge, client_uuid: Uuid) -> Result<(), W
             seq: None,
             data: StatusPayload::ClientLeft {
                 data: client.make_payload(),
-            }
+            },
         },
     )
     .await?;
@@ -376,10 +391,7 @@ async fn handle_payload(
                     .clients
                     .iter()
                     .filter_map(|uuid| clients.get(uuid))
-                    .map(|client| ClientPayload {
-                        name: Cow::Borrowed(client.name()),
-                        uuid: client.uuid(),
-                    })
+                    .map(|client| client.make_payload())
                     .collect::<Vec<_>>();
                 client.send(JsonPayload::GroupSubscribers {
                     group: &group.name,
@@ -390,10 +402,7 @@ async fn handle_payload(
         Payload::FetchClients => {
             let clients = clients
                 .iter()
-                .map(|(&uuid, client)| ClientPayload {
-                    name: Cow::Borrowed(client.name()),
-                    uuid,
-                })
+                .map(|(_, client)| client.make_payload())
                 .collect::<Vec<_>>();
             client.send(JsonPayload::Clients { clients })?;
         }
@@ -539,7 +548,9 @@ async fn handle_raw_message(
             }
         }
         Target::All => {
-            concierge.broadcast_all(payload.with_origin(client_payload.to_origin())).await?;
+            concierge
+                .broadcast_all(payload.with_origin(client_payload.to_origin()))
+                .await?;
             client.send(ok::message_sent(seq))
         }
     }

@@ -26,6 +26,7 @@ export type DeepImmutableArray<T> = ReadonlyArray<DeepImmutable<T>>;
 export interface ClientPayload {
     name: string,
     uuid: Uuid,
+    tags: string[],
 }
 
 export interface Origin extends ClientPayload {
@@ -63,7 +64,8 @@ export namespace Payloads {
     export interface Identify extends BasePayload<"IDENTIFY"> {
         name: string,
         version: string,
-        secret?: string
+        secret?: string,
+        tags?: string[],
     }
     export interface Message<T> extends BasePayload<"MESSAGE"> {
         target: Target,
@@ -226,7 +228,8 @@ export class Client {
             type: "IDENTIFY",
             name: this.name,
             version: this.version,
-            secret: this.secret
+            secret: this.secret,
+            tags: ["babylon"]
         });
     }
 
