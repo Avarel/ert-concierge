@@ -1,0 +1,85 @@
+$drawer-height: 40px;
+
+@mixin small-screen {
+    @media screen and (max-width: 500px) {
+        @content;
+    }
+}
+
+.window {
+    z-index: 100;
+    position: fixed;
+    display: flex;
+    bottom: 0;
+    width: 400px;
+    height: 500px;
+    max-height: 100%;
+    padding: 5px;
+    box-sizing: border-box;
+    transition: margin-left 0.5s, margin-bottom 0.5s;
+    flex-direction: column;
+
+    &.left {
+        left: 0;
+    }
+
+    &.right {
+        right: 0;
+        .header {
+            flex-direction: row-reverse;
+        }
+    }
+
+    @include small-screen {
+        bottom: 0;
+        height: 50vh;
+        width: 100vw;
+    }
+
+    &.hidden {
+        margin-bottom: calc(
+            max(
+                -500px + #{$drawer-height + 5px},
+                -100vh + #{$drawer-height + 5px}
+            )
+        );
+
+        @include small-screen {
+            bottom: 0;
+            margin-left: 0;
+            margin-bottom: calc(-50vh + #{$drawer-height + 5px});
+        }
+    }
+
+    .header {
+        min-height: 40px;
+        margin-left: 5px;
+        margin-right: 5px;
+        display: flex;
+        flex-direction: row;
+
+        .window-drawer {
+            background: green;
+            height: $drawer-height;
+            width: 80px;
+            text-align: center;
+            line-height: 30px;
+            border-radius: 5px 5px 0 0;
+            cursor: pointer;
+        }
+
+        .tab {
+            background: grey;
+            line-height: 40px;
+            border-radius: 5px 5px 0 0;
+        }
+    }
+
+    .body {
+        background: white;
+        height: calc(100% - 40px);
+        border-radius: 5px;
+        overflow: hidden;
+        color: black;
+    }
+}

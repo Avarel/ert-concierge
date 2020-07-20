@@ -9,19 +9,25 @@ body
     //-     img(src="https://avatars3.githubusercontent.com/u/10081540?s=460&u=87b46608046213f09eb503f89ffc7a870ca6ebed&v=4")
     //- .icon
     //-     p A
-    .window
+    .window.left#chat-window
         .header
             .window-drawer
             //- .tab Hi
         .body
             #chat
                 .messages
-                //-     //- .entry
-                //-     //-     .name Name
-                //-     //-     .text Text
+                //- .entry
+                //-     .name Name
+                //-     .text Text
                 //- .input
                 //-     input
                 //-     .button ▶
+    .window.right#control-window
+        .header
+            .window-drawer
+        .body
+            h1 Controls
+            h2 Pause, etc (not actually working)
     canvas#renderCanvas
     script(src="https://preview.babylonjs.com/earcut.min.js")
     script(src="https://preview.babylonjs.com/babylon.js")

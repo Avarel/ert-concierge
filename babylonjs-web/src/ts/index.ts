@@ -1,10 +1,10 @@
-import { Renderer } from "./renderer";
 import * as ConciergeAPI from "./concierge_api";
 import { PhysicsHandler } from "./physics_handler";
 import { ChatHandler } from "./chat_handler";
 import { PlanetsHandler } from "./planets_handler";
-import { Chat, Sidebar } from "./overlay";
 import { UsersHandler } from "./users_handler";
+import { Renderer } from "./renderer";
+import { Chat, Sidebar } from "../overlay/overlay";
 
 let canvas = document.querySelector<HTMLCanvasElement>("#renderCanvas");
 if (!canvas) {

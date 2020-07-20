@@ -1,5 +1,5 @@
 import * as ConciergeAPI from "./concierge_api";
-import { Chat } from './overlay';
+import { Chat } from '../overlay/overlay';
 
 const CHAT_GROUP = "chat";
 

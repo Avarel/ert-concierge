@@ -22,7 +22,7 @@ module.exports = {
         })
     ],
     resolve: {
-        extensions: [".ts"]
+        extensions: [".ts", ".scss", ".js", ".pug"]
     },
     module: {
         rules: [
@@ -31,14 +31,12 @@ module.exports = {
                 loader: "ts-loader"
             },
             {
+                test: /\.css$/i,
+                use: ['style-loader', 'css-loader'],
+            },
+            {
                 test: /\.s[ac]ss$/,
-                use: [
-                    // Creates `style` nodes from JS strings
-                    'style-loader',
-                    // Translates CSS into CommonJS
-                    'css-loader',
-                    'sass-loader'
-                ]
+                use: ['style-loader', 'css-loader', 'sass-loader']
             },
             {
                 test: /\.pug$/,

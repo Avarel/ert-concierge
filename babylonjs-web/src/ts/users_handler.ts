@@ -1,6 +1,6 @@
 import * as ConciergeAPI from "./concierge_api";
 import { EventHandler } from "./concierge_api";
-import { Sidebar } from "./overlay";
+import { Sidebar } from "../overlay/overlay";
 
 export class UsersHandler extends EventHandler {
     readonly ui: Sidebar.UI;
