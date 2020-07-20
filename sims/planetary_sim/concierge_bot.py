@@ -22,7 +22,7 @@ async def hello():
     print("Connecting")
     async with websockets.connect(uri) as socket:
         global name, version, group_name, system
-        await socket.send(Identify(name, version).to_json())
+        await socket.send(Identify(name, version, tags = ["simulation"]).to_json())
         hello = json.loads(await socket.recv())
 
         uuid = hello["uuid"]

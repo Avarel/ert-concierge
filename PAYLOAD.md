@@ -103,7 +103,8 @@ Imagine that a client identifies as `anthony` sends this to the concierge.
     "type": "MESSAGE",
     "target": {
         "type": "NAME",
-        "name": "brendan"
+        "name": "brendan",
+        "tags": ["babylon"]
     },
     "data": {
         "foo": "bar"
@@ -318,11 +319,11 @@ Returns all the client names as an array of strings.
 {
     "type": "GROUP_SUBSCRIBERS",
     "group": string,
-    "clients": Array<{
+    "clients": {
         "name": string,
         "uuid": string,
         "tags": string[],
-    }>
+    }[]
 }
 ```
 
@@ -335,11 +336,13 @@ Returns all the client names as an array of strings.
     "clients": [
         {
             "name": "simulation1",
-            "uuid": "..."
+            "uuid": "...",
+            "tags": ["simulation"]
         },
         {
             "name": "simulation2",
-            "uuid": "..."
+            "uuid": "...",
+            "tags": ["simulation"]
         }
     ]
 }
@@ -354,7 +357,7 @@ This payload lists all of the groups registered with the concierge.
 ```typescript
 {
     "type": "GROUPS",
-    "groups": Array<string>
+    "groups": string[]
 }
 ```
 
@@ -372,11 +375,11 @@ This payload lists all of the groups registered with the concierge.
 ```typescript
 {
     "type": "CLIENTS",
-    "clients": Array<{
+    "clients": {
         "name": string,
         "uuid": string,
         "tags": string[],
-    }>
+    }[]
 }
 ```
 
@@ -388,19 +391,23 @@ This payload lists all of the groups registered with the concierge.
     "clients": [
         {
             "name": "simulation1",
-            "uuid": "..."
+            "uuid": "...",
+            "tags": ["simulation"]
         },
         {
             "name": "simulation2",
-            "uuid": "..."
+            "uuid": "...",
+            "tags": ["simulation"]
         },
         {
             "name": "anthony",
-            "uuid": "..."
+            "uuid": "...",
+            "tags": ["babylon"]
         },
         {
             "name": "brendan",
-            "uuid": "..."
+            "uuid": "...",
+            "tags": ["babylon"]
         }
     ]
 }
@@ -415,7 +422,7 @@ This payload lists all of the connecting client's subscriptions.
 ```typescript
 {
     "type": "SUBSCRIPTIONS",
-    "groups": Array<string>
+    "groups": string[]
 }
 ```
 

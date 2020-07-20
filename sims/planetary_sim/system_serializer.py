@@ -2,7 +2,7 @@
 # Converts a GravitySystem to JSON format and vice versa
 # -------------------
 
-from GravitySystem import GravitySystem
+from gravity_system import GravitySystem
 from body import Body
 from vector import Vector
 from typing import List, Dict, Any

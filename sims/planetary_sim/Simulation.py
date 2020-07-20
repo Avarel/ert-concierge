@@ -7,7 +7,7 @@ from datetime import datetime
 import socket
 import json
 
-from GravitySystem import GravitySystem
+from gravity_system import GravitySystem
 from body import Body
 from vector import Vector
 import system_serializer
