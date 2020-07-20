@@ -14,10 +14,10 @@ mod tests;
 use anyhow::Result;
 use concierge::{Concierge, Group};
 use log::{debug, info};
-use std::{convert::Infallible, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 use tokio::runtime::Builder;
 use uuid::Uuid;
-use warp::{hyper::header, path::Tail, Filter};
+use warp::{hyper::header, path::Tail, Filter, multipart::FormData};
 
 // isten on every available network interface
 pub const SOCKET_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 64209);
@@ -103,7 +103,8 @@ async fn serve(concierge: Arc<Concierge>) -> Result<()> {
             .and(warp::path::param::<String>())
             .and(warp::path::tail())
             .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
-            // .and(warp::body::content_length_limit(20971520))
+            // 2mb upload limit
+            .and(warp::body::content_length_limit(20971520))
             .and(warp::body::aggregate())
             .and_then(move |name: String, path: Tail, auth: Uuid, stream| {
                 let concierge = concierge.clone();
@@ -115,35 +116,22 @@ async fn serve(concierge: Arc<Concierge>) -> Result<()> {
             })
     };
 
-    let fs_upload_multipart = {
-        // use tokio::fs::OpenOptions;
-        // use tokio::prelude::*;
-        // use warp::multipart::FormData;
-        // use warp::hyper::body::Buf;
-        // warp::put()
-        //     .and(warp::path("fs"))
-        //     .and(warp::path::param::<String>())
-        //     .and(warp::path::tail())
-        //     .and(warp::multipart::form())
-        //     .and_then(|name: String, path: Tail, mut multipart: FormData| async move {
-        //         use futures::StreamExt;
-
-        //         let mut file = OpenOptions::new()
-        //             .create(true)
-        //             .write(true)
-        //             .open("./tmp/example_file.txt")
-        //             .await
-        //             .unwrap();
-
-        //         while let Some(Ok(part)) = multipart.next().await {
-        //             let mut stream = part.stream();
-        //             while let Some(Ok(buf)) = stream.next().await {
-        //                 file.write_all(buf.bytes()).await.unwrap();
-        //             }
-        //         }
-
-        //         Ok::<_, Infallible>(warp::reply())
-        //     });
+    let fs_upload_multipart_route = {
+        let concierge = concierge.clone();
+        warp::put()
+            .and(warp::path("fs"))
+            .and(warp::path::param::<String>())
+            .and(warp::path::tail())
+            .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
+            .and(warp::multipart::form())
+            .and_then(move |name: String, path: Tail, auth: Uuid, data: FormData| {
+                let concierge = concierge.clone();
+                async move {
+                    concierge
+                        .handle_file_put_multipart(name, auth, path.as_str(), data)
+                        .await
+                }
+            })
     };
 
     let fs_delete_route = {
@@ -165,6 +153,7 @@ async fn serve(concierge: Arc<Concierge>) -> Result<()> {
     let routes = ws_route
         .or(fs_download_route)
         .or(fs_upload_route)
+        .or(fs_upload_multipart_route)
         .or(fs_delete_route);
 
     warp::serve(routes)

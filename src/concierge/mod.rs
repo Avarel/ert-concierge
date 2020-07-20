@@ -13,7 +13,7 @@ use std::{
 };
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use warp::{hyper::StatusCode, ws::WebSocket, Buf, Rejection};
+use warp::{hyper::StatusCode, ws::WebSocket, Buf, Rejection, multipart::FormData};
 pub use ws::WsError;
 
 /// Central struct that stores the concierge data.
@@ -186,6 +186,18 @@ impl Concierge {
         stream: impl Buf,
     ) -> Result<StatusCode, Rejection> {
         fs::handle_file_put(&self, name, auth, tail, stream)
+            .await
+            .map_err(|err| err.rejection())
+    }
+
+    pub async fn handle_file_put_multipart(
+        self: Arc<Self>,
+        name: String,
+        auth: Uuid,
+        tail: &str,
+        data: FormData
+    ) -> Result<StatusCode, Rejection> {
+        fs::handle_file_put_multipart(&self, name, auth, tail, data)
             .await
             .map_err(|err| err.rejection())
     }
