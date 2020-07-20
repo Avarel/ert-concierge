@@ -39,11 +39,6 @@ In the case that the central server and physics simulation is not located on the
 cargo run -p physics_sim --release ws://ADDRESS:64209/ws
 ```
 
-## Warning
-The `tls/` folder represents example certificate and key for use with SSL (they are **very unsecure**), not for use in production.
-This is currently disabled in the code. You must uncomment the relevant lines in [main.rs](./src/main.rs) to enable
-TLS.
-
 ## Documentation
 * [**Websocket**](./PAYLOAD.md) protocol for interacting with the concierge, the main method of data communication.
 * [**File system**](./FILESYSTEM.md) protocol for transferring files between clients connected to the Concierge.
