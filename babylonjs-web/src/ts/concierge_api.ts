@@ -146,6 +146,9 @@ export namespace Payloads {
         | FetchGroupList | FetchSubList | Hello | GroupSubscriptions | GroupList
         | ClientList | Subscriptions | Status;
 }
+/**
+ * Concierge payload types.
+ */
 export type GenericPayload<T> = Payloads.GenericPayload<T>;
 
 /**

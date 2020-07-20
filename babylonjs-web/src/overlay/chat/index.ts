@@ -24,6 +24,9 @@ export namespace Chat {
             this.setup();
         }
 
+        /**
+         * Setup the chat elements.
+         */
         private setup() {
             let messagesDiv = this.rootElement.querySelector<HTMLDivElement>("div.messages")
                 || createElement("div", ["messages"]);
@@ -71,11 +74,21 @@ export namespace Chat {
             return entryDiv;
         }
 
+        /**
+         * Add a status message.
+         * @param text Status text.
+         */
         addStatus(text: string) {
             let element = this.createStatusElement(text);
             this.messagesElement.appendChild(element);
         }
 
+        /**
+         * Add a user message.
+         * @param name Name of the sender.
+         * @param text Text of the message.
+         * @param you If the client is the sender/"you".
+         */
         addMessage(name: string, text: string, you: boolean = false) {
             let element = this.createMessageElement(name, text, you);
             this.messagesElement.appendChild(element);

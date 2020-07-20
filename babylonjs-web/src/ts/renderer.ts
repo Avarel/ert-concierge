@@ -5,11 +5,10 @@ export class Renderer {
     canvas: HTMLCanvasElement;
     engine: BABYLON.Engine;
     scene?: BABYLON.Scene;
-    generator?: BABYLON.ShadowGenerator;
+    shadowGenerator?: BABYLON.ShadowGenerator;
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
-        
         this.engine = new BABYLON.Engine(canvas, true);
     }
 
@@ -45,7 +44,7 @@ export class Renderer {
         helper!.skybox!.isPickable = false;
         helper!.setMainColor(BABYLON.Color3.FromHexString("#74b9ff"));
 
-        this.generator = new BABYLON.ShadowGenerator(512, light);
+        this.shadowGenerator = new BABYLON.ShadowGenerator(512, light);
 
         var vrHelper = scene.createDefaultVRExperience({ createDeviceOrientationCamera: false });
         vrHelper.enableTeleportation({ floorMeshes: [helper!.ground!] });

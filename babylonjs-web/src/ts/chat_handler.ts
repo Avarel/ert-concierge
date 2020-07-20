@@ -20,6 +20,10 @@ export class ChatHandler extends ConciergeAPI.ServiceEventHandler {
         this.ui.addStatus("Connected to the chat system.")
     }
 
+    /**
+     * Fired on the input being entered.
+     * @param text The text in the UI.
+     */
     onEnter(text: string) {
         this.client.sendJSON({
             type: "MESSAGE",

@@ -85,11 +85,11 @@ export class PlanetsHandler extends ConciergeAPI.ServiceEventHandler {
         this.planets = new Map();
     }
 
-    onRecvMessage(message: ConciergeAPI.Payloads.Message<any>) {
+    onRecvMessage(message: ConciergeAPI.Payloads.Message<SystemDump>) {
         if (message.origin!.name != PLANET_SIM_NAME) {
             return;
         }
-        this.processPhysicsPayload(message.data as SystemDump);
+        this.processPhysicsPayload(message.data);
     }
 
     onSubscribe() {
@@ -103,7 +103,7 @@ export class PlanetsHandler extends ConciergeAPI.ServiceEventHandler {
         for (let key of this.planets.keys()) {
             if (this.planets.has(key)) {
                 let shape = this.planets.get(key)!;
-                this.renderer.generator?.removeShadowCaster(shape.mesh);
+                this.renderer.shadowGenerator?.removeShadowCaster(shape.mesh);
                 shape.mesh.dispose();
                 this.planets.delete(key);
             }
@@ -138,7 +138,7 @@ export class PlanetsHandler extends ConciergeAPI.ServiceEventHandler {
                         location, radius, this.renderer.scene, color
                     );
                     this.planets.set(obj.name, shape);
-                    this.renderer.generator?.addShadowCaster(shape.mesh);
+                    this.renderer.shadowGenerator?.addShadowCaster(shape.mesh);
                 } else {
                     throw new Error("Scene not initialized!")
                 }

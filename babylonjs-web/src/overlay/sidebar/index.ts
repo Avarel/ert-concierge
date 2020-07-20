@@ -1,5 +1,5 @@
 import "./index.scss";
-import tippy from "tippy.js";
+import tippy, { Props, Instance } from "tippy.js";
 import "tippy.js/dist/tippy.css";
 
 function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: string[] = []): HTMLElementTagNameMap[K] {
@@ -9,9 +9,24 @@ function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: s
 }
 
 export namespace Sidebar {
-    export interface Icon {
-        name: string,
-        element: HTMLElement
+    export class Icon {
+        name: string;
+        private element: HTMLElement;
+        private tooltip: Instance<Props>;
+
+        constructor(name: string, element: HTMLElement, tooltip: Instance<Props>) {
+            this.name = name;
+            this.element = element;
+            this.tooltip = tooltip;
+        }
+
+        /**
+         * Destroys the icon element.
+         */
+        destroy() {
+            this.element.remove();
+            this.tooltip.destroy();
+        }
     }
 
     export class UI {
@@ -26,17 +41,28 @@ export namespace Sidebar {
             return createElement("div", ["icon"]);
         }
 
+        /**
+         * Clear all icons in the sidebar.
+         */
         clear() {
             for (let icon of this.icons) {
-                icon.element.remove();
+                icon.destroy();
             }
             this.icons.length = 0;
         }
 
+        /**
+         * Add an image-based icon to the sidebar.
+         * @param name The full name of the icon.
+         * @param link The source link of the image.
+         */
         addImageIcon(name: string, link: string) {
             let iconDiv = this.baseIcon();
 
-            iconDiv.setAttribute("data-tippy-content", name);
+            let tooltip = tippy(iconDiv, {
+                placement: "right",
+                content: name
+            });
 
             let imgElement = createElement("img");
             imgElement.setAttribute("src", link);
@@ -47,13 +73,18 @@ export namespace Sidebar {
             // iconDiv.append(tooltipElement);
 
             this.rootElement.appendChild(iconDiv);
-            this.icons.push({ name, element: iconDiv });
+            this.icons.push(new Icon(name, iconDiv, tooltip));
         }
 
+        /**
+         * Add a text-based icon to the sidebar.
+         * @param name The full name of the icon.
+         * @param text The text of the icon.
+         */
         addInitialIcon(name: string, text: string) {
             let iconDiv = this.baseIcon();
 
-            tippy(iconDiv, {
+            let tooltip = tippy(iconDiv, {
                 placement: "right",
                 content: name
             });
@@ -67,14 +98,18 @@ export namespace Sidebar {
             // iconDiv.append(tooltipElement);
 
             this.rootElement.appendChild(iconDiv);
-            this.icons.push({ name, element: iconDiv });
+            this.icons.push(new Icon(name, iconDiv, tooltip));
         }
 
+        /**
+         * Remove an icon with the name.
+         * @param name The name of the icon to remove.
+         */
         removeIcon(name: string) {
             for (let i = 0; i < this.icons.length; i++) {
                 let icon = this.icons[i];
                 if (icon.name == name) {
-                    icon.element.remove();
+                    icon.destroy();
                     this.icons.splice(i, 1);
                 }
             }
