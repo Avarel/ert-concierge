@@ -7,9 +7,9 @@ edition = "2018"
 [workspace]
 members = [
     "concierge_api_rs",
-    "physics_sim",
-    "physics_sim/physics",
-    "physics_sim/concierge_bot"
+    "sims/physics_sim",
+    "sims/physics_sim/physics",
+    "sims/physics_sim/concierge_bot"
 ]
 
 [dependencies]
