@@ -1,0 +1,42 @@
+{
+  "systemData": {
+    "gravityConstant": 6.67e-11,
+    "scale": 5e-11,
+    "timeScale": 1e-15,
+    "bodyScale": 10000000.0,
+    "centralBodyScale": 0.001,
+    "elasticity": 1,
+    "bodyCount": 2,
+    "centralBodyName": "Nucleus",
+    "handMass": 1e-28,
+    "boundary": 1e-10
+  },
+  "objects": [
+    {
+      "name": "Nucleus",
+      "mass": 1.673e-27,
+      "radius": 8.77e-16,
+      "locationX": 0,
+      "locationY": 0,
+      "locationZ": 0,
+      "orbitRadius": 0.0,
+      "orbitSpeed": 0.0,
+      "directionX": 0,
+      "directionY": 0,
+      "directionZ": 0
+    },
+    {
+      "name": "Electron",
+      "mass": 9.11e-31,
+      "radius": 8.77e-19,
+      "locationX": 5.29e-11,
+      "locationY": 0.0,
+      "locationZ": 0.0,
+      "orbitRadius": 5.29e-11,
+      "orbitSpeed": 2200000,
+      "directionX": 0,
+      "directionY": 0,
+      "directionZ": 1
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "systemData": {
+    "gravityConstant": 1,
+    "scale": 1,
+    "timeScale": 1,
+    "bodyScale": 1,
+    "centralBodyScale": 1,
+    "elasticity": 1,
+    "bodyCount": 3,
+    "centralBodyName": "CentralBody",
+    "handMass": 2.5,
+    "boundary": 5
+  },
+  "objects": [
+    {
+      "name": "CentralBody",
+      "mass": 5,
+      "radius": 0.3,
+      "locationX": 0,
+      "locationY": 0,
+      "locationZ": 0,
+      "orbitRadius": 0.0,
+      "orbitSpeed": 0.0,
+      "directionX": 0,
+      "directionY": 0,
+      "directionZ": 0
+    },
+    {
+      "name": "Body1",
+      "mass": 1,
+      "radius": 0.1,
+      "locationX": 1.5,
+      "locationY": 0.0,
+      "locationZ": 0.0,
+      "orbitRadius": 1.5,
+      "orbitSpeed": 1.64,
+      "directionX": 0,
+      "directionY": 0,
+      "directionZ": 1
+    },
+    {
+      "name": "Body2",
+      "mass": 0.05,
+      "radius": 0.08,
+      "locationX": 0.75,
+      "locationY": 0.0,
+      "locationZ": 0.0,
+      "orbitRadius": 0.75,
+      "orbitSpeed": 2.24,
+      "directionX": 0,
+      "directionY": 0,
+      "directionZ": 1
+    }
+  ]
+}
