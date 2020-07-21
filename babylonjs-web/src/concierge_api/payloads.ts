@@ -60,7 +60,7 @@ interface GroupField {
     group: string
 }
 
-export namespace Payload {
+export module Payload {
     export interface Identify extends BasePayload<"IDENTIFY"> {
         name: string,
         version: string,

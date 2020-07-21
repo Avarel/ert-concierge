@@ -22,16 +22,12 @@ body
                 //-     input
                 //-     .button ▶
     .window.right#control-window
-        .header
-            .window-drawer
-            .tab(tag="planetary") What
-            .tab(tag="about") About
         .body
-            .tab(tag="planetary")
+            .tab(label="Planetary Controls", tag="planetary")
                 h1 Controls
                 h2 Pause, etc (not actually working)
-            .tab(tag="about")
-                | Made by An Tran
+            .tab(label="About", tag="about")
+                center ERT Concierge / BabylonJS Frontend
     canvas#renderCanvas
     script(src="https://preview.babylonjs.com/earcut.min.js")
     script(src="https://preview.babylonjs.com/babylon.js")

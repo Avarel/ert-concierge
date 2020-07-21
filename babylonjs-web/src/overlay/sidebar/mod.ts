@@ -8,7 +8,7 @@ function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: s
     return div;
 }
 
-export namespace Sidebar {
+export module Sidebar {
     export class Icon {
         name: string;
         private element: HTMLElement;

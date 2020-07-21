@@ -6,23 +6,25 @@ function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: s
     return div;
 }
 
-export namespace Window {
+export module Window {
     export class Tab {
         tag: string;
-        headerElement: HTMLElement;
-        bodyElement: HTMLElement;
+        header: HTMLElement;
+        body: HTMLElement;
 
         constructor(tag: string, headerElement: HTMLElement, bodyElement: HTMLElement) {
             this.tag = tag;
-            this.headerElement = headerElement;
-            this.bodyElement = bodyElement;
+            this.header = headerElement;
+            this.body = bodyElement;
         }
 
         show(flag: boolean = true) {
             if (flag) {
-                this.bodyElement.classList.remove("hidden");
+                this.header.classList.add("active");
+                this.body.classList.add("active");
             } else {
-                this.bodyElement.classList.add("hidden");
+                this.header.classList.remove("active");
+                this.body.classList.remove("active");
             }
         }
     }
@@ -30,7 +32,7 @@ export namespace Window {
     export class UI {
         rootElement: HTMLElement;
         headerElement: HTMLElement;
-        toggleElement: HTMLElement;
+        drawerElement: HTMLElement;
         bodyElement: HTMLElement;
         tabs: Map<string, Tab> = new Map();
 
@@ -38,41 +40,40 @@ export namespace Window {
             this.rootElement = rootElement;
             this.headerElement = rootElement.querySelector<HTMLElement>(".header") || createElement("div", ["header"]);
             this.rootElement.prepend(this.headerElement);
-            this.toggleElement = this.headerElement.querySelector(".window-drawer") || createElement("div", ["window-drawer"]);
-            this.headerElement.prepend(this.toggleElement);
+            this.drawerElement = this.headerElement.querySelector(".window-drawer") || createElement("div", ["window-drawer"]);
+            this.headerElement.prepend(this.drawerElement);
 
-            this.toggleElement.addEventListener("click", () => {
+            this.drawerElement.addEventListener("click", () => {
                 this.toggle();
             });
 
             this.bodyElement = rootElement.querySelector<HTMLElement>(".body") || createElement("div", ["body"]);
             this.rootElement.append(this.bodyElement);
 
-            // this.bodyElement.querySelectorAll<HTMLElement>(".tab").forEach((element, key) => {
-            //     if (key === 0) {
-            //         element.classList.remove("hidden");
-            //     } else {
-            //         element.classList.add("hidden");
-            //     }
-            // });
-
-            this.headerElement.querySelectorAll<HTMLElement>(".tab").forEach((headerElement, i) => {
-                let tag = headerElement.getAttribute("tag");
-                if (tag) {
-                    for (let bodyElement of this.bodyElement.querySelectorAll<HTMLElement>(".tab")) {
-                        let bodyTag = bodyElement.getAttribute("tag");
-                        if (bodyTag == tag) {
-                            let tab = new Tab(tag, headerElement, bodyElement);
-                            this.tabs.set(tag, tab);
-                            tab.show(i == 0);
-                        }
-                    }
-                    headerElement.addEventListener("click", () => {
-                        this.show(true);
-                        this.showTab(tag!);
-                    });
+            this.bodyElement.querySelectorAll<HTMLElement>(".tab").forEach((tabBody, i) => {
+                let bodyTag = tabBody.getAttribute("tag");
+                if (bodyTag) {
+                    let label = tabBody.getAttribute("label") || bodyTag;
+                    let tab = this.registerTab(bodyTag, label, tabBody);
+                    tab.show(i == 0);
                 }
             });
+        }
+
+        registerTab(tag: string, label: string, tabBody: HTMLElement): Tab {
+            let tabHeader = createElement("div", ["tab"]);
+            tabHeader.innerText = label;
+            this.headerElement.appendChild(tabHeader);
+
+            let tab = new Tab(tag, tabHeader, tabBody);
+            this.tabs.set(tag, tab);
+
+            tabHeader.addEventListener("click", () => {
+                this.show(true);
+                this.showTab(tag!);
+            });
+
+            return tab;
         }
 
         showTab(tag: string) {

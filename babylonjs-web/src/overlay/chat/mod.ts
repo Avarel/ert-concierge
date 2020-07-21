@@ -6,7 +6,7 @@ function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: s
     return div;
 }
 
-export namespace Chat {
+export module Chat {
     export interface Message {
         name: string,
         text: string,
