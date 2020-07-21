@@ -33,7 +33,7 @@ export interface Origin extends ClientPayload {
     group?: string,
 }
 
-export namespace Targets {
+export module Targets {
     export interface BaseTarget<T extends string> {
         type: T
     }
@@ -97,7 +97,7 @@ export module Payload {
         groups: string[],
     }
 
-    namespace StatusPayload {
+    export module StatusPayload {
         /** These statuses may be sequenced. */ 
         export interface BaseStatus<T extends string> extends BasePayload<"STATUS"> {
             code: T

@@ -1,22 +1,22 @@
-import * as ConciergeAPI from "../concierge_api/mod";
+import * as ConciergeAPI from "./concierge_api/mod";
 import { PhysicsHandler } from "./physics_handler";
 import { ChatHandler } from "./chat_handler";
-import { PlanetsHandler } from "./planets_handler";
+import { PlanetsHandler } from "./planetary_sim/planets_handler";
 import { UsersHandler } from "./users_handler";
 import { Renderer } from "./renderer";
-import { Chat, Sidebar, Window } from "../overlay/mod";
+import { Chat, Sidebar, Window } from "./overlay/mod";
 
 const queries = new URLSearchParams(window.location.search);
 
 // http://localhost:8080/?server=ws%3A%2F%2Fcompute-cpu2.cms.caltech.edu%3A64209%2Fws&name=Anthony
-let serverURL = queries.get("server") || "ws://127.0.0.1:64209/ws";
+let serverURL = queries.get("server") || prompt("Enter the server address.", "ws://127.0.0.1:64209/ws");
 if (!serverURL || serverURL.length == 0) {
-    throw alert("Malformed server URL.")
+    throw alert("Malformed server address!");
 }
 
-let name = queries.get("name");
-while (!name || name.length == 0) {
-    name = prompt("Please enter your name");
+let name = queries.get("name") || prompt("Enter a username.");
+if (!name || name.length == 0) {
+    throw alert("Malformed username!")
 }
 
 let canvas = document.querySelector<HTMLCanvasElement>("canvas#renderCanvas");

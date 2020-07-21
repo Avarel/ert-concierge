@@ -3,8 +3,8 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
     entry: {
-        style: './src/scss/style.scss',
-        index: './src/ts/index.ts'
+        style: './src/index/style.scss',
+        index: './src/index.ts'
     },
     output: {
         filename: '[name].bundle.js',
@@ -17,12 +17,12 @@ module.exports = {
     },
     plugins: [
         new HtmlWebpackPlugin({
-            template: './src/pug/index.pug',
+            template: './src/index/index.pug',
             inject: true
         })
     ],
     resolve: {
-        extensions: [".ts", ".scss", ".js", ".pug"]
+        extensions: [".ts", ".js", ".scss", ".css",  ".pug", ".html"]
     },
     module: {
         rules: [

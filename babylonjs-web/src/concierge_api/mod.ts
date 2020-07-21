@@ -1,5 +1,5 @@
 import { Uuid, GenericPayload } from "./payloads";
-import { RawHandler, ServiceEventHandler } from "./handlers";
+import { RawHandler } from "./handlers";
 
 /**
  * Central connector to the concierge.

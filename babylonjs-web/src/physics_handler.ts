@@ -1,8 +1,8 @@
-import * as ConciergeAPI from "../concierge_api/mod";
+import * as ConciergeAPI from "./concierge_api/mod";
 import { DeepImmutable, Vector2, DeepImmutableArray, Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, PolygonMeshBuilder, StandardMaterial, ActionManager, MeshBuilder, Mesh } from "babylonjs";
 import { Renderer } from "./renderer";
-import { ServiceEventHandler } from "../concierge_api/handlers";
-import { Payload } from "../concierge_api/payloads";
+import { ServiceEventHandler } from "./concierge_api/handlers";
+import { Payload } from "./concierge_api/payloads";
 
 interface Vec2f {
     x: number,
@@ -18,44 +18,44 @@ namespace PhysicsPayloads {
         points: Vec2f[],
         color: RgbColor
     }
-    
+
     export interface ToggleColor {
         type: "TOGGLE_COLOR",
         id: string,
     }
-    
+
     export interface ColorUpdate {
         type: "COLOR_UPDATE",
         id: string,
         color: RgbColor
     }
-    
+
     export interface EntityUpdate {
         id: string,
         position: Vec2f,
     }
-    
+
     export interface FetchEntities {
         type: "FETCH_ENTITIES"
     }
-    
+
     export interface FetchPositions {
         type: "FETCH_POSITIONS"
     }
-    
+
     export interface EntityDump {
         type: "ENTITY_DUMP",
         entities: Entity[]
     }
-    
+
     export interface PositionDump {
         type: "POSITION_DUMP"
         updates: EntityUpdate[]
     }
-    
+
     export type Payload = EntityDump | PositionDump
         | FetchEntities | FetchPositions
-        | ColorUpdate | ToggleColor;    
+        | ColorUpdate | ToggleColor;
 }
 type PhysicsPayload = PhysicsPayloads.Payload;
 
@@ -113,15 +113,14 @@ class PolygonShape {
 export class PhysicsHandler extends ServiceEventHandler {
     readonly renderer: Renderer;
     readonly client: ConciergeAPI.Client;
-    private scale: number = 1.0;
 
-    private shapes: Map<string, PolygonShape>;
+    private shapes: Map<string, PolygonShape> = new Map();
+    private readonly visualScale: number = 1.0;
 
     constructor(client: ConciergeAPI.Client, renderer: Renderer) {
         super(client, PHYSICS_ENGINE_GROUP);
         this.client = client;
         this.renderer = renderer;
-        this.shapes = new Map();
     }
 
     onRecvMessage(message: Payload.Message<PhysicsPayload>) {
@@ -162,7 +161,7 @@ export class PhysicsHandler extends ServiceEventHandler {
 
     createPolygon(id: string, centroid: Vector2, points: Vector2[], color: Color3): PolygonShape {
         if (this.renderer.scene) {
-            let shape = PolygonShape.createPolygon(new Vector3(centroid.x, 0, centroid.y), points, this.renderer.scene, color, this.scale);
+            let shape = PolygonShape.createPolygon(new Vector3(centroid.x, 0, centroid.y), points, this.renderer.scene, color, this.visualScale);
             this.shapes.set(id, shape);
             this.renderer.shadowGenerator?.addShadowCaster(shape.mesh);
             return shape;
@@ -199,7 +198,7 @@ export class PhysicsHandler extends ServiceEventHandler {
     private updateShape(id: string, centroid: Vec2f) {
         let shape = this.shapes.get(id);
         if (shape) {
-            shape.moveTo(new Vector3(centroid.x, 0, centroid.y).scaleInPlace(this.scale));
+            shape.moveTo(new Vector3(centroid.x, 0, centroid.y).scaleInPlace(this.visualScale));
         }
     }
 

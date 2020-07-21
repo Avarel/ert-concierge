@@ -1,7 +1,7 @@
-import { Sidebar } from "../overlay/mod";
-import { EventHandler } from "../concierge_api/handlers";
-import Client from "../concierge_api/mod";
-import Payload from "../concierge_api/payloads";
+import { Sidebar } from "./overlay/mod";
+import { EventHandler } from "./concierge_api/handlers";
+import Client from "./concierge_api/mod";
+import Payload from "./concierge_api/payloads";
 
 export class UsersHandler extends EventHandler {
     readonly ui: Sidebar.UI;

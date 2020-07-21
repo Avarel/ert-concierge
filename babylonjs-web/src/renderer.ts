@@ -1,5 +1,5 @@
 import * as BABYLON from 'babylonjs';
-import { Vector2, Color3, DeepImmutableObject, Vector3 } from 'babylonjs';
+import { Vector3 } from 'babylonjs';
 
 export class Renderer {
     canvas: HTMLCanvasElement;
