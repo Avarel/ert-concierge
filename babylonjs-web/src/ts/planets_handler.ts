@@ -1,6 +1,8 @@
-import * as ConciergeAPI from "./concierge_api";
 import { DeepImmutable, Vector2, DeepImmutableArray, Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, PolygonMeshBuilder, StandardMaterial, ActionManager, MeshBuilder, Mesh } from "babylonjs";
 import { Renderer } from "./renderer";
+import { ServiceEventHandler } from "../concierge_api/handlers";
+import { Client } from "../concierge_api/mod";
+import { Payload } from "../concierge_api/payloads";
 
 export const PLANET_SIM_NAME = "planetary_simulation";
 export const PLANET_SIM_GROUP = "planetary_simulation_out";
@@ -71,21 +73,21 @@ class PlanetShape {
     }
 }
 
-export class PlanetsHandler extends ConciergeAPI.ServiceEventHandler {
+export class PlanetsHandler extends ServiceEventHandler {
     readonly renderer: Renderer;
-    readonly client: ConciergeAPI.Client;
+    readonly client: Client;
 
     private planets: Map<string, PlanetShape>;
     private sysData!: SystemData;
 
-    constructor(client: ConciergeAPI.Client, renderer: Renderer) {
+    constructor(client: Client, renderer: Renderer) {
         super(client, PLANET_SIM_GROUP);
         this.client = client;
         this.renderer = renderer;
         this.planets = new Map();
     }
 
-    onRecvMessage(message: ConciergeAPI.Payloads.Message<SystemDump>) {
+    onRecvMessage(message: Payload.Message<SystemDump>) {
         if (message.origin!.name != PLANET_SIM_NAME) {
             return;
         }

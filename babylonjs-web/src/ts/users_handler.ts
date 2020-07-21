@@ -1,31 +1,32 @@
-import * as ConciergeAPI from "./concierge_api";
-import { EventHandler } from "./concierge_api";
-import { Sidebar } from "../overlay/overlay";
+import { Sidebar } from "../overlay/mod";
+import { EventHandler } from "../concierge_api/handlers";
+import Client from "../concierge_api/mod";
+import Payload from "../concierge_api/payloads";
 
 export class UsersHandler extends EventHandler {
     readonly ui: Sidebar.UI;
-    readonly client: ConciergeAPI.Client;
+    readonly client: Client;
 
-    constructor(client: ConciergeAPI.Client, ui: Sidebar.UI) {
+    constructor(client: Client, ui: Sidebar.UI) {
         super();
         this.client = client;
         this.ui = ui;
     }
 
-    onRecvHello(hello: ConciergeAPI.Payloads.Hello) {
+    onRecvHello(hello: Payload.Hello) {
         this.client.sendJSON({
             type: "FETCH_CLIENTS"
         });
     }
 
-    onRecvClientList(data: ConciergeAPI.Payloads.ClientList) {
+    onRecvClientList(data: Payload.ClientList) {
         this.ui.clear();
         for (let client of data.clients) {
             this.ui.addInitialIcon(client.name, client.name[0])
         }
     }
 
-    onRecvStatus(status: ConciergeAPI.Payloads.Status) {
+    onRecvStatus(status: Payload.Status) {
         switch (status.code) {
             case "CLIENT_JOINED":
                 this.ui.addInitialIcon(status.name, status.name[0]);

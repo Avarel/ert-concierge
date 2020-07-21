@@ -12,7 +12,6 @@ body
     .window.left#chat-window
         .header
             .window-drawer
-            //- .tab Hi
         .body
             #chat
                 .messages
@@ -25,9 +24,14 @@ body
     .window.right#control-window
         .header
             .window-drawer
+            .tab(tag="planetary") What
+            .tab(tag="about") About
         .body
-            h1 Controls
-            h2 Pause, etc (not actually working)
+            .tab(tag="planetary")
+                h1 Controls
+                h2 Pause, etc (not actually working)
+            .tab(tag="about")
+                | Made by An Tran
     canvas#renderCanvas
     script(src="https://preview.babylonjs.com/earcut.min.js")
     script(src="https://preview.babylonjs.com/babylon.js")

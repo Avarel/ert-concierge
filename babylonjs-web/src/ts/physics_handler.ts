@@ -1,6 +1,8 @@
-import * as ConciergeAPI from "./concierge_api";
+import * as ConciergeAPI from "../concierge_api/mod";
 import { DeepImmutable, Vector2, DeepImmutableArray, Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, PolygonMeshBuilder, StandardMaterial, ActionManager, MeshBuilder, Mesh } from "babylonjs";
 import { Renderer } from "./renderer";
+import { ServiceEventHandler } from "../concierge_api/handlers";
+import { Payload } from "../concierge_api/payloads";
 
 interface Vec2f {
     x: number,
@@ -108,7 +110,7 @@ class PolygonShape {
     }
 }
 
-export class PhysicsHandler extends ConciergeAPI.ServiceEventHandler {
+export class PhysicsHandler extends ServiceEventHandler {
     readonly renderer: Renderer;
     readonly client: ConciergeAPI.Client;
     private scale: number = 1.0;
@@ -122,7 +124,7 @@ export class PhysicsHandler extends ConciergeAPI.ServiceEventHandler {
         this.shapes = new Map();
     }
 
-    onRecvMessage(message: ConciergeAPI.Payloads.Message<PhysicsPayload>) {
+    onRecvMessage(message: Payload.Message<PhysicsPayload>) {
         if (message.origin!.name != PHYSICS_ENGINE_NAME) {
             return;
         }

@@ -1,13 +1,15 @@
-import * as ConciergeAPI from "./concierge_api";
-import { Chat } from '../overlay/overlay';
+import { Chat } from '../overlay/mod';
+import { ServiceEventHandler } from "../concierge_api/handlers";
+import { Client } from '../concierge_api/mod';
+import { Payload } from '../concierge_api/payloads';
 
 const CHAT_GROUP = "chat";
 
-export class ChatHandler extends ConciergeAPI.ServiceEventHandler {
-    readonly client: ConciergeAPI.Client;
+export class ChatHandler extends ServiceEventHandler {
+    readonly client: Client;
     readonly ui: Chat.UI;
 
-    constructor(client: ConciergeAPI.Client, ui: Chat.UI) {
+    constructor(client: Client, ui: Chat.UI) {
         super(client, CHAT_GROUP);
         this.client = client;
         this.ui = ui;
@@ -35,7 +37,7 @@ export class ChatHandler extends ConciergeAPI.ServiceEventHandler {
         });
     }
 
-    onRecvMessage(message: ConciergeAPI.Payloads.Message<any>) {
+    onRecvMessage(message: Payload.Message<any>) {
         if (!message.origin || message.origin.group != CHAT_GROUP) {
             return;
         }

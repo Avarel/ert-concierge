@@ -52,34 +52,46 @@ $drawer-height: 40px;
     }
 
     .header {
-        min-height: 40px;
+        height: 40px;
         margin-left: 5px;
         margin-right: 5px;
         display: flex;
         flex-direction: row;
 
-        .window-drawer {
-            background: green;
+        .tab {
             height: $drawer-height;
-            width: 80px;
-            text-align: center;
-            line-height: 30px;
+            background: #555;
+            line-height: $drawer-height;
             border-radius: 5px 5px 0 0;
+            text-align: center;
+            padding: 0px 10px 0px;
+            color: white;
+            font-family: monospace;
             cursor: pointer;
         }
 
-        .tab {
-            background: grey;
-            line-height: 40px;
-            border-radius: 5px 5px 0 0;
+        .window-drawer {
+            @extend .tab;
+            background: green;
+            width: 80px;
+            padding: 0;
         }
     }
 
     .body {
         background: white;
-        height: calc(100% - 40px);
+        height: 100%;
+        width: 100%;
         border-radius: 5px;
         overflow: hidden;
         color: black;
+
+        .tab {
+            height: 100%;
+            width: 100%;
+            &.hidden {
+                display: none;
+            }
+        }
     }
 }
