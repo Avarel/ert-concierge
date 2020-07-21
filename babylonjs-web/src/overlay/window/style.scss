@@ -64,6 +64,7 @@ $drawer-height: 40px;
         width: auto;
 
         .tab {
+            margin-top: 5px;
             display: inline;
             max-height: $drawer-height;
             background: #222;
@@ -74,15 +75,16 @@ $drawer-height: 40px;
             color: white;
             font-family: monospace;
             cursor: pointer;
-            transition: background-color 0.2s;
-
+            transition: background-color 0.2s, margin-top 0.2s;
             &.active {
+                margin-top: 0;
                 background: #555;
             }
         }
 
         .window-drawer {
             @extend .tab;
+            margin-top: 0;
             background: green;
             min-width: 80px;
             width: 80px;

@@ -1,4 +1,4 @@
-import "./index.scss";
+import "./style.scss";
 import tippy, { Props, Instance } from "tippy.js";
 import "tippy.js/dist/tippy.css";
 

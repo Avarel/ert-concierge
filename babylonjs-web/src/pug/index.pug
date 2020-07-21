@@ -1,8 +1,9 @@
 doctype html
 head
     title ERT Concierge: Babylon
-    meta(name="viewport" content="width=device-width, initial-scale=1")
-    link(rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css")
+    meta(name="viewport", content="width=device-width, initial-scale=1")
+    link(rel="stylesheet", href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css")
+    link(rel="stylesheet", href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.14.0/css/all.min.css")
 body
     .sidebar#users
     //- .icon
@@ -24,8 +25,15 @@ body
     .window.right#control-window
         .body
             .tab(label="Planetary Controls", tag="planetary")
-                h1 Controls
-                h2 Pause, etc (not actually working)
+                .planetary-controls
+                    .icons
+                        i.fa.fa-pause
+                    .info
+                        ps TODO: hover information
+                        p PLANET SIZE
+                        p PLANET SPEED
+                        p PLANET NAME
+                    .box Planetary Simulation by Alison Noyes
             .tab(label="About", tag="about")
                 center ERT Concierge / BabylonJS Frontend
     canvas#renderCanvas

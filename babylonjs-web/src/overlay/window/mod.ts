@@ -1,4 +1,4 @@
-import "./index.scss";
+import "./style.scss";
 
 function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: string[] = []): HTMLElementTagNameMap[K] {
     let div = document.createElement(tag);
