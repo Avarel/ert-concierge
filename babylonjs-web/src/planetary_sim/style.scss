@@ -5,7 +5,7 @@
     min-height: 100%;
     background: #111;
     padding: 10px;
-    font-family: sans-serif;
+    font-family: "Roboto", sans-serif;
     box-sizing: border-box;
 
     .box {
@@ -40,5 +40,40 @@
 
     .info {
         @extend .box;
+
+        > .name {
+            font-size: 30px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        > .entry {
+            display: flex;
+            margin-bottom: 5px;
+
+            > .name {
+                font-family: "Roboto", sans-serif;
+                width: 40%;
+            }
+
+            > .value {
+                flex: 1 0 auto;
+                padding: 10px;
+                background: black;
+                font-family: monospace;
+                border-radius: 5px;
+                text-align: right;
+
+                .x {
+                    color: rgb(255, 125, 125);
+                }
+                .y {
+                    color: rgb(125, 255, 125);
+                }
+                .z {
+                    color: rgb(125, 125, 255);
+                }
+            }
+        }
     }
 }

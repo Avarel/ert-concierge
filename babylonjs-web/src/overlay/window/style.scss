@@ -73,19 +73,19 @@ $drawer-height: 40px;
             text-align: center;
             padding: 0px 10px 0px;
             color: white;
-            font-family: monospace;
+            font-family: "Roboto", sans-serif;
             cursor: pointer;
             transition: background-color 0.2s, margin-top 0.2s;
             &.active {
                 margin-top: 0;
-                background: #555;
+                background: #444;
             }
         }
 
         .window-drawer {
             @extend .tab;
             margin-top: 0;
-            background: green;
+            background: #111;
             min-width: 80px;
             width: 80px;
             max-width: 80px;

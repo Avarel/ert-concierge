@@ -41,6 +41,16 @@ export module Sidebar {
             return createElement("div", ["icon"]);
         }
 
+        static hashString(str: string): number {
+            var hash = 0, i, chr;
+            for (i = 0; i < str.length; i++) {
+                chr = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + chr;
+                hash |= 0; // Convert to 32bit integer
+            }
+            return hash;
+        }
+
         /**
          * Clear all icons in the sidebar.
          */
@@ -92,6 +102,9 @@ export module Sidebar {
             let pElement = createElement("p");
             pElement.innerText = text.toUpperCase();
             iconDiv.appendChild(pElement);
+
+            let rand = UI.hashString(name) % 360;
+            pElement.style.backgroundColor = `hsl(${rand}, 100%, 25%)`;
 
             // let tooltipElement = createElement("div", ["tooltip"]);
             // tooltipElement.innerText = name;

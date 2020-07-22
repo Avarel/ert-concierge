@@ -16,9 +16,15 @@ module.exports = {
         'babylonjs-gui': "BABYLON.GUI"
     },
     plugins: [
+        // new HtmlWebpackPlugin({
+        //     filename: 'what.html',
+        //     template: './src/index/what.pug',
+        //     inject: false
+        // }),
         new HtmlWebpackPlugin({
             template: './src/index/index.pug',
-            inject: true
+            inject: true,
+            scriptLoading: 'defer',
         })
     ],
     resolve: {

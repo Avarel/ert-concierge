@@ -10,6 +10,8 @@ import { SystemObject, SystemDump, SystemData } from "./payloads";
 export const PLANET_SIM_NAME = "planetary_simulation";
 export const PLANET_SIM_GROUP = "planetary_simulation_out";
 
+let info_template = require("./info.pug");
+
 class Planet {
     id: string;
     centroid: Vector3;
@@ -164,7 +166,7 @@ export class PlanetsHandler extends ServiceEventHandler {
         } else {
             let first = this.hoveredPlanets.values().next()!;
             let planet = this.planets.get(first.value)!;
-            document.querySelector<HTMLElement>(".planetary-controls .info")!.innerText = JSON.stringify(planet.data, undefined, 2);
+            document.querySelector<HTMLElement>(".planetary-controls .info")!.innerHTML = info_template(planet.data)
         }
     }
 }
