@@ -16,118 +16,82 @@
       "name": "Sun",
       "mass": 1.989e+30,
       "radius": 695510000,
-      "locationX": 0,
-      "locationY": 0,
-      "locationZ": 0,
+      "location": [0.0, 0.0, 0.0],
       "orbitRadius": 0.0,
       "orbitSpeed": 0.0,
-      "directionX": 0,
-      "directionY": 0,
-      "directionZ": 0
+      "direction": [0.0, 0.0, 0.0]
     },
     {
       "name": "Mercury",
       "mass": 3.285e+23,
       "radius": 2439700,
-      "locationX": 57900000572.0,
-      "locationY": 0.0,
-      "locationZ": 0.0,
+      "location": [57900000572.0, 0.0, 0.0],
       "orbitRadius": 57900000572,
       "orbitSpeed": 47400,
-      "directionX": 0,
-      "directionY": 0,
-      "directionZ": 1
+      "direction": [0, 0, 1]
     },
     {
       "name": "Venus",
       "mass": 4.867e+24,
       "radius": 6052000,
-      "locationX": 108000000000.0,
-      "locationY": 0.0,
-      "locationZ": 0.0,
+      "location": [108000000000.0, 0.0, 0.0],
       "orbitRadius": 108000000000.0,
       "orbitSpeed": 35000,
-      "directionX": 0,
-      "directionY": 0,
-      "directionZ": 1
+      "direction": [0, 0, 1]
     },
     {
       "name": "Earth",
       "mass": 5.972e+24,
       "radius": 6738000,
-      "locationX": 149600000000.0,
-      "locationY": 0.0,
-      "locationZ": 0.0,
+      "location": [149600000000.0, 0.0, 0.0],
       "orbitRadius": 149600000000.0,
       "orbitSpeed": 29800,
-      "directionX": 0,
-      "directionY": 0,
-      "directionZ": 1
+      "direction": [0, 0, 1]
     },
     {
       "name": "Mars",
       "mass": 6.39e+23,
       "radius": 3389500,
-      "locationX": 222790000000.0,
-      "locationY": 0.0,
-      "locationZ": 0.0,
+      "location": [222790000000.0, 0.0, 0.0],
       "orbitRadius": 222790000000.0,
       "orbitSpeed": 24100,
-      "directionX": 0,
-      "directionY": 0,
-      "directionZ": 1
+      "direction": [0, 0, 1]
     },
     {
       "name": "Jupiter",
       "mass": 1.898e+27,
       "radius": 69910000,
-      "locationX": 778600000000.0,
-      "locationY": 0.0,
-      "locationZ": 0.0,
+      "location": [778600000000.0, 0.0, 0.0],
       "orbitRadius": 778600000000.0,
       "orbitSpeed": 13100,
-      "directionX": 0,
-      "directionY": 0,
-      "directionZ": 1
+      "direction": [0, 0, 1]
     },
     {
       "name": "Saturn",
       "mass": 5.683e+26,
       "radius": 58232000,
-      "locationX": 1433000000000.0,
-      "locationY": 0.0,
-      "locationZ": 0.0,
+      "location": [1433000000000.0, 0.0, 0.0],
       "orbitRadius": 1433000000000.0,
       "orbitSpeed": 9700,
-      "directionX": 0,
-      "directionY": 0,
-      "directionZ": 1
+      "direction": [0, 0, 1]
     },
     {
       "name": "Uranus",
       "mass": 8.681e+25,
       "radius": 24973000,
-      "locationX": 2872000000000.0,
-      "locationY": 0.0,
-      "locationZ": 0.0,
+      "location": [2872000000000.0, 0.0, 0.0],
       "orbitRadius": 2872000000000.0,
       "orbitSpeed": 6800,
-      "directionX": 0,
-      "directionY": 0,
-      "directionZ": 1
+      "direction": [0, 0, 1]
     },
     {
       "name": "Neptune",
       "mass": 1.024e+26,
       "radius": 24341000,
-      "locationX": 4495000000000.0,
-      "locationY": 0.0,
-      "locationZ": 0.0,
+      "location": [4495000000000.0, 0.0, 0.0],
       "orbitRadius": 4495000000000.0,
       "orbitSpeed": 5400,
-      "directionX": 0,
-      "directionY": 0,
-      "directionZ": 1
+      "direction": [0, 0, 1]
     }
   ]
 }

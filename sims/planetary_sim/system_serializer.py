@@ -5,7 +5,11 @@
 from gravity_system import GravitySystem
 from body import Body
 from vector import Vector
-from typing import List, Dict, Any
+from typing import Dict, Any, Tuple
+
+
+def vector_to_object(vector: Vector) -> Tuple[float, float, float]:
+    return vector.x, vector.y, vector.z
 
 
 def body_to_object(body: Body) -> Dict[str, Any]:
@@ -13,14 +17,10 @@ def body_to_object(body: Body) -> Dict[str, Any]:
         "name": body.name,
         "mass": body.mass,
         "radius": body.bodyRadius,
-        "locationX": body.location.x,
-        "locationY": body.location.y,
-        "locationZ": body.location.z,
+        "location": vector_to_object(body.location),
         "orbitRadius": body.orbitRadius,
         "orbitSpeed": body.orbitSpeed,
-        "directionX": body.orbitDirection.x,
-        "directionY": body.orbitDirection.y,
-        "directionZ": body.orbitDirection.z
+        "direction": vector_to_object(body.orbitDirection),
     }
     return data
 
@@ -87,12 +87,13 @@ def object_to_system(obj: Dict[str, Any]) -> GravitySystem:
         else:
             print(body.name, "has no central body")
 
-        body.setLocation(
-            Vector(dict["locationX"], dict["locationY"], dict["locationZ"]), False)
+        location = dict["location"]
+
+        body.setLocation(Vector(location[0], location[1], location[2]), False)
 
         if (body.name != systemDict["centralBodyName"]):
-            body.orbitDirection = Vector(
-                dict["directionX"], dict["directionY"], dict["directionZ"])
+            direction = dict["direction"]
+            body.orbitDirection = Vector(direction[0], direction[1], direction[2])
             body.setSpeed(dict["orbitSpeed"])
             body.setOrbitRadius(dict["orbitRadius"])
 

@@ -16,40 +16,28 @@
       "name": "CentralBody",
       "mass": 5,
       "radius": 0.3,
-      "locationX": 0,
-      "locationY": 0,
-      "locationZ": 0,
+      "location": [0.0, 0.0, 0.0],
       "orbitRadius": 0.0,
       "orbitSpeed": 0.0,
-      "directionX": 0,
-      "directionY": 0,
-      "directionZ": 0
+      "direction": [0.0, 0.0, 0.0]
     },
     {
       "name": "Body1",
       "mass": 1,
       "radius": 0.1,
-      "locationX": 1.5,
-      "locationY": 0.0,
-      "locationZ": 0.0,
+      "location": [1.5, 0.0, 0.0],
       "orbitRadius": 1.5,
       "orbitSpeed": 1.64,
-      "directionX": 0,
-      "directionY": 0,
-      "directionZ": 1
+      "direction": [0.0, 0.0, 1.0]
     },
     {
       "name": "Body2",
       "mass": 0.05,
       "radius": 0.08,
-      "locationX": 0.75,
-      "locationY": 0.0,
-      "locationZ": 0.0,
+      "locationX": [0.75, 0.0, 0.0],
       "orbitRadius": 0.75,
       "orbitSpeed": 2.24,
-      "directionX": 0,
-      "directionY": 0,
-      "directionZ": 1
+      "directionX": [0.0, 0.0, 0.0]
     }
   ]
 }

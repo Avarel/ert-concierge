@@ -54,16 +54,17 @@ export module Window {
                 let bodyTag = tabBody.getAttribute("tag");
                 if (bodyTag) {
                     let label = tabBody.getAttribute("label") || bodyTag;
-                    let tab = this.registerTab(bodyTag, label, tabBody);
+                    let tab = this.addTab(bodyTag, label, tabBody);
                     tab.show(i == 0);
                 }
             });
         }
 
-        registerTab(tag: string, label: string, tabBody: HTMLElement): Tab {
+        addTab(tag: string, label: string, tabBody: HTMLElement): Tab {
             let tabHeader = createElement("div", ["tab"]);
             tabHeader.innerText = label;
             this.headerElement.appendChild(tabHeader);
+            this.bodyElement.appendChild(tabBody);
 
             let tab = new Tab(tag, tabHeader, tabBody);
             this.tabs.set(tag, tab);
@@ -74,6 +75,15 @@ export module Window {
             });
 
             return tab;
+        }
+
+        removeTab(tag: string) {
+            let tab = this.tabs.get(tag);
+            if (tab) {
+                tab.body.remove();
+                tab.header.remove();
+                this.tabs.delete(tag);
+            }
         }
 
         showTab(tag: string) {

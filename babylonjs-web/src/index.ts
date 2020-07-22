@@ -28,8 +28,8 @@ canvas.focus();
 
 let renderer = new Renderer(canvas);
 
-let chatWindowUI = new Window.UI(document.querySelector<HTMLElement>(".window#chat-window")!);
-let controlWindowUI = new Window.UI(document.querySelector<HTMLElement>(".window#control-window")!);
+export let chatWindowUI = new Window.UI(document.querySelector<HTMLElement>(".window#chat-window")!);
+export let controlWindowUI = new Window.UI(document.querySelector<HTMLElement>(".window#control-window")!);
 
 let client = new ConciergeAPI.Client(name, serverURL, true);
 

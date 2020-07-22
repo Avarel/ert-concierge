@@ -7,34 +7,30 @@ head
     link(rel="stylesheet", href="https://fonts.googleapis.com/css2?family=Roboto:wght@300&display=swap")
 body
     .sidebar#users
-    //- .icon
-    //-     img(src="https://avatars3.githubusercontent.com/u/10081540?s=460&u=87b46608046213f09eb503f89ffc7a870ca6ebed&v=4")
-    //- .icon
-    //-     p A
     .window.left#chat-window
         .header
             .window-drawer
                 i.fa.fa-caret-up
         .body
-            #chat
-                .messages
-                //- .entry
-                //-     .name Name
-                //-     .text Text
-                //- .input
-                //-     input
-                //-     .button ▶
+            .tab(label="Chat", tag="chat")
+                #chat
+                    .messages
+            .tab(label="Groups", tag="groups")
+                | Coming soon
     .window.right#control-window
         .header
             .window-drawer
                 i.fa.fa-caret-up
         .body
-            .tab(label="Planetary Controls", tag="planetary")
-                .planetary-controls
-                    .icons
-                        i.fa.fa-pause
-                    .info
-                    .box Planetary Simulation by Alison Noyes
+            //- .tab(label="Planetary Controls", tag="planetary")
+            //-     .planetary-controls
+            //-         .icons
+            //-             i.fa.fa-fast-backward
+            //-             i.fa.fa-pause
+            //-             i.fa.fa-play
+            //-             i.fa.fa-fast-forward
+            //-         .info
+            //-         .box Planetary Simulation by Alison Noyes
             .tab(label="About", tag="about")
                 center ERT Concierge / BabylonJS Frontend
     canvas#renderCanvas
