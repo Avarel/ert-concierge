@@ -20,25 +20,18 @@ use uuid::Uuid;
 use warp::ws::{Message, WebSocket};
 
 mod error {
-    #[derive(Debug, Copy, Clone)]
+    #[derive(thiserror::Error, Debug)]
     pub enum WsError {
+        #[error("Channel send error")]
         Channel,
-        Json,
+        #[error("Serialization error: `{0}`")]
+        Json(#[from] serde_json::Error),
+        #[error("Conflicting name in namespace")]
         DuplicateAuth,
-        Socket,
+        #[error("Socket error: `{0}`")]
+        Socket(#[from] warp::Error),
+        #[error("Internal error")]
         Internal,
-    }
-
-    impl From<warp::Error> for WsError {
-        fn from(_: warp::Error) -> Self {
-            Self::Socket
-        }
-    }
-
-    impl From<serde_json::Error> for WsError {
-        fn from(_: serde_json::Error) -> Self {
-            Self::Json
-        }
     }
 }
 
@@ -160,6 +153,7 @@ async fn make_client(
     let uuid = Uuid::new_v4();
     // Add to namespace
     namespace.insert(name.clone(), uuid);
+    drop(namespace);
     // Create the client struct
     let (client, rx) = Client::new(uuid, name, tags);
 
@@ -306,16 +300,27 @@ pub async fn handle_incoming_messages<E>(
                 },
             ) = serde_json::from_str(string)
             {
-                handle_raw_message(uuid, concierge, seq, payload).await?;
+                if let Err(err) =  handle_raw_message(uuid, concierge, seq, payload).await {
+                    let clients = concierge.clients.read().await;
+                    let client = clients.get(&uuid).unwrap();
+                    // Ignore, don't panic and die
+                    client.send(err::internal(seq, &err.to_string())).ok();
+                }
             } else {
                 match serde_json::from_str::<JsonPayload>(string) {
                     Ok(payload) => {
-                        handle_payload(uuid, concierge, seq, payload).await?;
+                        if let Err(err) = handle_payload(uuid, concierge, seq, payload).await {
+                            let clients = concierge.clients.read().await;
+                            let client = clients.get(&uuid).unwrap();
+                            // Ignore, don't panic and die
+                            client.send(err::internal(seq, &err.to_string())).ok();
+                        }
                     }
                     Err(err) => {
                         let clients = concierge.clients.read().await;
                         let client = clients.get(&uuid).unwrap();
-                        client.send(err::protocol(seq, &err.to_string()))?;
+                        // Ignore, don't panic and die
+                        client.send(err::protocol(seq, &err.to_string())).ok();
                     }
                 }
             }
@@ -349,27 +354,19 @@ async fn handle_payload(
             )
             .await?
         }
-        Payload::Subscribe { group } => {
-            let mut groups = concierge.groups.write().await;
-            if let Some(group) = groups.get_mut(group) {
-                group.clients.insert(client.uuid());
-                client.groups.write().await.insert(group.name.to_owned());
-                client.send(ok::subscribed(seq, &group.name))?;
+        Payload::Subscribe { group: group_name } => {
+            if client.subscribe(concierge, group_name).await {
+                client.send(ok::subscribed(seq, group_name))?;
             } else {
-                client.send(err::no_such_group(seq, group))?;
+                client.send(err::no_such_group(seq, group_name))?;
             }
         }
-        Payload::Unsubscribe { group } => {
-            let mut groups = concierge.groups.write().await;
-            if let Some(group) = groups.get_mut(group) {
-                group.clients.remove(&client.uuid());
-                client.send(ok::unsubscribed(Some(seq), &group.name))?;
+        Payload::Unsubscribe { group: group_name } => {
+            if client.unsubscribe(concierge, group_name).await {
+                client.send(ok::unsubscribed(Some(seq), group_name))?;
             } else {
-                client.send(err::no_such_group(seq, group))?;
+                client.send(err::no_such_group(seq, group_name))?;
             }
-
-            let mut groups = client.groups.write().await;
-            groups.remove(group);
         }
         Payload::GroupCreate { group } => {
             if concierge.create_group(group, client_uuid).await? {
@@ -385,32 +382,52 @@ async fn handle_payload(
                 client.send(err::no_such_group(seq, group))?;
             }
         }
+        Payload::FetchGroup { group } => {
+            if let Some(group) = concierge.groups.read().await.get(group) {
+                let owner = clients.get(&group.owner).ok_or(WsError::Internal)?;
+                let clients = group
+                    .clients
+                    .iter()
+                    .filter_map(|uuid| clients.get(uuid))
+                    .map(Client::make_payload)
+                    .collect::<Vec<_>>();
+                client.send(JsonPayload::Group {
+                    group: &group.name,
+                    owner: owner.make_payload(),
+                    clients,
+                })?;
+            } else {
+                client.send(err::no_such_group(seq, group))?;
+            }
+        },
         Payload::FetchGroupSubscribers { group } => {
             if let Some(group) = concierge.groups.read().await.get(group) {
                 let clients = group
                     .clients
                     .iter()
                     .filter_map(|uuid| clients.get(uuid))
-                    .map(|client| client.make_payload())
+                    .map(Client::make_payload)
                     .collect::<Vec<_>>();
                 client.send(JsonPayload::GroupSubscribers {
                     group: &group.name,
                     clients,
                 })?;
+            } else {
+                client.send(err::no_such_group(seq, group))?;
             }
         }
         Payload::FetchClients => {
             let clients = clients
-                .iter()
-                .map(|(_, client)| client.make_payload())
+                .values()
+                .map(Client::make_payload)
                 .collect::<Vec<_>>();
             client.send(JsonPayload::Clients { clients })?;
         }
         Payload::FetchGroups => {
             let groups = concierge.groups.read().await;
             let group_names = groups
-                .iter()
-                .map(|(name, _)| name.as_str())
+                .keys()
+                .map(String::as_str)
                 .map(Cow::Borrowed)
                 .collect();
             client.send(JsonPayload::Groups {
@@ -418,10 +435,10 @@ async fn handle_payload(
             })?;
         }
         Payload::FetchSubscriptions => {
-            let groups = concierge.groups.read().await;
+            let groups = client.subscriptions.read().await;
             let group_names = groups
                 .iter()
-                .map(|(s, _)| s.as_str())
+                .map(String::as_str)
                 .map(Cow::Borrowed)
                 .collect::<Vec<_>>();
             client.send(JsonPayload::Subscriptions {

@@ -40,7 +40,7 @@ mod error {
     }
 }
 
-pub fn base_path(name: &str) -> PathBuf {
+fn base_path(name: &str) -> PathBuf {
     let mut buf = PathBuf::new();
     buf.push(".");
     buf.push("fs");

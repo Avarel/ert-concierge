@@ -19,7 +19,7 @@ pub use ws::WsError;
 /// Central struct that stores the concierge data.
 pub struct Concierge {
     /// This is the groups registered in the Concierge.
-    pub groups: RwLock<HashMap<String, Group>>, // TODO: lock in a RwLock?
+    pub groups: RwLock<HashMap<String, Group>>,
     /// This is the namespace of the Concierge.
     /// It uses an RwLock in order to prevent race conditions.
     pub namespace: RwLock<HashMap<String, Uuid>>,
@@ -126,11 +126,6 @@ impl Concierge {
         });
     }
 
-    /// Remove a name from the namespace.
-    pub async fn remove_name(&self, name: &str) {
-        self.namespace.write().await.remove(name);
-    }
-
     /// Remove a client from clientspace, namespace, their owned groups, and
     /// them from any of their subscribed groups.
     pub async fn remove_client(&self, uuid: Uuid) -> Result<Client, WsError> {
@@ -141,7 +136,7 @@ impl Concierge {
             .remove(&uuid)
             .ok_or_else(|| WsError::Internal)?;
         // Remove from namespace
-        self.remove_name(client.name()).await;
+        self.namespace.write().await.remove(client.name());
         // Remove any owned groups
         self.remove_groups_owned_by(client.uuid()).await?;
         // Remove from groups
@@ -228,6 +223,14 @@ impl Group {
             owner,
             clients: HashSet::new(),
         }
+    }
+
+    pub fn add_client(&mut self, _: &Concierge, uuid: Uuid) {
+        self.clients.insert(uuid);
+    }
+
+    pub fn remove_client(&mut self, _: &Concierge, uuid: &Uuid) {
+        self.clients.remove(&uuid);
     }
 
     /// Broadcast a payload to all connected client of a certain group.

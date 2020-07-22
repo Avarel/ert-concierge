@@ -1,4 +1,4 @@
-use crate::concierge::WsError;
+use crate::concierge::{Concierge, WsError};
 use concierge_api_rs::payload::ClientPayload;
 use serde::Serialize;
 use std::{borrow::Cow, collections::HashSet};
@@ -19,7 +19,7 @@ pub struct Client {
     /// Sender channel.
     tx: UnboundedSender<Message>,
     /// Groups.
-    pub groups: RwLock<HashSet<String>>,
+    pub subscriptions: RwLock<HashSet<String>>,
 }
 
 impl Client {
@@ -34,7 +34,7 @@ impl Client {
             name,
             tags,
             tx,
-            groups: RwLock::default(),
+            subscriptions: RwLock::default(),
         };
         (instance, rx)
     }
@@ -68,5 +68,27 @@ impl Client {
     /// Send a WebSocket message.
     pub fn send_ws_msg(&self, msg: Message) -> Result<(), WsError> {
         self.tx.send(msg).map_err(|_| WsError::Channel)
+    }
+
+    pub async fn subscribe(&self, concierge: &Concierge, group_name: &str) -> bool {
+        let mut groups = concierge.groups.write().await;
+        if let Some(group) = groups.get_mut(group_name) {
+            group.add_client(concierge, self.uuid);
+            self.subscriptions.write().await.insert(group.name.to_owned());
+            true
+        } else {
+            false
+        }
+    }
+
+    pub async fn unsubscribe(&self, concierge: &Concierge, group_name: &str) -> bool {
+        let mut groups = concierge.groups.write().await;
+        if let Some(group) = groups.get_mut(group_name) {
+            group.remove_client(concierge, &self.uuid);
+            self.subscriptions.write().await.remove(group_name);
+            true
+        } else {
+            false
+        }
     }
 }

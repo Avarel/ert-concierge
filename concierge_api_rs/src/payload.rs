@@ -127,6 +127,7 @@ pub enum Payload<'a, T> {
     /// When relaying payloads, prefer to use PayloadMessageRaw instead.
     Message {
         /// Origin of the message.
+        #[serde(borrow)]
         origin: Option<Origin<'a>>,
         /// Target of the message. This can be a single user
         /// (using name or uuid), or a group.
@@ -144,6 +145,8 @@ pub enum Payload<'a, T> {
     /// Delete a group. This operation only succeeds if
     /// the client is the group's owner.
     GroupDelete { group: GroupId<'a> },
+    /// Fetch general group information.
+    FetchGroup { group: GroupId<'a> },
     /// This payload asks for all the clients of the
     /// group specified in the data field.
     FetchGroupSubscribers { group: GroupId<'a> },
@@ -161,6 +164,16 @@ pub enum Payload<'a, T> {
     /// that acts as a file server key. The payload also returns
     /// the server's version.
     Hello { uuid: Uuid, version: &'a str },
+    /// General group information.
+    Group {
+        group: GroupId<'a>,
+        /// The owner of the channel.
+        #[serde(borrow)]
+        owner: ClientPayload<'a>,
+        /// All of the subscribers.
+        #[serde(borrow)]
+        clients: Vec<ClientPayload<'a>>,
+    },
     /// Returns all of the clients (subscribed to the group) an array of origin structs.
     GroupSubscribers {
         group: GroupId<'a>,

@@ -38,6 +38,8 @@ pub enum StatusPayload<'a> {
     GroupDeleted { group: GroupId<'a> },
     /// Generic BAD payload.
     Bad,
+    /// Internal error payload.
+    Internal { desc: &'a str },
     /// Indicates that the "type" of the incoming payload is not supported.
     /// An example would be trying to send a well-formed HELLO payload
     /// to the concierge.
@@ -116,6 +118,13 @@ pub mod err {
         JsonPayload::Status {
             seq: Some(seq),
             data: StatusPayload::Bad,
+        }
+    }
+
+    pub fn internal(seq: usize, desc: &str) -> JsonPayload {
+        JsonPayload::Status {
+            seq: Some(seq),
+            data: StatusPayload::Internal { desc },
         }
     }
 

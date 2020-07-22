@@ -11,7 +11,6 @@ mod concierge;
 #[cfg(test)]
 mod tests;
 
-use anyhow::Result;
 use concierge::{Concierge, Group};
 use log::{debug, info};
 use std::{net::SocketAddr, sync::Arc};
@@ -25,7 +24,7 @@ pub const VERSION: &str = "0.1.0";
 pub const SECRET: Option<&str> = None;
 pub const SUBPROTOCOL: &str = "ert-concierge";
 
-fn main() -> Result<()> {
+fn main() {
     // Setup the logging
     env_logger::Builder::new()
         .filter_level(log::LevelFilter::Debug)
@@ -40,7 +39,7 @@ fn main() -> Result<()> {
     runtime.block_on(setup())
 }
 
-async fn setup() -> Result<()> {
+async fn setup() {
     // Wrap the server in an atomic ref-counter, to make it safe to work with in between threads.
     let concierge = Arc::new(Concierge::new());
 
@@ -55,7 +54,7 @@ async fn setup() -> Result<()> {
     serve(concierge).await
 }
 
-async fn serve(concierge: Arc<Concierge>) -> Result<()> {
+async fn serve(concierge: Arc<Concierge>) {
     info!("Starting up the server.");
 
     let addr = SocketAddr::from(SOCKET_ADDR);
@@ -162,6 +161,4 @@ async fn serve(concierge: Arc<Concierge>) -> Result<()> {
         // .key_path("./tls/key.rsa")
         .run(addr)
         .await;
-
-    Ok(())
 }
