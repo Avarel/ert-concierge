@@ -1,12 +1,12 @@
 import "./style.scss";
 
 import { DeepImmutable, Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, StandardMaterial, ActionManager, MeshBuilder, Mesh, IAction } from "babylonjs";
-import { Renderer } from "../renderer";
-import { ServiceEventHandler } from "../concierge_api/handlers";
-import { Client } from "../concierge_api/mod";
-import { Payload } from "../concierge_api/payloads";
+import { Renderer } from "../../renderer";
+import { ServiceEventHandler } from "../../concierge_api/handlers";
+import { Client } from "../../concierge_api/mod";
+import { Payload } from "../../concierge_api/payloads";
 import { SystemObject, SystemDump, SystemData } from "./payloads";
-import { controlWindowUI } from "../index";
+import { controlWindowUI } from "../../index";
 
 export const PLANET_SIM_NAME = "Planetary Simulation";
 export const PLANET_SIM_GROUP = "planetary_simulation_out";

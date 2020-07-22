@@ -1,7 +1,7 @@
 import * as ConciergeAPI from "./concierge_api/mod";
-import { PhysicsHandler } from "./physics_handler";
+import { PhysicsHandler } from "./sims/physics_handler";
 import { ChatHandler } from "./chat_handler";
-import { PlanetsHandler } from "./planetary_sim/planets_handler";
+import { PlanetsHandler } from "./sims/planetary_sim/planets_handler";
 import { UsersHandler } from "./users_handler";
 import { Renderer } from "./renderer";
 import { Chat, Sidebar, Window } from "./overlay/mod";

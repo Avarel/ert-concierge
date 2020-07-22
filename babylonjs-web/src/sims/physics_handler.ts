@@ -1,8 +1,8 @@
-import * as ConciergeAPI from "./concierge_api/mod";
+import * as ConciergeAPI from "../concierge_api/mod";
 import { DeepImmutable, Vector2, DeepImmutableArray, Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, PolygonMeshBuilder, StandardMaterial, ActionManager, MeshBuilder, Mesh } from "babylonjs";
-import { Renderer } from "./renderer";
-import { ServiceEventHandler } from "./concierge_api/handlers";
-import { Payload } from "./concierge_api/payloads";
+import { Renderer } from "../renderer";
+import { ServiceEventHandler } from "../concierge_api/handlers";
+import { Payload } from "../concierge_api/payloads";
 
 interface Vec2f {
     x: number,
