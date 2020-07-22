@@ -18,6 +18,7 @@ def body_to_object(body: Body) -> Dict[str, Any]:
         "mass": body.mass,
         "radius": body.bodyRadius,
         "location": vector_to_object(body.location),
+        "color": vector_to_object(body.color),
         "orbitRadius": body.orbitRadius,
         "orbitSpeed": body.orbitSpeed,
         "direction": vector_to_object(body.orbitDirection),
@@ -90,6 +91,9 @@ def object_to_system(obj: Dict[str, Any]) -> GravitySystem:
         location = dict["location"]
 
         body.setLocation(Vector(location[0], location[1], location[2]), False)
+
+        color = dict["color"]
+        body.setColor(Vector(color[0], color[1], color[2]))
 
         if (body.name != systemDict["centralBodyName"]):
             direction = dict["direction"]

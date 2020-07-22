@@ -7,7 +7,7 @@ import system_serializer
 import signal
 from concierge_api import GroupCreate, Identify, Message, Payload, TargetGroup
 
-name = "planetary_simulation"
+name = "Planetary Simulation"
 version = "0.1.0"
 group_name = "planetary_simulation_out"
 running = True
@@ -20,7 +20,7 @@ paused = False
 send_interval = 0.02
 dt = 0.01
 simulation_interval = 0.01
-pause_check_interval = 0.05
+pause_check_interval = 0.1
 
 async def hello():
     uri = "ws://localhost:64209/ws"
@@ -41,15 +41,21 @@ async def hello():
 
         asyncio.create_task(recv_loop(socket))
         asyncio.create_task(system_loop())
-
-        global running, paused, send_interval
-        while running:
-            if not paused:
-                await socket.send(Message(None, TargetGroup(group_name), system_serializer.system_to_object(system)).to_json())
-            await asyncio.sleep(send_interval)
+        await send_loop(socket)
 
         print("Disconnecting and stopping simulation.")
 
+async def send_loop(socket: websockets.WebSocketClientProtocol):
+    global running, paused, send_interval
+    while running:
+        await socket.send(Message(None, TargetGroup(group_name), system_serializer.system_to_object(system)).to_json())
+        if not paused:
+            await asyncio.sleep(send_interval)
+        else:
+            # less intensive pause check
+            await asyncio.sleep(pause_check_interval)
+
+# System simulation loop
 async def system_loop():
     global running, paused, simulation_interval, pause_check_inteval
     while running:
@@ -60,6 +66,7 @@ async def system_loop():
             # less intensive pause check
             await asyncio.sleep(pause_check_interval)
 
+# Incoming message loop
 async def recv_loop(socket: websockets.WebSocketClientProtocol):
     global paused, simulation_interval
     async for msg in socket:

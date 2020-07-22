@@ -18,10 +18,10 @@ export class Renderer {
         }
 
         let scene = new BABYLON.Scene(this.engine);
-        let camera = new BABYLON.UniversalCamera("UniversalCamera", new Vector3(500, 800, -100), scene);
-        camera.setTarget(new Vector3(500, 0, 500));
-        camera.speed = 15;
+        let camera = new BABYLON.UniversalCamera("UniversalCamera", new Vector3(0, 10, -10), scene);
+        camera.setTarget(new Vector3(0, 0, 0));
         camera.attachControl(this.canvas, true);
+        camera.speed = 0.5;
         camera.keysDownward.push(17); //CTRL
         camera.keysUpward.push(32); //SPACE
         camera.keysUp.push(87);    //W
@@ -29,22 +29,19 @@ export class Renderer {
         camera.keysLeft.push(65);  //A
         camera.keysRight.push(68); //S
 
-        let light = new BABYLON.PointLight("light1", new BABYLON.Vector3(500, 500, 500), scene);
+        let light = new BABYLON.PointLight("light1", new BABYLON.Vector3(0, 500, 0), scene);
         light.intensity = 1.0;
 
         let helper = scene.createDefaultEnvironment({
-            skyboxSize: 1050,
-            groundSize: 1050,
+            skyboxSize: 50,
+            groundSize: 50,
             groundShadowLevel: 0.5,
             enableGroundShadow: true
         });
-        // recenter
-        helper!.ground!.position.set(500, 0, 500);
-        helper!.skybox!.position.set(500, 0, 500);
         helper!.skybox!.isPickable = false;
         helper!.setMainColor(BABYLON.Color3.FromHexString("#74b9ff"));
 
-        this.shadowGenerator = new BABYLON.ShadowGenerator(512, light);
+        // this.shadowGenerator = new BABYLON.ShadowGenerator(512, light);
 
         var vrHelper = scene.createDefaultVRExperience({ createDeviceOrientationCamera: false });
         vrHelper.enableTeleportation({ floorMeshes: [helper!.ground!] });

@@ -16,6 +16,7 @@ export interface SystemObject {
     mass: number,
     radius: number,
     location: [number, number, number],
+    color: [number, number, number],
     orbitRadius: number,
     orbitSpeed: number,
     direction: [number, number, number]

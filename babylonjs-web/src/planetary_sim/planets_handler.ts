@@ -8,7 +8,7 @@ import { Payload } from "../concierge_api/payloads";
 import { SystemObject, SystemDump, SystemData } from "./payloads";
 import { controlWindowUI } from "../index";
 
-export const PLANET_SIM_NAME = "planetary_simulation";
+export const PLANET_SIM_NAME = "Planetary Simulation";
 export const PLANET_SIM_GROUP = "planetary_simulation_out";
 
 let controls_template: (locals?: any) => string = require("./controls.pug");
@@ -54,12 +54,14 @@ class Planet {
             BABYLON.ActionManager.OnPointerOverTrigger,
             () => {
                 handler.hoveredPlanets.add(this.id);
+                handler.updateInfoDiv();
             }
         );
         this.exitAction = new ExecuteCodeAction(
             BABYLON.ActionManager.OnPointerOutTrigger,
             () => {
                 handler.hoveredPlanets.delete(this.id);
+                handler.updateInfoDiv();
             }
         );
         this.clickAction = new ExecuteCodeAction(
@@ -116,7 +118,7 @@ export class PlanetsHandler extends ServiceEventHandler {
 
     /** Keeps latest batch of sys data */
     private sysData!: SystemData;
-    private readonly visualScale: number = 500;
+    private readonly visualScale: number = 5;
     private controllerElement?: HTMLElement;
 
     constructor(client: Client, renderer: Renderer) {
@@ -202,6 +204,8 @@ export class PlanetsHandler extends ServiceEventHandler {
         controlWindowUI.removeTab(PLANET_SIM_NAME);
         this.controllerElement?.remove();
         this.clearShapes();
+        this.hoveredPlanets.clear();
+        this.planetLock = undefined;
         console.log("Planet simulator client has disconnected!");
     }
 
@@ -231,12 +235,11 @@ export class PlanetsHandler extends ServiceEventHandler {
                 if (this.renderer.scene) {
                     let radius = obj.radius / this.sysData.scale * this.sysData.bodyScale * this.visualScale;
 
-                    let color = Color3.Black();
+                    let color = Color3.FromArray(obj.color);
                     if (obj.name == this.sysData.centralBodyName) {
                         console.log("Found central body!")
                         radius *= this.sysData.centralBodyScale;
                         location.scaleInPlace(this.sysData.centralBodyScale);
-                        color = Color3.Yellow();
                     }
 
                     console.log(`Creating object (radius = ${radius}, location = ${location.toString()})`)
@@ -258,8 +261,11 @@ export class PlanetsHandler extends ServiceEventHandler {
                 }
             }
         }
+        this.updateInfoDiv();
+    }
 
-        let infoDiv = document.querySelector<HTMLElement>(".planetary-controls .info");
+    updateInfoDiv() {
+        let infoDiv = this.controllerElement?.querySelector<HTMLElement>(".planetary-controls .info");
        
         if (infoDiv) {
             if (this.planetLock) {
@@ -272,7 +278,7 @@ export class PlanetsHandler extends ServiceEventHandler {
             } else {
                 infoDiv.innerText = "Hover over a planet.";
                 for (let planet of this.planets.values()) {
-                    (planet.mesh.material as StandardMaterial).diffuseColor = Color3.Black();
+                    (planet.mesh.material as StandardMaterial).diffuseColor = Color3.FromArray(planet.data!.color);
                 }
             }
         }

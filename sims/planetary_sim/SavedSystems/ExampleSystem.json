@@ -34,10 +34,10 @@
       "name": "Body2",
       "mass": 0.05,
       "radius": 0.08,
-      "locationX": [0.75, 0.0, 0.0],
+      "location": [0.75, 0.0, 0.0],
       "orbitRadius": 0.75,
       "orbitSpeed": 2.24,
-      "directionX": [0.0, 0.0, 0.0]
+      "direction": [0.0, 0.0, 0.0]
     }
   ]
 }

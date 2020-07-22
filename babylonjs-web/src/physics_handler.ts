@@ -63,7 +63,7 @@ export const PHYSICS_ENGINE_NAME = "physics_engine";
 export const PHYSICS_ENGINE_GROUP = "physics_engine_out";
 
 function vec2f2vector2(vec: Vec2f): Vector2 {
-    return new Vector2(vec.x, vec.y);
+    return new Vector2(vec.x - 500, vec.y - 500);
 }
 
 function tuple2color3(tuple: DeepImmutable<RgbColor>): Color3 {
@@ -115,7 +115,7 @@ export class PhysicsHandler extends ServiceEventHandler {
     readonly client: ConciergeAPI.Client;
 
     private shapes: Map<string, PolygonShape> = new Map();
-    private readonly visualScale: number = 1.0;
+    private readonly visualScale: number = 1 / 50;
 
     constructor(client: ConciergeAPI.Client, renderer: Renderer) {
         super(client, PHYSICS_ENGINE_GROUP);
@@ -198,7 +198,8 @@ export class PhysicsHandler extends ServiceEventHandler {
     private updateShape(id: string, centroid: Vec2f) {
         let shape = this.shapes.get(id);
         if (shape) {
-            shape.moveTo(new Vector3(centroid.x, 0, centroid.y).scaleInPlace(this.visualScale));
+            let vector2 = vec2f2vector2(centroid);
+            shape.moveTo(new Vector3(vector2.x, 0, vector2.y).scaleInPlace(this.visualScale));
         }
     }
 
@@ -207,7 +208,6 @@ export class PhysicsHandler extends ServiceEventHandler {
         if (shape) {
             shape.setColor(tuple2color3(color));
         }
-
     }
 
     private processPhysicsPayload(payload: DeepImmutable<PhysicsPayload>) {

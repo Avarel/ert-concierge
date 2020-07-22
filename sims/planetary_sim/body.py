@@ -23,6 +23,7 @@ class Body:
         self.scaledOrbitRadius = 0.0
         self.orbitSpeed = 0.0
         self.orbitDirection = Vector(0, 0, 0)
+        self.color = Vector(0, 0, 0)
 
         self.velocity = Vector(0, 0, 0)
         self.force = Vector(0, 0, 0)
@@ -88,6 +89,9 @@ class Body:
     def setBodyRadius(self, radius: float):
         self.bodyRadius = radius
         self.scaledBodyRadius = radius / self.scale * self.bodyScale
+
+    def setColor(self, color: Vector):
+        self.color = color
 
     def setLocation(self, location: Vector, scaled: bool):
         if (scaled):
