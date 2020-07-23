@@ -1,7 +1,7 @@
-import { Chat } from './overlay/mod';
-import { ServiceEventHandler } from "./concierge_api/handlers";
-import { Client } from './concierge_api/mod';
-import { Payload } from './concierge_api/payloads';
+import { Chat } from '../overlay/mod';
+import { ServiceEventHandler } from "../concierge_api/handlers";
+import { Client } from '../concierge_api/mod';
+import { Payload } from '../concierge_api/payloads';
 
 const CHAT_GROUP = "chat";
 

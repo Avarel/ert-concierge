@@ -1,10 +1,12 @@
-import * as ConciergeAPI from "./concierge_api/mod";
+import "./viewer.scss";
+
+import * as ConciergeAPI from "../concierge_api/mod";
 import { PhysicsHandler } from "./sims/physics_handler";
 import { ChatHandler } from "./chat_handler";
 import { PlanetsHandler } from "./sims/planetary_sim/planets_handler";
 import { UsersHandler } from "./users_handler";
 import { Renderer } from "./renderer";
-import { Chat, Sidebar, Window } from "./overlay/mod";
+import { Chat, Sidebar, Window } from "../overlay/mod";
 
 const queries = new URLSearchParams(window.location.search);
 

@@ -5,6 +5,9 @@ head
     link(rel="stylesheet", href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css")
     link(rel="stylesheet", href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.14.0/css/all.min.css")
     link(rel="stylesheet", href="https://fonts.googleapis.com/css2?family=Roboto:wght@300&display=swap")
+    script(defer, src="https://preview.babylonjs.com/earcut.min.js")
+    script(defer, src="https://preview.babylonjs.com/babylon.js")
+    script(defer, src="https://cdn.babylonjs.com/gui/babylon.gui.min.js")
 body
     .sidebar#users
     .window.left#chat-window
@@ -15,26 +18,14 @@ body
             .tab(label="Chat", tag="chat")
                 #chat
                     .messages
-            .tab(label="Groups", tag="groups")
-                | Coming soon
+            //- .tab(label="Groups", tag="groups")
+            //-     | Coming soon
     .window.right#control-window
         .header
             .window-drawer
                 i.fa.fa-caret-up
         .body
-            //- .tab(label="Planetary Controls", tag="planetary")
-            //-     .planetary-controls
-            //-         .icons
-            //-             i.fa.fa-fast-backward
-            //-             i.fa.fa-pause
-            //-             i.fa.fa-play
-            //-             i.fa.fa-fast-forward
-            //-         .info
-            //-         .box Planetary Simulation by Alison Noyes
             .tab(label="About", tag="about")
                 center ERT Concierge / BabylonJS Frontend
     canvas#renderCanvas
-    script(src="https://preview.babylonjs.com/earcut.min.js")
-    script(src="https://preview.babylonjs.com/babylon.js")
-    script(src="https://cdn.babylonjs.com/gui/babylon.gui.min.js")
 

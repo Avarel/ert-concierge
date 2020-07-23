@@ -3,8 +3,8 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
     entry: {
-        style: './src/index/style.scss',
-        index: './src/index.ts'
+        login: './src/login/login.ts',
+        viewer: './src/viewer/viewer.ts'
     },
     output: {
         filename: '[name].bundle.js',
@@ -16,15 +16,16 @@ module.exports = {
         'babylonjs-gui': "BABYLON.GUI"
     },
     plugins: [
-        // new HtmlWebpackPlugin({
-        //     filename: 'what.html',
-        //     template: './src/index/what.pug',
-        //     inject: false
-        // }),
         new HtmlWebpackPlugin({
-            template: './src/index/index.pug',
-            inject: true,
+            template: './src/login/login.pug',
             scriptLoading: 'defer',
+            chunks: ["login"]
+        }),
+        new HtmlWebpackPlugin({
+            filename: 'viewer.html',
+            template: './src/viewer/viewer.pug',
+            scriptLoading: 'defer',
+            chunks: ["viewer"]
         })
     ],
     resolve: {
