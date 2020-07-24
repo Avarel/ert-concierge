@@ -14,7 +14,7 @@ use uuid::Uuid;
 use warp::{
     hyper::{header, Body, Response, StatusCode},
     multipart::FormData,
-    Buf,
+    Buf, Reply,
 };
 
 mod error {
@@ -131,7 +131,7 @@ pub async fn handle_file_delete(
     name: String,
     auth: Uuid,
     tail: &str,
-) -> Result<StatusCode, FsError> {
+) -> Result<impl Reply, FsError> {
     debug!(
         "Received DELETE request (name: {}, auth: {}, path: {})",
         name, auth, tail
@@ -161,7 +161,7 @@ pub async fn handle_file_put(
     auth: Uuid,
     tail: &str,
     mut body: impl Buf,
-) -> Result<StatusCode, FsError> {
+) -> Result<impl Reply, FsError> {
     debug!(
         "Received upload request (name: {}, auth: {}, path: {})",
         name, auth, tail
@@ -206,7 +206,7 @@ pub async fn handle_file_put_multipart(
     auth: Uuid,
     tail: &str,
     mut data: FormData,
-) -> Result<StatusCode, FsError> {
+) -> Result<impl Reply, FsError> {
     debug!(
         "Received upload[multipart] request (name: {}, auth: {})",
         name, auth

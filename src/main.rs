@@ -13,6 +13,7 @@ mod tests;
 
 use concierge::{Concierge, Group};
 use log::{debug, info};
+use semver::VersionReq;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::runtime::Builder;
 use uuid::Uuid;
@@ -21,8 +22,13 @@ use warp::{http::Method, hyper::header, multipart::FormData, path::Tail, Filter}
 // isten on every available network interface
 pub const SOCKET_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 64209);
 pub const VERSION: &str = "0.1.0";
+pub const MIN_VERSION: &str = "^0.1.0";
 pub const SECRET: Option<&str> = None;
 pub const SUBPROTOCOL: &str = "ert-concierge";
+
+pub fn min_version_req() -> VersionReq {
+    VersionReq::parse(crate::MIN_VERSION).expect("Valid versioning scheme")
+}
 
 fn main() {
     // Setup the logging
@@ -103,8 +109,8 @@ async fn serve(concierge: Arc<Concierge>) {
             .and(warp::path::param::<String>())
             .and(warp::path::tail())
             .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
-            // // 2mb upload limit
-            // .and(warp::body::content_length_limit(20971520))
+            // 2mb upload limit
+            .and(warp::body::content_length_limit(1024 * 1024 * 2))
             .and(warp::body::aggregate())
             .and_then(move |name: String, tail: Tail, auth: Uuid, stream| {
                 let concierge = concierge.clone();
@@ -125,11 +131,16 @@ async fn serve(concierge: Arc<Concierge>) {
             .and(warp::path::tail())
             .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
             .and(warp::multipart::form())
-            .and_then(move |name: String, tail: Tail,  auth: Uuid, data: FormData| {
-                let concierge = concierge.clone();
-                async move { concierge.handle_file_put_multipart(name, auth, tail.as_str(), data).await }
-            })
-            .with(warp::log("multipart"))
+            .and_then(
+                move |name: String, tail: Tail, auth: Uuid, data: FormData| {
+                    let concierge = concierge.clone();
+                    async move {
+                        concierge
+                            .handle_file_put_multipart(name, auth, tail.as_str(), data)
+                            .await
+                    }
+                },
+            )
     };
 
     let fs_delete_route = {

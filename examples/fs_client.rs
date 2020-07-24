@@ -4,7 +4,7 @@ use tokio_util::codec::{BytesCodec, FramedRead};
 use futures::StreamExt;
 use tokio::{fs::{OpenOptions, File}, io::{AsyncWriteExt, AsyncBufReadExt, BufReader}};
 use warp::Buf;
-use reqwest::Body;
+use reqwest::{header, Body};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -64,7 +64,7 @@ async fn download(uuid: &str, name: &str, file_name: &str) -> Result<()> {
     let res = client
         .get(&format!("http://127.0.0.1:64209/fs/{}/{}", name, file_name))
         .timeout(Duration::from_secs(1))
-        .header("Authorization", uuid)
+        .header(header::AUTHORIZATION, uuid)
         .send()
         .await?;
 
@@ -99,7 +99,7 @@ async fn delete(uuid: &str, name: &str, file_name: &str) -> Result<()> {
     let res = client
         .delete(&format!("http://127.0.0.1:64209/fs/{}/{}", name, file_name))
         .timeout(Duration::from_secs(1))
-        .header("Authorization", uuid)
+        .header(header::AUTHORIZATION, uuid)
         .send()
         .await?;
 
@@ -109,13 +109,15 @@ async fn delete(uuid: &str, name: &str, file_name: &str) -> Result<()> {
 
 async fn upload(uuid: &str, name: &str, file_name: &str) -> Result<()> {
     let file = File::open(Path::new(".").join(file_name)).await?;
+    let content_length = file.metadata().await?.len();
     
     let stream = FramedRead::new(file, BytesCodec::new());
     let client = reqwest::Client::new();
     let res = client
-        .put(&format!("http://127.0.0.1:64209/fs/{}/{}", name, file_name))
+        .post(&format!("http://127.0.0.1:64209/fs/{}/{}", name, file_name))
         .timeout(Duration::from_secs(1))
-        .header("Authorization", uuid)
+        .header(header::CONTENT_LENGTH, content_length)
+        .header(header::AUTHORIZATION, uuid)
         .body(Body::wrap_stream(stream))
         .send()
         .await?;

@@ -3,17 +3,15 @@
 
 use super::{Concierge, Group};
 use crate::clients::Client;
-use close_codes::CloseReason;
 use concierge_api_rs::{
-    close_codes,
     payload::{Payload, PayloadRawMessage, Target},
     status::{err, ok, StatusPayload},
-    JsonPayload,
+    CloseReason, JsonPayload,
 };
 pub use error::WsError;
 use futures::{future, pin_mut, SinkExt, Stream, StreamExt};
 use log::{debug, info, trace, warn};
-use semver::{Version, VersionReq};
+use semver::Version;
 use serde::Serialize;
 use std::{borrow::Cow, net::SocketAddr, path::Path, time::Duration};
 use tokio::{sync::mpsc::UnboundedReceiver, time::timeout};
@@ -91,53 +89,50 @@ struct IdentifyPackage {
 }
 
 /// Handle the first 5 seconds of identification.
-async fn handle_identification(socket: &mut WebSocket) -> Result<IdentifyPackage, CloseReason> {
+async fn handle_identification(
+    socket: &mut WebSocket,
+) -> Result<IdentifyPackage, CloseReason<'static>> {
     // Protocol: Expect a payload that identifies the client within 5 seconds.
     if let Ok(Some(Ok(msg))) = timeout(Duration::from_secs(5), socket.next()).await {
-        // debug!("{:?}", msg);
-        if let Ok(payload) = msg
-            .to_str()
-            .and_then(|s| serde_json::from_str(s).map_err(|_| ()))
-        {
-            if let JsonPayload::Identify {
-                name,
-                nickname,
-                version,
-                secret,
-                tags,
-            } = payload
-            {
-                // name must be alphanumeric
-                if !name.chars().all(char::is_alphanumeric) {
-                    return Err(close_codes::BAD_AUTH);
-                }
-                // check for secret
-                if secret != crate::SECRET {
-                    return Err(close_codes::BAD_SECRET);
-                }
-                // check that version matches (might need some work)
-                if !VersionReq::parse(crate::VERSION)
-                    .unwrap()
-                    .matches(&Version::parse(version).unwrap())
-                {
-                    return Err(close_codes::BAD_VERSION);
-                }
-                // Convert the tags to owned
-                let tags = tags.iter().map(|s| s.to_string()).collect();
-
-                return Ok(IdentifyPackage {
-                    name: name.to_owned(),
-                    nickname: nickname.map(ToOwned::to_owned),
+        if let Ok(string) = msg.to_str() {
+            match serde_json::from_str::<JsonPayload>(string) {
+                Ok(JsonPayload::Identify {
+                    name,
+                    nickname,
+                    version,
+                    secret,
                     tags,
-                });
-            } else {
-                return Err(close_codes::NO_AUTH);
+                }) => {
+                    // name must be alphanumeric
+                    if !name.chars().all(char::is_alphanumeric) {
+                        return Err(CloseReason::BAD_AUTH);
+                    }
+                    // check for secret
+                    if secret != crate::SECRET {
+                        return Err(CloseReason::BAD_SECRET);
+                    }
+                    // check that version matches (might need some work)
+                    if !crate::min_version_req().matches(&Version::parse(version).unwrap()) {
+                        return Err(CloseReason::BAD_VERSION);
+                    }
+                    // Convert the tags to owned
+                    let tags = tags.iter().map(|s| s.to_string()).collect();
+
+                    Ok(IdentifyPackage {
+                        name: name.to_owned(),
+                        nickname: nickname.map(ToOwned::to_owned),
+                        tags,
+                    })
+                }
+                Ok(_) => Err(CloseReason::NO_AUTH),
+                Err(err) => Err(CloseReason::FATAL_DECODE.with_reason(err.to_string())),
             }
         } else {
-            return Err(close_codes::FATAL_DECODE);
+            Err(CloseReason::FATAL_DECODE)
         }
+    } else {
+        Err(CloseReason::AUTH_FAILED)
     }
-    Err(close_codes::AUTH_FAILED)
 }
 
 /// Create a new client.
@@ -150,11 +145,14 @@ async fn make_client(
     let mut namespace = concierge.namespace.write().await;
     // Duplicate identification, close the stream.
     if namespace.contains_key(&id.name) {
-        warn!("User attempted to join with existing id. (name: {})", id.name);
+        warn!(
+            "User attempted to join with existing id. (name: {})",
+            id.name
+        );
         socket
             .send(Message::close_with(
-                close_codes::DUPLICATE_AUTH.code,
-                close_codes::DUPLICATE_AUTH.reason,
+                CloseReason::DUPLICATE_AUTH.code,
+                CloseReason::DUPLICATE_AUTH.reason,
             ))
             .await?;
         socket.close().await?;
@@ -195,7 +193,10 @@ pub async fn handle_socket_conn(
     match handle_identification(&mut socket).await {
         // Got the identification data successfully.
         Ok(id) => {
-            debug!("Identification successful. (ip: {}, name: {})", addr, id.name);
+            debug!(
+                "Identification successful. (ip: {}, name: {})",
+                addr, id.name
+            );
             let (uuid, rx) = make_client(concierge, id, &mut socket).await?;
             handle_client(concierge, uuid, rx, socket).await?;
             remove_client(concierge, uuid).await?;

@@ -3,7 +3,7 @@ mod ws;
 
 use crate::clients::Client;
 use concierge_api_rs::status::ok;
-use fs::{FsError, FsFileReply};
+use fs::FsError;
 use log::{debug, error, warn};
 use serde::Serialize;
 use std::{
@@ -13,7 +13,7 @@ use std::{
 };
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use warp::{hyper::StatusCode, ws::WebSocket, Buf, Rejection, multipart::FormData};
+use warp::{ws::WebSocket, Buf, Rejection, multipart::FormData, Reply};
 pub use ws::WsError;
 
 /// Central struct that stores the concierge data.
@@ -166,7 +166,7 @@ impl Concierge {
         name: String,
         auth: Uuid,
         tail: &str,
-    ) -> Result<FsFileReply, Rejection> {
+    ) -> Result<impl Reply, Rejection> {
         fs::handle_file_get(&self, name, auth, tail)
             .await
             .map_err(FsError::rejection)
@@ -179,7 +179,7 @@ impl Concierge {
         auth: Uuid,
         tail: &str,
         stream: impl Buf,
-    ) -> Result<StatusCode, Rejection> {
+    ) -> Result<impl Reply, Rejection> {
         fs::handle_file_put(&self, name, auth, tail, stream)
             .await
             .map_err(FsError::rejection)
@@ -191,7 +191,7 @@ impl Concierge {
         auth: Uuid,
         tail: &str,
         data: FormData
-    ) -> Result<StatusCode, Rejection> {
+    ) -> Result<impl Reply, Rejection> {
         fs::handle_file_put_multipart(&self, name, auth, tail, data)
             .await
             .map_err(FsError::rejection)
@@ -203,7 +203,7 @@ impl Concierge {
         name: String,
         auth: Uuid,
         tail: &str,
-    ) -> Result<StatusCode, Rejection> {
+    ) -> Result<impl Reply, Rejection> {
         fs::handle_file_delete(&self, name, auth, tail)
             .await
             .map_err(FsError::rejection)
