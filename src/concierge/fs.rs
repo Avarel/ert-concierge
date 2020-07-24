@@ -99,6 +99,7 @@ pub async fn handle_file_get(
         "Received GET request (name: {}, auth: {}, path: {})",
         name, auth, tail
     );
+    let tail = sanitize_filename::sanitize(tail);
 
     // Check that the key is registered with the concierge.
     if !concierge.clients.read().await.contains_key(&auth) {
@@ -135,6 +136,7 @@ pub async fn handle_file_delete(
         "Received DELETE request (name: {}, auth: {}, path: {})",
         name, auth, tail
     );
+    let tail = sanitize_filename::sanitize(tail);
 
     // Check that a client with the auth UUID exists in the concierge.
     let clients = concierge.clients.read().await;
@@ -164,6 +166,7 @@ pub async fn handle_file_put(
         "Received upload request (name: {}, auth: {}, path: {})",
         name, auth, tail
     );
+    let tail = sanitize_filename::sanitize(tail);
 
     // Check that a client with the auth UUID exists in the concierge.
     let clients = concierge.clients.read().await;
@@ -208,6 +211,7 @@ pub async fn handle_file_put_multipart(
         "Received upload[multipart] request (name: {}, auth: {})",
         name, auth
     );
+    let tail = sanitize_filename::sanitize(tail);
 
     // Check that a client with the auth UUID exists in the concierge.
     let clients = concierge.clients.read().await;
