@@ -166,7 +166,8 @@ async fn serve(concierge: Arc<Concierge>) {
             warp::cors()
                 .allow_any_origin()
                 .allow_methods(&[Method::POST, Method::GET, Method::DELETE])
-                .allow_headers(&[header::AUTHORIZATION]),
+                .allow_headers(&[header::AUTHORIZATION])
+                .allow_header("*"),
         );
     // WARNING: DON'T LET BROWSER PLUGINS HIJACK YOUR REQUESTS
 

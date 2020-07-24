@@ -18,8 +18,21 @@
         word-break: break-word;
         margin-bottom: 10px;
 
+        h1 {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
         &:last-child {
             margin-bottom: 0px;
+        }
+    }
+
+    #planetary-upload {
+        display: flex;
+
+        input[type="file"] {
+            flex: 1 0 auto;
         }
     }
 

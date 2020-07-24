@@ -10,12 +10,12 @@ function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: s
 
 export module Sidebar {
     export class Icon {
-        name: string;
+        id: string;
         private element: HTMLElement;
         private tooltip: Instance<Props>;
 
-        constructor(name: string, element: HTMLElement, tooltip: Instance<Props>) {
-            this.name = name;
+        constructor(id: string, element: HTMLElement, tooltip: Instance<Props>) {
+            this.id = id;
             this.element = element;
             this.tooltip = tooltip;
         }
@@ -66,7 +66,7 @@ export module Sidebar {
          * @param name The full name of the icon.
          * @param link The source link of the image.
          */
-        addImageIcon(name: string, link: string) {
+        addImageIcon(id: string, name: string, link: string) {
             let iconDiv = this.baseIcon();
 
             let tooltip = tippy(iconDiv, {
@@ -83,7 +83,7 @@ export module Sidebar {
             // iconDiv.append(tooltipElement);
 
             this.rootElement.appendChild(iconDiv);
-            this.icons.push(new Icon(name, iconDiv, tooltip));
+            this.icons.push(new Icon(id, iconDiv, tooltip));
         }
 
         /**
@@ -91,7 +91,7 @@ export module Sidebar {
          * @param name The full name of the icon.
          * @param text The text of the icon.
          */
-        addInitialIcon(name: string, text: string) {
+        addInitialIcon(id: string, name: string, text: string) {
             let iconDiv = this.baseIcon();
 
             let tooltip = tippy(iconDiv, {
@@ -111,17 +111,17 @@ export module Sidebar {
             // iconDiv.append(tooltipElement);
 
             this.rootElement.appendChild(iconDiv);
-            this.icons.push(new Icon(name, iconDiv, tooltip));
+            this.icons.push(new Icon(id, iconDiv, tooltip));
         }
 
         /**
          * Remove an icon with the name.
          * @param name The name of the icon to remove.
          */
-        removeIcon(name: string) {
+        removeIcon(id: string) {
             for (let i = 0; i < this.icons.length; i++) {
                 let icon = this.icons[i];
-                if (icon.name == name) {
+                if (icon.id == id) {
                     icon.destroy();
                     this.icons.splice(i, 1);
                 }

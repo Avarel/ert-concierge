@@ -25,6 +25,7 @@ export type DeepImmutableArray<T> = ReadonlyArray<DeepImmutable<T>>;
 
 export interface ClientPayload {
     name: string,
+    nickname?: string,
     uuid: Uuid,
     tags: string[],
 }

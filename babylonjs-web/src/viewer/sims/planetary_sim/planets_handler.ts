@@ -5,10 +5,10 @@ import { Renderer } from "../../renderer";
 import { ServiceEventHandler } from "../../../concierge_api/handlers";
 import { Client } from "../../../concierge_api/mod";
 import { Payload } from "../../../concierge_api/payloads";
-import { SystemObject, SystemDump, SystemData } from "./payloads";
+import { SystemObject, SystemDump, SystemData, PlanetaryPayload } from "./payloads";
 import { controlWindowUI } from "../../viewer";
 
-export const PLANET_SIM_NAME = "Planetary Simulation";
+export const PLANET_SIM_NAME = "planetary_simulation";
 export const PLANET_SIM_GROUP = "planetary_simulation_out";
 
 let controls_template: (locals?: any) => string = require("./controls.pug");
@@ -202,17 +202,40 @@ export class PlanetsHandler extends ServiceEventHandler {
         let uploadForm = controllerElement.querySelector<HTMLFormElement>('#planetary-upload')!;
         uploadForm.addEventListener('submit', (e) => {
             e.preventDefault()
-            const formData = new FormData(uploadForm);
+            let formData = new FormData(uploadForm);
             let url = new URL(window.location.href);
             url.port = "64209";
-            fetch(new URL(`/fs/${this.client.name}`, url).toString(), {
-                method: 'POST',
-                headers: {
-                    authorization: this.client.uuid
-                },
-                body: formData,
-            })
+            this.upload(url, formData);
         });
+    }
+
+    async upload(baseURL: URL, formData: FormData) {
+        let url = new URL(`/fs/${this.client.name}/system.json`, baseURL);
+        let response = await fetch(url.toString(), {
+            method: 'POST',
+            headers: {
+                authorization: this.client.uuid
+            },
+            body: formData,
+        });
+        switch (response.status) {
+            case 200:
+            case 201:
+                this.client.sendJSON({
+                    type: "MESSAGE",
+                    target: {
+                        type: "NAME",
+                        name: PLANET_SIM_NAME
+                    },
+                    data: {
+                        type: "LOAD_SYSTEM",
+                        url: url.toString()
+                    }
+                })
+                break;
+            default:
+                alert("Unexpected response:" + response.status + " " + response.statusText);
+        }
     }
 
     onUnsubscribe() {
@@ -235,48 +258,58 @@ export class PlanetsHandler extends ServiceEventHandler {
         }
     }
 
-    private processPlanetsPayload(payload: SystemDump) {
-        this.sysData = payload.systemData;
-        for (let obj of payload.objects) {
-            let location = new Vector3(obj.location[0], obj.location[1], obj.location[2])
-                .scaleInPlace(1 / this.sysData.scale)
-                .scaleInPlace(this.visualScale);
+    private processPlanetsPayload(payload: PlanetaryPayload) {
+        switch (payload.type) {
+            case "SYSTEM_DUMP": 
+                this.sysData = payload.systemData;
+                for (let obj of payload.objects) {
+                    let location = new Vector3(obj.location[0], obj.location[1], obj.location[2])
+                        .scaleInPlace(1 / this.sysData.scale)
+                        .scaleInPlace(this.visualScale);
 
-            if (this.planets.has(obj.name)) {
-                let planet = this.planets.get(obj.name)!;
-                planet.moveTo(location)
-                planet.data = obj;
-            } else {
-                if (this.renderer.scene) {
-                    let radius = obj.radius / this.sysData.scale * this.sysData.bodyScale * this.visualScale;
+                    if (this.planets.has(obj.name)) {
+                        let planet = this.planets.get(obj.name)!;
+                        planet.moveTo(location)
+                        planet.data = obj;
+                    } else {
+                        if (this.renderer.scene) {
+                            let radius = obj.radius / this.sysData.scale * this.sysData.bodyScale * this.visualScale;
 
-                    let color = Color3.FromArray(obj.color);
-                    if (obj.name == this.sysData.centralBodyName) {
-                        console.log("Found central body!")
-                        radius *= this.sysData.centralBodyScale;
-                        location.scaleInPlace(this.sysData.centralBodyScale);
+                            let color = Color3.FromArray(obj.color);
+                            if (obj.name == this.sysData.centralBodyName) {
+                                console.log("Found central body!")
+                                radius *= this.sysData.centralBodyScale;
+                                location.scaleInPlace(this.sysData.centralBodyScale);
+                            }
+
+                            console.log(`Creating object (radius = ${radius}, location = ${location.toString()})`)
+
+                            let planet = Planet.create(
+                                obj.name,
+                                location,
+                                radius,
+                                this.renderer.scene,
+                                color
+                            );
+                            planet.hookHover(this);
+                            planet.data = obj;
+
+                            this.planets.set(obj.name, planet);
+                            this.renderer.shadowGenerator?.addShadowCaster(planet.mesh);
+                        } else {
+                            throw new Error("Scene not initialized!")
+                        }
                     }
-
-                    console.log(`Creating object (radius = ${radius}, location = ${location.toString()})`)
-
-                    let planet = Planet.create(
-                        obj.name,
-                        location,
-                        radius,
-                        this.renderer.scene,
-                        color
-                    );
-                    planet.hookHover(this);
-                    planet.data = obj;
-
-                    this.planets.set(obj.name, planet);
-                    this.renderer.shadowGenerator?.addShadowCaster(planet.mesh);
-                } else {
-                    throw new Error("Scene not initialized!")
                 }
-            }
+                this.updateInfoDiv();
+                break;
+            case "SYSTEM_CLEAR":
+                console.log("Clearing shapes");
+                this.hoveredPlanets.clear();
+                this.planetLock = undefined;
+                this.clearShapes();
+                break;
         }
-        this.updateInfoDiv();
     }
 
     updateInfoDiv() {
@@ -285,7 +318,7 @@ export class PlanetsHandler extends ServiceEventHandler {
         if (infoDiv) {
             if (this.planetLock) {
                 let planet = this.planets.get(this.planetLock)!;
-                this.updateInfo(infoDiv, planet);
+                this.updateInfo(infoDiv, planet, true);
             } else if (this.hoveredPlanets.size != 0) {
                 let first = this.hoveredPlanets.values().next()!;
                 let planet = this.planets.get(first.value)!;
@@ -299,8 +332,8 @@ export class PlanetsHandler extends ServiceEventHandler {
         }
     }
 
-    updateInfo(infoDiv: HTMLElement, planet: Planet) {
+    updateInfo(infoDiv: HTMLElement, planet: Planet, lock: boolean = false) {
         (planet.mesh.material as StandardMaterial).diffuseColor = Color3.Red();
-        infoDiv.innerHTML = info_template(planet.data);
+        infoDiv.innerHTML = info_template({lock, ...planet.data});
     }
 }

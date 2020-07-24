@@ -129,9 +129,10 @@ class Payload(DiscriminatedSerialize):
 
 
 class Identify(Payload):
-    def __init__(self, name: str, version: str, secret: Optional[str] = None, tags: Optional[List[str]] = None):
+    def __init__(self, name: str, nickname: Optional[str], version: str, secret: Optional[str] = None, tags: Optional[List[str]] = None):
         super().__init__("IDENTIFY")
         self.name = name
+        self.nickname = nickname
         self.version = version
         self.secret = secret
         self.tags = tags
@@ -139,12 +140,13 @@ class Identify(Payload):
     @staticmethod
     def from_object(obj: object_type) -> Optional[Identify]:
         if obj.get("name") != None and obj.get("version") != None:
-            return Identify(obj["name"], obj["version"], obj.get("secret"), obj.get("tags"))
+            return Identify(obj["name"], obj.get("nickname"), obj["version"], obj.get("secret"), obj.get("tags"))
         return None
 
     def to_object(self) -> object_type:
         return self.make_object({
             "name": self.name,
+            "nickname": self.nickname,
             "version": self.version,
             "secret": self.secret,
             "tags": self.tags

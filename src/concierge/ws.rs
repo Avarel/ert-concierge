@@ -88,6 +88,10 @@ struct IdentifyPackage {
     tags: Vec<String>,
 }
 
+fn verify_name(name: &str) -> bool {
+    name.chars().all(|c| c.is_alphanumeric() || c == '_')
+}
+
 /// Handle the first 5 seconds of identification.
 async fn handle_identification(
     socket: &mut WebSocket,
@@ -104,7 +108,7 @@ async fn handle_identification(
                     tags,
                 }) => {
                     // name must be alphanumeric
-                    if !name.chars().all(char::is_alphanumeric) {
+                    if !verify_name(name) {
                         return Err(CloseReason::BAD_AUTH);
                     }
                     // check for secret

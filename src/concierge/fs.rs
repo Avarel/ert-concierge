@@ -188,6 +188,7 @@ pub async fn handle_file_put(
         .write(true)
         .open(file_path)
         .await?;
+    file.set_len(0).await?;
 
     // Write the file as long as the body streams bytes.
     while body.has_remaining() {
@@ -225,23 +226,17 @@ pub async fn handle_file_put_multipart(
 
     // Construct the path and create the directories recursively.
     let file_path = base_path(&name).join(tail);
-    tokio::fs::create_dir_all(&file_path).await?;
+    tokio::fs::create_dir_all(file_path.parent().unwrap()).await?;
+
+    // Open the file.
+    let mut file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(file_path)
+        .await?;
+    file.set_len(0).await?;
 
     while let Some(Ok(mut part)) = data.next().await {
-        let file_path2 = match part.filename() {
-            Some(file_name) => file_path.join(file_name),
-            None => continue,
-        };
-
-        dbg!(&file_path2);
-
-        // Open the file.
-        let mut file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(file_path2)
-            .await?;
-
         if let Some(Ok(buf)) = part.data().await {
             file.write_all(buf.bytes()).await.unwrap();
         }

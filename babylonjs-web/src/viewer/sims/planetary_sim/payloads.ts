@@ -1,3 +1,4 @@
+
 export interface SystemData {
     gravityConstant: number,
     scale: number,
@@ -23,6 +24,13 @@ export interface SystemObject {
 }
 
 export interface SystemDump {
+    type: "SYSTEM_DUMP"
     systemData: SystemData,
     objects: SystemObject[]
 }
+
+export interface SystemClear {
+    type: "SYSTEM_CLEAR"
+}
+
+export type PlanetaryPayload = SystemDump | SystemClear;

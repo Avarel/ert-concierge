@@ -17,6 +17,7 @@
       "mass": 1.673e-27,
       "radius": 8.77e-16,
       "location": [0.0, 0.0, 0.0],
+      "color": [0,0,0],
       "orbitRadius": 0.0,
       "orbitSpeed": 0.0,
       "direction": [0.0, 0.0, 0.0]
@@ -26,6 +27,7 @@
       "mass": 9.11e-31,
       "radius": 8.77e-19,
       "location": [5.29e-11, 0.0, 0.0],
+      "color": [0,0,0],
       "orbitRadius": 5.29e-11,
       "orbitSpeed": 2200000,
       "direction": [0.0, 0.0, 1.0]

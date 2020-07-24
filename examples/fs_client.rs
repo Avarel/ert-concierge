@@ -90,7 +90,6 @@ async fn download(uuid: &str, name: &str, file_name: &str) -> Result<()> {
 
     println!("Done writing!");
 
-
     Ok(())
 }
 
