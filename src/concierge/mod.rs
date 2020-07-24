@@ -189,10 +189,9 @@ impl Concierge {
         self: Arc<Self>,
         name: String,
         auth: Uuid,
-        tail: &str,
         data: FormData
     ) -> Result<StatusCode, Rejection> {
-        fs::handle_file_put_multipart(&self, name, auth, tail, data)
+        fs::handle_file_put_multipart(&self, name, auth, data)
             .await
             .map_err(|err| err.rejection())
     }

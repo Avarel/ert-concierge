@@ -100,6 +100,7 @@ export class Client {
             let payload = data as GenericPayload<any>;
 
             if (payload.type == "HELLO") {
+                console.log("Assigned uuid", payload.uuid);
                 this.uuid = payload.uuid;
                 this.seq = 0;
             }

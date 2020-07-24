@@ -202,12 +202,11 @@ pub async fn handle_file_put_multipart(
     concierge: &Concierge,
     name: String,
     auth: Uuid,
-    tail: &str,
     mut data: FormData,
 ) -> Result<StatusCode, FsError> {
     debug!(
-        "Received upload[multipart] request (name: {}, auth: {}, path: {})",
-        name, auth, tail
+        "Received upload[multipart] request (name: {}, auth: {})",
+        name, auth
     );
 
     // Check that a client with the auth UUID exists in the concierge.
@@ -221,20 +220,24 @@ pub async fn handle_file_put_multipart(
     }
 
     // Construct the path and create the directories recursively.
-    let file_path = base_path(&name).join(tail);
-    tokio::fs::create_dir_all(file_path.parent().unwrap())
+    let file_path = base_path(&name);
+    tokio::fs::create_dir_all(&file_path)
         .await
         .map_err(|_| FsError::Unknown)?;
 
     while let Some(Ok(mut part)) = data.next().await {
+        let file_path2 = match part.filename() {
+            Some(file_name) => file_path.join(file_name),
+            None => continue,
+        };
+
+        dbg!(&file_path2);
+
         // Open the file.
         let mut file = OpenOptions::new()
             .create(true)
             .write(true)
-            .open(match part.filename() {
-                Some(file_name) => file_path.with_file_name(file_name),
-                None => file_path.clone(),
-            })
+            .open(file_path2)
             .await
             .map_err(|_| FsError::FileNotFound)?;
 

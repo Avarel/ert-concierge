@@ -1,3 +1,4 @@
+import sys
 import asyncio
 from types import FrameType
 from typing import cast
@@ -12,6 +13,7 @@ version = "0.1.0"
 group_name = "planetary_simulation_out"
 running = True
 
+uri = sys.argv[1] if len(sys.argv) >= 2 else "ws://localhost:64209/ws"
 
 file = open("./SavedSystems/SolarSystem.json")
 system = system_serializer.object_to_system(json.load(file))
@@ -23,7 +25,7 @@ simulation_interval = 0.01
 pause_check_interval = 0.1
 
 async def hello():
-    uri = "ws://localhost:64209/ws"
+    global uri
     print("Connecting")
     async with websockets.connect(uri) as socket:
         global name, version, group_name, system

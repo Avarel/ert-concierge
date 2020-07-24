@@ -141,7 +141,7 @@ export class PlanetsHandler extends ServiceEventHandler {
         controlWindowUI.addTab(PLANET_SIM_NAME, "Planetary Controls", this.controllerElement);
         console.log("Planet simulator client is ready to go!");
     }
-    
+
     setupController(controllerElement: HTMLElement) {
         let pauseButton = controllerElement.querySelector("#planetary-pause");
         pauseButton?.addEventListener("click", () => {
@@ -198,6 +198,21 @@ export class PlanetsHandler extends ServiceEventHandler {
                 }
             })
         });
+
+        let uploadForm = controllerElement.querySelector<HTMLFormElement>('#planetary-upload')!;
+        uploadForm.addEventListener('submit', (e) => {
+            e.preventDefault()
+            const formData = new FormData(uploadForm);
+            let url = new URL(window.location.href);
+            url.port = "64209";
+            fetch(new URL(`/fs/${this.client.name}`, url).toString(), {
+                method: 'POST',
+                headers: {
+                    authorization: this.client.uuid
+                },
+                body: formData,
+            })
+        });
     }
 
     onUnsubscribe() {
@@ -226,7 +241,7 @@ export class PlanetsHandler extends ServiceEventHandler {
             let location = new Vector3(obj.location[0], obj.location[1], obj.location[2])
                 .scaleInPlace(1 / this.sysData.scale)
                 .scaleInPlace(this.visualScale);
-                
+
             if (this.planets.has(obj.name)) {
                 let planet = this.planets.get(obj.name)!;
                 planet.moveTo(location)
@@ -266,7 +281,7 @@ export class PlanetsHandler extends ServiceEventHandler {
 
     updateInfoDiv() {
         let infoDiv = this.controllerElement?.querySelector<HTMLElement>(".planetary-controls .info");
-       
+
         if (infoDiv) {
             if (this.planetLock) {
                 let planet = this.planets.get(this.planetLock)!;

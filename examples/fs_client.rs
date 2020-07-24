@@ -62,7 +62,7 @@ async fn main() -> Result<()> {
 async fn download(uuid: &str, name: &str, file_name: &str) -> Result<()> {
     let client = reqwest::Client::new();
     let res = client
-        .get(&format!("http://127.0.0.1:8080/fs/{}/{}", name, file_name))
+        .get(&format!("http://127.0.0.1:64209/fs/{}/{}", name, file_name))
         .timeout(Duration::from_secs(1))
         .header("Authorization", uuid)
         .send()
@@ -97,7 +97,7 @@ async fn download(uuid: &str, name: &str, file_name: &str) -> Result<()> {
 async fn delete(uuid: &str, name: &str, file_name: &str) -> Result<()> {
     let client = reqwest::Client::new();
     let res = client
-        .delete(&format!("http://127.0.0.1:8080/fs/{}/{}", name, file_name))
+        .delete(&format!("http://127.0.0.1:64209/fs/{}/{}", name, file_name))
         .timeout(Duration::from_secs(1))
         .header("Authorization", uuid)
         .send()
@@ -113,7 +113,7 @@ async fn upload(uuid: &str, name: &str, file_name: &str) -> Result<()> {
     let stream = FramedRead::new(file, BytesCodec::new());
     let client = reqwest::Client::new();
     let res = client
-        .put(&format!("http://127.0.0.1:8080/fs/{}/{}", name, file_name))
+        .put(&format!("http://127.0.0.1:64209/fs/{}/{}", name, file_name))
         .timeout(Duration::from_secs(1))
         .header("Authorization", uuid)
         .body(Body::wrap_stream(stream))
