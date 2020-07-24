@@ -9,6 +9,9 @@ pub struct ClientPayload<'a> {
     /// Client name.
     #[serde(borrow)]
     pub name: Cow<'a, str>,
+    /// Client name.
+    #[serde(borrow)]
+    pub nickname: Option<Cow<'a, str>>,
     /// Uuid of the client.
     pub uuid: Uuid,
     /// Tags of the client.
@@ -115,9 +118,11 @@ pub enum Payload<'a, T> {
     /// connection will be dropped.
     Identify {
         name: &'a str,
+        nickname: Option<&'a str>,
         version: &'a str,
         secret: Option<&'a str>,
-        tags: Option<Vec<&'a str>>,
+        #[serde(default)]
+        tags: Vec<&'a str>,
     },
     /// These payloads have special fields for targeting
     /// other users or plugins. The origin fields are ignored if they are

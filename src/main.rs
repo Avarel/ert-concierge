@@ -106,11 +106,11 @@ async fn serve(concierge: Arc<Concierge>) {
             // // 2mb upload limit
             // .and(warp::body::content_length_limit(20971520))
             .and(warp::body::aggregate())
-            .and_then(move |name: String, path: Tail, auth: Uuid, stream| {
+            .and_then(move |name: String, tail: Tail, auth: Uuid, stream| {
                 let concierge = concierge.clone();
                 async move {
                     concierge
-                        .handle_file_put(name, auth, path.as_str(), stream)
+                        .handle_file_put(name, auth, tail.as_str(), stream)
                         .await
                 }
             })
@@ -122,11 +122,12 @@ async fn serve(concierge: Arc<Concierge>) {
         warp::post()
             .and(warp::path("fs"))
             .and(warp::path::param::<String>())
+            .and(warp::path::tail())
             .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
             .and(warp::multipart::form())
-            .and_then(move |name: String, auth: Uuid, data: FormData| {
+            .and_then(move |name: String, tail: Tail,  auth: Uuid, data: FormData| {
                 let concierge = concierge.clone();
-                async move { concierge.handle_file_put_multipart(name, auth, data).await }
+                async move { concierge.handle_file_put_multipart(name, auth, tail.as_str(), data).await }
             })
             .with(warp::log("multipart"))
     };
@@ -137,21 +138,19 @@ async fn serve(concierge: Arc<Concierge>) {
             .and(warp::path::param::<String>())
             .and(warp::path::tail())
             .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
-            .and_then(move |name: String, path: Tail, auth: Uuid| {
+            .and_then(move |name: String, tail: Tail, auth: Uuid| {
                 let concierge = concierge.clone();
                 async move {
                     concierge
-                        .handle_file_delete(name, auth, path.as_str())
+                        .handle_file_delete(name, auth, tail.as_str())
                         .await
                 }
             })
     };
 
     let routes = ws_route
-        .or(fs_download_route)
-        .or(fs_upload_route)
-        .or(fs_upload_multipart_route)
-        .or(fs_delete_route)
+        .or(fs_download_route.or(fs_delete_route))
+        .or(fs_upload_route.or(fs_upload_multipart_route))
         .with(
             warp::cors()
                 .allow_any_origin()

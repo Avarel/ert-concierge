@@ -3,6 +3,7 @@
 
 use super::{Concierge, Group};
 use crate::clients::Client;
+use close_codes::CloseReason;
 use concierge_api_rs::{
     close_codes,
     payload::{Payload, PayloadRawMessage, Target},
@@ -83,8 +84,14 @@ pub(super) async fn broadcast_all_except(
     Ok(())
 }
 
+struct IdentifyPackage {
+    name: String,
+    nickname: Option<String>,
+    tags: Vec<String>,
+}
+
 /// Handle the first 5 seconds of identification.
-async fn handle_identification(socket: &mut WebSocket) -> Result<(String, Vec<String>), u16> {
+async fn handle_identification(socket: &mut WebSocket) -> Result<IdentifyPackage, CloseReason> {
     // Protocol: Expect a payload that identifies the client within 5 seconds.
     if let Ok(Some(Ok(msg))) = timeout(Duration::from_secs(5), socket.next()).await {
         // debug!("{:?}", msg);
@@ -94,28 +101,35 @@ async fn handle_identification(socket: &mut WebSocket) -> Result<(String, Vec<St
         {
             if let JsonPayload::Identify {
                 name,
+                nickname,
                 version,
                 secret,
                 tags,
             } = payload
             {
+                // name must be alphanumeric
+                if !name.chars().all(char::is_alphanumeric) {
+                    return Err(close_codes::BAD_AUTH);
+                }
+                // check for secret
                 if secret != crate::SECRET {
                     return Err(close_codes::BAD_SECRET);
-                } else if !VersionReq::parse(crate::VERSION)
+                }
+                // check that version matches (might need some work)
+                if !VersionReq::parse(crate::VERSION)
                     .unwrap()
                     .matches(&Version::parse(version).unwrap())
                 {
                     return Err(close_codes::BAD_VERSION);
                 }
-
                 // Convert the tags to owned
-                let tags = tags
-                    .unwrap_or_else(|| Vec::new())
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect();
+                let tags = tags.iter().map(|s| s.to_string()).collect();
 
-                return Ok((name.to_owned(), tags));
+                return Ok(IdentifyPackage {
+                    name: name.to_owned(),
+                    nickname: nickname.map(ToOwned::to_owned),
+                    tags,
+                });
             } else {
                 return Err(close_codes::NO_AUTH);
             }
@@ -129,22 +143,20 @@ async fn handle_identification(socket: &mut WebSocket) -> Result<(String, Vec<St
 /// Create a new client.
 async fn make_client(
     concierge: &Concierge,
-    name: String,
-    tags: Vec<String>,
+    id: IdentifyPackage,
     socket: &mut WebSocket,
 ) -> Result<(Uuid, UnboundedReceiver<Message>), WsError> {
     // Acquire a write lock to prevent race condition
     let mut namespace = concierge.namespace.write().await;
     // Duplicate identification, close the stream.
-    if namespace.contains_key(&name) {
-        warn!("User attempted to join with existing id. (name: {})", name);
+    if namespace.contains_key(&id.name) {
+        warn!("User attempted to join with existing id. (name: {})", id.name);
         socket
             .send(Message::close_with(
-                close_codes::DUPLICATE_AUTH,
-                "Identification failed",
+                close_codes::DUPLICATE_AUTH.code,
+                close_codes::DUPLICATE_AUTH.reason,
             ))
-            .await
-            .map_err(|_| WsError::DuplicateAuth)?;
+            .await?;
         socket.close().await?;
         return Err(WsError::DuplicateAuth);
     }
@@ -152,10 +164,10 @@ async fn make_client(
     // Handle new client
     let uuid = Uuid::new_v4();
     // Add to namespace
-    namespace.insert(name.clone(), uuid);
+    namespace.insert(id.name.clone(), uuid);
     drop(namespace);
     // Create the client struct
-    let (client, rx) = Client::new(uuid, name, tags);
+    let (client, rx) = Client::new(uuid, id.name, id.nickname, id.tags);
 
     broadcast_all(
         concierge,
@@ -182,21 +194,21 @@ pub async fn handle_socket_conn(
     // Protocol: Expect a payload that identifies the client within 5 seconds.
     match handle_identification(&mut socket).await {
         // Got the identification data successfully.
-        Ok((name, tags)) => {
-            debug!("Identification successful. (ip: {}, name: {})", addr, name);
-            let (uuid, rx) = make_client(concierge, name, tags, &mut socket).await?;
+        Ok(id) => {
+            debug!("Identification successful. (ip: {}, name: {})", addr, id.name);
+            let (uuid, rx) = make_client(concierge, id, &mut socket).await?;
             handle_client(concierge, uuid, rx, socket).await?;
             remove_client(concierge, uuid).await?;
             Ok(())
         }
         // Failure: send close code to the client and drop the connection.
-        Err(close_code) => {
+        Err(close_reason) => {
             warn!(
                 "Client failed to identify properly or in time. (ip: {})",
                 addr
             );
             socket
-                .send(Message::close_with(close_code, "Identification failed"))
+                .send(Message::close_with(close_reason.code, close_reason.reason))
                 .await?;
             Ok(socket.close().await?)
         }
@@ -300,7 +312,7 @@ pub async fn handle_incoming_messages<E>(
                 },
             ) = serde_json::from_str(string)
             {
-                if let Err(err) =  handle_raw_message(uuid, concierge, seq, payload).await {
+                if let Err(err) = handle_raw_message(uuid, concierge, seq, payload).await {
                     let clients = concierge.clients.read().await;
                     let client = clients.get(&uuid).unwrap();
                     // Ignore, don't panic and die
@@ -399,7 +411,7 @@ async fn handle_payload(
             } else {
                 client.send(err::no_such_group(seq, group))?;
             }
-        },
+        }
         Payload::FetchGroupSubscribers { group } => {
             if let Some(group) = concierge.groups.read().await.get(group) {
                 let clients = group

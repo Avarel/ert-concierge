@@ -3,7 +3,7 @@ mod ws;
 
 use crate::clients::Client;
 use concierge_api_rs::status::ok;
-use fs::FsFileReply;
+use fs::{FsError, FsFileReply};
 use log::{debug, error, warn};
 use serde::Serialize;
 use std::{
@@ -154,7 +154,7 @@ impl Concierge {
         } else {
             warn!("Client joined without address.");
             if let Err(err) = socket.close().await {
-                error!("WS close error: {}", err);
+                error!("WS failed to close: {}", err);
             }
         }
         debug!("Socket connection (addr: {:?}) dropped.", addr)
@@ -169,7 +169,7 @@ impl Concierge {
     ) -> Result<FsFileReply, Rejection> {
         fs::handle_file_get(&self, name, auth, tail)
             .await
-            .map_err(|err| err.rejection())
+            .map_err(FsError::rejection)
     }
 
     /// Handle file server PUT requests
@@ -182,18 +182,19 @@ impl Concierge {
     ) -> Result<StatusCode, Rejection> {
         fs::handle_file_put(&self, name, auth, tail, stream)
             .await
-            .map_err(|err| err.rejection())
+            .map_err(FsError::rejection)
     }
 
     pub async fn handle_file_put_multipart(
         self: Arc<Self>,
         name: String,
         auth: Uuid,
+        tail: &str,
         data: FormData
     ) -> Result<StatusCode, Rejection> {
-        fs::handle_file_put_multipart(&self, name, auth, data)
+        fs::handle_file_put_multipart(&self, name, auth, tail, data)
             .await
-            .map_err(|err| err.rejection())
+            .map_err(FsError::rejection)
     }
 
     /// Handle file server DELETE requests
@@ -205,7 +206,7 @@ impl Concierge {
     ) -> Result<StatusCode, Rejection> {
         fs::handle_file_delete(&self, name, auth, tail)
             .await
-            .map_err(|err| err.rejection())
+            .map_err(FsError::rejection)
     }
 }
 

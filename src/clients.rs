@@ -14,6 +14,8 @@ pub struct Client {
     uuid: Uuid,
     /// Client name.
     name: String,
+    /// Client nickname.
+    nickname: Option<String>,
     /// Client tags.
     tags: Vec<String>,
     /// Sender channel.
@@ -24,7 +26,7 @@ pub struct Client {
 
 impl Client {
     /// Create a new client.
-    pub fn new(uuid: Uuid, name: String, tags: Vec<String>) -> (Self, UnboundedReceiver<Message>) {
+    pub fn new(uuid: Uuid, name: String, nickname: Option<String>, tags: Vec<String>) -> (Self, UnboundedReceiver<Message>) {
         // This is our channels for messages.
         // rx: (receive) where messages are received
         // tx: (transmit) where we send messages
@@ -32,6 +34,7 @@ impl Client {
         let instance = Self {
             uuid,
             name,
+            nickname,
             tags,
             tx,
             subscriptions: RwLock::default(),
@@ -56,6 +59,7 @@ impl Client {
         ClientPayload {
             uuid: self.uuid,
             name: Cow::Borrowed(&self.name),
+            nickname: self.nickname.as_deref().map(Cow::Borrowed),
             tags,
         }
     }

@@ -90,9 +90,10 @@ async fn create_server_future<'a>(
     client
         .send_message(Payload::Identify {
             name: crate::PHYSICS_ENGINE_NAME,
+            nickname: Some("Physics Engine"),
             version: "0.1.0",
             secret: None,
-            tags: Some(vec!["simulation"])
+            tags: vec!["simulation"]
         })
         .await;
 

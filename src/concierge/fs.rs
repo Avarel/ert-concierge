@@ -20,15 +20,21 @@ use warp::{
 mod error {
     use warp::{reject::Reject, Rejection};
 
-    #[derive(Debug, Copy, Clone)]
+    #[derive(thiserror::Error, Debug)]
     pub enum FsError {
+        #[allow(dead_code)]
+        #[error("Unknown file system error")]
         Unknown,
+        #[error("Encoding error")]
         Encoding,
-        FileNotFound,
-        IoError,
+        #[error("Not a file")]
         NotAFile,
+        #[error("Insufficient permission")]
         Forbidden,
+        #[error("Bad authorization")]
         BadAuthorization,
+        #[error("IO Error")]
+        IoError(#[from] tokio::io::Error),
     }
 
     impl Reject for FsError {}
@@ -109,14 +115,12 @@ pub async fn handle_file_get(
         .ok_or_else(|| FsError::Encoding)?;
 
     // Check that the file at the path is a file.
-    if file_path.is_file() {
+    if !file_path.is_file() {
         return Err(FsError::NotAFile);
     }
 
     // Make sure file exists.
-    let file = File::open(&file_path)
-        .await
-        .map_err(|_| FsError::FileNotFound)?;
+    let file = File::open(&file_path).await?;
 
     Ok(FsFileReply::new(file_name.to_owned(), file))
 }
@@ -144,9 +148,7 @@ pub async fn handle_file_delete(
 
     // Construct the path and remove the file.
     let file_path = base_path(&name).join(tail);
-    tokio::fs::remove_file(file_path)
-        .await
-        .map_err(|_| FsError::FileNotFound)?;
+    tokio::fs::remove_file(file_path).await?;
 
     Ok(StatusCode::OK)
 }
@@ -175,22 +177,19 @@ pub async fn handle_file_put(
 
     // Construct the path and create the directories recursively.
     let file_path = base_path(&name).join(tail);
-    tokio::fs::create_dir_all(file_path.parent().unwrap())
-        .await
-        .map_err(|_| FsError::Unknown)?;
+    tokio::fs::create_dir_all(file_path.parent().unwrap()).await?;
 
     // Open the file.
     let mut file = OpenOptions::new()
         .create(true)
         .write(true)
         .open(file_path)
-        .await
-        .map_err(|_| FsError::FileNotFound)?;
+        .await?;
 
     // Write the file as long as the body streams bytes.
     while body.has_remaining() {
         let bytes = body.bytes();
-        file.write_all(bytes).await.map_err(|_| FsError::IoError)?;
+        file.write_all(bytes).await?;
         let n = bytes.len();
         body.advance(n);
     }
@@ -202,6 +201,7 @@ pub async fn handle_file_put_multipart(
     concierge: &Concierge,
     name: String,
     auth: Uuid,
+    tail: &str,
     mut data: FormData,
 ) -> Result<StatusCode, FsError> {
     debug!(
@@ -220,10 +220,8 @@ pub async fn handle_file_put_multipart(
     }
 
     // Construct the path and create the directories recursively.
-    let file_path = base_path(&name);
-    tokio::fs::create_dir_all(&file_path)
-        .await
-        .map_err(|_| FsError::Unknown)?;
+    let file_path = base_path(&name).join(tail);
+    tokio::fs::create_dir_all(&file_path).await?;
 
     while let Some(Ok(mut part)) = data.next().await {
         let file_path2 = match part.filename() {
@@ -236,12 +234,11 @@ pub async fn handle_file_put_multipart(
         // Open the file.
         let mut file = OpenOptions::new()
             .create(true)
-            .write(true)
+            .append(true)
             .open(file_path2)
-            .await
-            .map_err(|_| FsError::FileNotFound)?;
+            .await?;
 
-        if let Some(Ok(buf)) =  part.data().await {
+        if let Some(Ok(buf)) = part.data().await {
             file.write_all(buf.bytes()).await.unwrap();
         }
     }
