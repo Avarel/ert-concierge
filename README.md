@@ -22,10 +22,12 @@ To access the front-end, you simply compile (see above) and launch the `index.ht
 ### Central Server
 ```bash
 cargo run --release
+OR
+cargo run --release -p ert_concierge
 ```
 ### Physics Simulation
 ```bash
-cargo run -p physics_sim --release  
+cargo run --release -p physics_sim
 ```
 The physics simulation should only be ran after the central server has been launched. This will connect the physics simulation to a locally-hosted central server.
 ### Planetary Simulation
