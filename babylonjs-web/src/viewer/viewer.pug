@@ -13,17 +13,19 @@ body
     .window.left#chat-window
         .header
             .window-drawer
-                i.fa.fa-caret-up
+                i.fa.fa-eject
         .body
             .tab(label="Chat", tag="chat")
                 #chat
                     .messages
-            //- .tab(label="Groups", tag="groups")
-            //-     | Coming soon
+                    .input
+                        input(placeholder="Text message...")
+                        .button 
+                            i.fa.fa-paper-plane
     .window.right#control-window
         .header
             .window-drawer
-                i.fa.fa-caret-up
+                i.fa.fa-eject
         .body
             .tab(label="About", tag="about")
                 .about-tab

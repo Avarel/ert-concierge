@@ -39,7 +39,7 @@ export class Renderer {
             enableGroundShadow: true
         });
         helper!.skybox!.isPickable = false;
-        helper!.setMainColor(BABYLON.Color3.FromHexString("#74b9ff"));
+        helper!.setMainColor(BABYLON.Color3.FromHexString("#909090"));
 
         // this.shadowGenerator = new BABYLON.ShadowGenerator(512, light);
 

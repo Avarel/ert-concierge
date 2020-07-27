@@ -14,23 +14,25 @@ $drawer-height: 40px;
     width: 400px;
     height: 500px;
     max-height: 100%;
-    padding: 5px;
     box-sizing: border-box;
     transition: margin-left 0.5s, margin-bottom 0.5s;
     flex-direction: column;
+    font-family: "Roboto", sans-serif;
 
     &.left {
-        left: 0;
+        left: 50px;
     }
 
     &.right {
-        right: 0;
+        right: 50px;
         .header {
             flex-direction: row-reverse;
         }
     }
 
     @include small-screen {
+        left: 0;
+        right: 0;
         bottom: 0;
         height: 50vh;
         width: 100vw;
@@ -39,15 +41,15 @@ $drawer-height: 40px;
     &.hidden {
         margin-bottom: calc(
             max(
-                -500px + #{$drawer-height + 5px},
-                -100vh + #{$drawer-height + 5px}
+                -500px + #{$drawer-height},
+                -100vh + #{$drawer-height}
             )
         );
 
         @include small-screen {
             bottom: 0;
             margin-left: 0;
-            margin-bottom: calc(-50vh + #{$drawer-height + 5px});
+            margin-bottom: calc(-50vh + $drawer-height);
         }
     }
 
@@ -63,41 +65,54 @@ $drawer-height: 40px;
         overflow-y: hidden;
         width: auto;
 
+        &::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        &::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        &::-webkit-scrollbar-thumb {
+            background: #aaa;
+            border-radius: 5px;
+            &:hover {
+                background: #bbb;
+            }
+        }
+
         .tab {
-            margin-top: 5px;
             display: inline;
             max-height: $drawer-height;
-            background: #222;
             line-height: $drawer-height;
-            border-radius: 5px 5px 0 0;
+            background: transparent;
+            // border-radius: 5px 5px 0 0;
             text-align: center;
             padding: 0px 10px 0px;
-            color: white;
-            font-family: "Roboto", sans-serif;
+            color: #ccc;
             cursor: pointer;
-            transition: background-color 0.2s, margin-top 0.2s;
-            &.active {
-                margin-top: 0;
-                background: #444;
+            transition: background-color 0.2s, color 0.2s;
+            white-space: nowrap;
+            &.active, &:hover {
+                color: white;
             }
         }
 
         .window-drawer {
             @extend .tab;
             margin-top: 0;
-            background: #111;
-            min-width: 80px;
-            width: 80px;
-            max-width: 80px;
+            background: none;
+            color: white;
+            min-width: $drawer-height;
+            width: $drawer-height;
             padding: 0;
         }
     }
 
     .body {
-        background: white;
+        background: #ccc;
         height: 100%;
         width: 100%;
-        border-radius: 5px;
+        border-radius: 5px 5px 0 0;
         overflow: hidden;
         color: black;
 

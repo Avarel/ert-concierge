@@ -30,10 +30,10 @@ export module Chat {
         private setup() {
             let messagesDiv = this.rootElement.querySelector<HTMLDivElement>("div.messages")
                 || createElement("div", ["messages"]);
-            let inputDiv = createElement("div", ["input"]);
-            let inputField = createElement("input");
+            let inputDiv = this.rootElement.querySelector<HTMLDivElement>("div.input") || createElement("div", ["input"]);
+            let inputField = inputDiv.querySelector<HTMLInputElement>("input") || createElement("input");
             inputDiv.appendChild(inputField);
-            let buttonDiv = createElement("div", ["button"]);
+            let buttonDiv = inputDiv.querySelector<HTMLInputElement>("div.button") || createElement("div", ["button"]);
             inputDiv.appendChild(buttonDiv);
             inputField.addEventListener("keyup", (event) => {
                 if (event.keyCode === 13) {
