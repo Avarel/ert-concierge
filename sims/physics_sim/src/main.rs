@@ -1,33 +1,56 @@
-// mod rendering;
-
-// use rendering::{sdl_wrapper::SDLWrapper, render::*, IsDone, TimeSys};
 use cs3_physics::{
     ecs::{colliders::*, dynamics::*, kinetics::*, *},
     polygon::Polygon,
     specs::prelude::*,
     vector::Vec2f,
 };
-use std::{sync::{atomic::{Ordering, AtomicBool}, Arc}, time::{Instant, Duration}};
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+use tokio::{sync::RwLock, time::delay_for};
+
+pub const MS_DT: u64 = 20;
+pub const MS_SIM_INTERVAL: u64 = 10;
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
-    // let wrapper = SDLWrapper::init(Vec2::ZERO, Vec2::new(1000.0, 1000.0))?;
-
     let mut world = World::new();
     world.register::<Id>();
     world.register::<Pos>();
     world.register::<Vel>();
-    // world.register::<Acc>();
 
     world.register::<Mass>();
     world.register::<Shape>();
 
     world.register::<Theta>();
     world.register::<Omega>();
-    // world.register::<Alpha>();
 
     world.register::<Rgb>();
 
+    world.insert(DeltaTime(Duration::from_millis(MS_DT)));
+    let world = Arc::new(RwLock::new(world));
+
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    })
+    .expect("Error setting Ctrl-C handler");
+
+    physics_concierge_bot::init_bot(running.clone(), world.clone())
+        .await
+        .expect("Concierge bot failed");
+    system_loop(running, world).await;
+
+    Ok(())
+}
+
+async fn system_loop(running: Arc<AtomicBool>, aworld: Arc<RwLock<World>>) {
+    let mut world = aworld.write().await;
     let mut body = Polygon::new(vec![
         Vec2f::new(100.0, 100.0),
         Vec2f::new(150.0, 100.0),
@@ -74,8 +97,6 @@ async fn main() -> Result<(), String> {
         .with(Rgb(255, 0, 0))
         .build();
 
-    let (eds, cus, pds) = physics_concierge_bot::init_systems();
-
     let mut dispatcher = DispatcherBuilder::new()
         .with(TranslationalKinematicSys, "kine", &[])
         .with(RotationalKinematicSys, "rot_kine", &[])
@@ -102,54 +123,13 @@ async fn main() -> Result<(), String> {
             "grav",
             &["edge_deflect"],
         )
-        .with(eds, "eds", &[])
-        .with(cus, "cus", &[])
-        .with(pds, "pds", &[])
-        // .with_thread_local(RenderSys(wrapper))
-        .with_thread_local(TimeSys::new())
         .build();
-
-    world.insert(DeltaTime(Duration::from_secs(1)));
-    // world.insert(IsDone(false));
-
-    // while !world.read_resource::<IsDone>().0 {
-    //     dispatcher.dispatch(&mut world);
-    //     world.maintain();
-    // }
-
-    let running = Arc::new(AtomicBool::new(true));
-    let r = running.clone();
-    ctrlc::set_handler(move || {
-        r.store(false, Ordering::SeqCst);
-    }).expect("Error setting Ctrl-C handler");
+    drop(world);
 
     while running.load(Ordering::SeqCst) {
+        let mut world = aworld.write().await;
         dispatcher.dispatch(&mut world);
         world.maintain();
-    }
-
-    Ok(())
-}
-
-pub struct TimeSys {
-    last_tick: Instant
-}
-
-impl TimeSys {
-    pub fn new() -> Self {
-        Self {
-            last_tick: Instant::now(),
-        }
-    }
-}
-
-impl<'a> System<'a> for TimeSys {
-    type SystemData = WriteExpect<'a, DeltaTime>;
-
-    fn run(&mut self, mut dt: Self::SystemData) {
-        let elapsed = self.last_tick.elapsed();
-        self.last_tick = Instant::now();
-        dt.0 = elapsed;
-        std::thread::sleep(Duration::from_millis(10))
+        delay_for(Duration::from_millis(MS_SIM_INTERVAL)).await;
     }
 }

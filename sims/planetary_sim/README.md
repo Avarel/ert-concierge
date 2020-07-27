@@ -9,6 +9,11 @@ Users can either input values for planets they want to add, throw in a selection
 
 The program computes and displays helpful values such as the period of orbit, perihelion, aphelion, and more.
 
+## Dependencies
+```bash
+python3 -m pip install websockets asyncio requests
+```
+
 ## Running the Concierge Bot
 ```bash
 python3 concierge_bot.py

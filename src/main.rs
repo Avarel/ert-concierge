@@ -22,7 +22,7 @@ use warp::{http::Method, hyper::header, multipart::FormData, path::Tail, Filter}
 // isten on every available network interface
 pub const SOCKET_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 64209);
 pub const VERSION: &str = "0.1.1";
-pub const MIN_VERSION: &str = "^0.1.1";
+pub const MIN_VERSION: &str = "^0.1.0";
 pub const SECRET: Option<&str> = None;
 pub const SUBPROTOCOL: &str = "ert-concierge";
 
@@ -167,7 +167,7 @@ async fn serve(concierge: Arc<Concierge>) {
             warp::cors()
                 .allow_any_origin()
                 .allow_methods(&[Method::POST, Method::GET, Method::DELETE])
-                // .allow_headers(&[FS_KEY_HEADER])
+                .allow_header(FS_KEY_HEADER)
                 .allow_header("*"),
         );
 

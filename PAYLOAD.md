@@ -4,12 +4,12 @@ Packets sent from the client to the Gateway API are encapsulated within a
 gateway payload object and must have the proper `type` operation set.
 
 ### Example
-
 ```typescript
 { "type": "ABCDEFG", ... }
 ```
 
 # Protocol
+The connecting client should connect with a `ert-concierge` subprotocol.
 
 Upon connecting, the client must send an appropriate `IDENTIFY` payload within 5 seconds. Otherwise, the connection will be dropped. Any other payload sent during
 this period will also immediately drop the connection with either:

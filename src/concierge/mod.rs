@@ -148,7 +148,7 @@ impl Concierge {
     pub async fn handle_socket_conn(self: Arc<Self>, socket: WebSocket, addr: Option<SocketAddr>) {
         // Connection must have an incoming socket address
         if let Some(addr) = addr {
-            let socket_conn = SocketConnection { concierge: &self };
+            let socket_conn = SocketConnection::new(self);
             if let Err(err) = socket_conn.handle_socket_conn(socket, addr).await {
                 error!("WS error: {:?}", err);
             }

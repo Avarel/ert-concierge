@@ -11,14 +11,14 @@ from concierge_api import GroupCreate, Identify, Message, Payload, TargetGroup
 
 name = "planetary_simulation"
 nickname = "Planetary Simulation"
-version = "0.1.0"
+version = "0.1.1"
 group_name = "planetary_simulation_out"
 running = True
 uuid = None
 
 uri = sys.argv[1] if len(sys.argv) >= 2 else "ws://localhost:64209/ws"
 
-file = open("./SavedSystems/ExampleSystem.json")
+file = open("./SavedSystems/SolarSystem.json")
 system = system_serializer.object_to_system(json.load(file))
 
 paused = False
@@ -31,7 +31,7 @@ pause_check_interval = 0.1
 async def hello():
     global uri
     print("Connecting")
-    async with websockets.connect(uri) as socket:
+    async with websockets.connect(uri, subprotocols="ert-concierge") as socket:
         global name, nickname, version, group_name, system, uuid
         await socket.send(Identify(name, nickname, version, tags=["simulation"]).to_json())
         hello = json.loads(await socket.recv())
@@ -103,7 +103,7 @@ async def recv_loop(socket: websockets.WebSocketClientProtocol):
                     print("Recv request to download remote system at", url)
 
                     try:
-                        headers = {'authorization': uuid}
+                        headers = {'x-fs-key': uuid}
                         r = requests.get(url, headers=headers)
                         global system
                         paused = True

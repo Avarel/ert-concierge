@@ -55,4 +55,4 @@ client.handlers.push(userHandler);
 
 renderer.start();
 
-client.connect("0.1.0");
+client.connect("0.1.1");

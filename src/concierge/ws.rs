@@ -12,7 +12,7 @@ use futures::{future, pin_mut, SinkExt, Stream, StreamExt};
 use log::{debug, info, warn};
 use semver::Version;
 use serde::Serialize;
-use std::{borrow::Cow, net::SocketAddr, path::Path, time::Duration};
+use std::{borrow::Cow, net::SocketAddr, path::Path, time::Duration, sync::Arc};
 use tokio::{sync::mpsc::UnboundedReceiver, time::timeout};
 use uuid::Uuid;
 use warp::ws::{Message, WebSocket};
@@ -91,19 +91,23 @@ struct IdentifyPackage {
     tags: Vec<String>,
 }
 
-pub struct SocketConnection<'a> {
-    pub concierge: &'a Concierge,
+pub struct SocketConnection {
+    concierge: Arc<Concierge>
 }
 
-impl SocketConnection<'_> {
+impl SocketConnection {
+    pub fn new(concierge: Arc<Concierge>) -> Self {
+        Self { concierge }
+    }
+
     /// Handle incoming TCP connections and upgrade them to a Websocket connection.
     pub async fn handle_socket_conn(
-        &self,
+        self,
         mut socket: WebSocket,
         addr: SocketAddr,
     ) -> Result<(), WsError> {
         // Protocol: Expect a payload that identifies the client within 5 seconds.
-        match Self::handle_identification(&mut socket).await {
+        match Self::obtain_id(&mut socket).await {
             // Got the identification data successfully.
             Ok(id) => {
                 debug!(
@@ -111,15 +115,15 @@ impl SocketConnection<'_> {
                     addr, id.name
                 );
                 let (uuid, rx) = self.make_client(id, &mut socket).await?;
-                self.handle_client(uuid, rx, socket).await?;
+                self.client_loop(uuid, rx, socket).await?;
                 self.remove_client(uuid).await?;
                 Ok(())
             }
             // Failure: send close code to the client and drop the connection.
             Err(close_reason) => {
                 warn!(
-                    "Client failed to identify properly or in time. (ip: {})",
-                    addr
+                    "Client failed to identify. (ip: {}, reason: {})",
+                    addr, close_reason.reason
                 );
                 socket
                     .send(Message::close_with(close_reason.code, close_reason.reason))
@@ -130,7 +134,7 @@ impl SocketConnection<'_> {
     }
 
     /// Handle the first 5 seconds of identification.
-    async fn handle_identification(
+    async fn obtain_id(
         socket: &mut WebSocket,
     ) -> Result<IdentifyPackage, CloseReason<'static>> {
         // Protocol: Expect a payload that identifies the client within 5 seconds.
@@ -196,7 +200,6 @@ impl SocketConnection<'_> {
                     CloseReason::DUPLICATE_AUTH.reason,
                 ))
                 .await?;
-            socket.close().await?;
             return Err(WsError::DuplicateName);
         }
 
@@ -209,7 +212,7 @@ impl SocketConnection<'_> {
         let (client, rx) = Client::new(uuid, id.name, id.nickname, id.tags);
 
         broadcast_all(
-            self.concierge,
+            &self.concierge,
             &JsonPayload::Status {
                 seq: None,
                 data: StatusPayload::ClientJoined {
@@ -225,7 +228,7 @@ impl SocketConnection<'_> {
     }
 
     /// Handle new client WebSocket connections.
-    async fn handle_client(
+    async fn client_loop(
         &self,
         client_uuid: Uuid,
         rx: UnboundedReceiver<Message>,
@@ -239,9 +242,7 @@ impl SocketConnection<'_> {
         let incoming_loop = self.incoming_loop(client_uuid, incoming);
         // Forward our sent messages (from tx) to the outgoing sink.
         // This is because the client acts upon channels and doesn't know what the websocket is.
-        let outgoing_loop = rx
-            .map(Ok)
-            .forward(outgoing);
+        let outgoing_loop = rx.map(Ok).forward(outgoing);
 
         // Setup complete, send the Hello payload.
         self.concierge
@@ -266,17 +267,13 @@ impl SocketConnection<'_> {
 
     /// Remove the client from the self.concierge.
     async fn remove_client(&self, client_uuid: Uuid) -> Result<(), WsError> {
-        // let client = self.concierge.clients.get(&client_uuid).unwrap();
-        // let client_name = client.name();
-        // let origin_receipt = client.origin_receipt();
-
         // Connection has been destroyed by this stage.
         info!("Client disconnected. (id: {})", client_uuid);
         let client = self.concierge.remove_client(client_uuid).await?;
 
         // Broadcast leave
         broadcast_all(
-            self.concierge,
+            &self.concierge,
             &JsonPayload::Status {
                 seq: None,
                 data: StatusPayload::ClientLeft {
@@ -373,14 +370,14 @@ impl SocketConnection<'_> {
                     .await?
             }
             Payload::Subscribe { group: group_name } => {
-                if client.subscribe(self.concierge, group_name).await {
+                if client.subscribe(&self.concierge, group_name).await {
                     client.send(&ok::subscribed(seq, group_name))?;
                 } else {
                     client.send(&err::no_such_group(seq, group_name))?;
                 }
             }
             Payload::Unsubscribe { group: group_name } => {
-                if client.unsubscribe(self.concierge, group_name).await {
+                if client.unsubscribe(&self.concierge, group_name).await {
                     client.send(&ok::unsubscribed(Some(seq), group_name))?;
                 } else {
                     client.send(&err::no_such_group(seq, group_name))?;
@@ -506,7 +503,7 @@ impl SocketConnection<'_> {
                 if let Some(group) = self.concierge.groups.read().await.get(group) {
                     let origin = client_payload.to_origin().with_group(&group.name);
                     group
-                        .broadcast(self.concierge, &payload.with_origin(origin))
+                        .broadcast(&self.concierge, &payload.with_origin(origin))
                         .await?;
                     client.send(&ok::message_sent(seq))
                 } else {
@@ -515,7 +512,7 @@ impl SocketConnection<'_> {
             }
             Target::All => {
                 broadcast_all(
-                    self.concierge,
+                    &self.concierge,
                     &payload.with_origin(client_payload.to_origin()),
                 )
                 .await?;
