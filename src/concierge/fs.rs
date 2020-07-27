@@ -224,6 +224,7 @@ pub async fn handle_file_put_multipart(
         return Err(FsError::Forbidden);
     }
 
+
     // Construct the path and create the directories recursively.
     let file_path = base_path(&name).join(tail);
     tokio::fs::create_dir_all(file_path.parent().unwrap()).await?;
@@ -236,7 +237,21 @@ pub async fn handle_file_put_multipart(
         .await?;
     file.set_len(0).await?;
 
+    let mut file_name = None;
     while let Some(Ok(mut part)) = data.next().await {
+        // Check that all parts are part of one file. The file name must
+        // be consistent with the first part uploaded, else it will be ignored.
+        if let Some(name) = part.filename() {
+            if file_name.is_none() {
+                file_name = Some(name.to_owned());
+            } else if name != file_name.as_ref().unwrap() {
+                continue;
+            }
+        } else if file_name.is_some() {
+            // ignore part if filename has been set, but the part has no filename.
+            continue;
+        }
+
         if let Some(Ok(buf)) = part.data().await {
             file.write_all(buf.bytes()).await.unwrap();
         }
