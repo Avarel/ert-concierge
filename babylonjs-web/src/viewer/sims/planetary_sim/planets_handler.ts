@@ -12,6 +12,7 @@ export const PLANET_SIM_NAME = "planetary_simulation";
 export const PLANET_SIM_GROUP = "planetary_simulation_out";
 
 let controls_template: (locals?: any) => string = require("./controls.pug");
+let sysinfo_template: (locals?: any) => string = require("./sysinfo.pug");
 let info_template: (locals?: any) => string = require("./info.pug");
 
 function htmlToElement(html: string): HTMLElement {
@@ -325,7 +326,7 @@ export class PlanetsHandler extends ServiceEventHandler {
                 let planet = this.planets.get(first.value)!;
                 this.updateInfo(infoDiv, planet);
             } else {
-                infoDiv.innerText = "Hover over a planet.";
+                infoDiv.innerHTML = sysinfo_template(this.sysData);
                 for (let planet of this.planets.values()) {
                     (planet.mesh.material as StandardMaterial).diffuseColor = Color3.FromArray(planet.data!.color);
                 }
