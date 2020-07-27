@@ -6,6 +6,8 @@ use tokio::{fs::{OpenOptions, File}, io::{AsyncWriteExt, AsyncBufReadExt, BufRea
 use warp::Buf;
 use reqwest::{header, Body};
 
+pub const FS_KEY_HEADER: &str = "x-fs-key";
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut stdin = BufReader::new(tokio::io::stdin());
@@ -64,7 +66,7 @@ async fn download(uuid: &str, name: &str, file_name: &str) -> Result<()> {
     let res = client
         .get(&format!("http://127.0.0.1:64209/fs/{}/{}", name, file_name))
         .timeout(Duration::from_secs(1))
-        .header(header::AUTHORIZATION, uuid)
+        .header(FS_KEY_HEADER, uuid)
         .send()
         .await?;
 
@@ -98,7 +100,7 @@ async fn delete(uuid: &str, name: &str, file_name: &str) -> Result<()> {
     let res = client
         .delete(&format!("http://127.0.0.1:64209/fs/{}/{}", name, file_name))
         .timeout(Duration::from_secs(1))
-        .header(header::AUTHORIZATION, uuid)
+        .header(FS_KEY_HEADER, uuid)
         .send()
         .await?;
 
@@ -116,7 +118,7 @@ async fn upload(uuid: &str, name: &str, file_name: &str) -> Result<()> {
         .post(&format!("http://127.0.0.1:64209/fs/{}/{}", name, file_name))
         .timeout(Duration::from_secs(1))
         .header(header::CONTENT_LENGTH, content_length)
-        .header(header::AUTHORIZATION, uuid)
+        .header(FS_KEY_HEADER, uuid)
         .body(Body::wrap_stream(stream))
         .send()
         .await?;

@@ -65,8 +65,8 @@ impl Client {
     }
 
     /// Send a payload.
-    pub fn send(&self, payload: impl Serialize) -> Result<(), WsError> {
-        self.send_ws_msg(Message::text(serde_json::to_string(&payload)?))
+    pub fn send(&self, payload: &impl Serialize) -> Result<(), WsError> {
+        self.send_ws_msg(Message::text(serde_json::to_string(payload)?))
     }
 
     /// Send a WebSocket message.
@@ -74,6 +74,7 @@ impl Client {
         self.tx.send(msg).map_err(|_| WsError::Channel)
     }
 
+    /// Attempt to subscribe to a group.
     pub async fn subscribe(&self, concierge: &Concierge, group_name: &str) -> bool {
         let mut groups = concierge.groups.write().await;
         if let Some(group) = groups.get_mut(group_name) {
@@ -85,6 +86,7 @@ impl Client {
         }
     }
 
+    /// Attempt to unsubscribe from a group.
     pub async fn unsubscribe(&self, concierge: &Concierge, group_name: &str) -> bool {
         let mut groups = concierge.groups.write().await;
         if let Some(group) = groups.get_mut(group_name) {

@@ -14,7 +14,7 @@ use std::{
 use tokio::sync::RwLock;
 use uuid::Uuid;
 use warp::{ws::WebSocket, Buf, Rejection, multipart::FormData, Reply};
-pub use ws::WsError;
+pub use ws::{SocketConnection, WsError};
 
 /// Central struct that stores the concierge data.
 pub struct Concierge {
@@ -39,14 +39,14 @@ impl Concierge {
     }
 
     /// Broadcast a payload to all clients.
-    pub async fn broadcast_all(&self, payload: impl Serialize) -> Result<(), WsError> {
+    pub async fn broadcast_all(&self, payload: &impl Serialize) -> Result<(), WsError> {
         ws::broadcast_all(self, payload).await
     }
 
     /// Broadcast a payload to all clients except the excluded client.
     pub async fn broadcast_all_except(
         &self,
-        payload: impl Serialize,
+        payload: &impl Serialize,
         uuid: Uuid,
     ) -> Result<(), WsError> {
         ws::broadcast_all_except(self, payload, uuid).await
@@ -65,7 +65,7 @@ impl Concierge {
                 group_name.to_owned(),
                 Group::new(group_name.to_owned(), owner_id),
             );
-            self.broadcast_all_except(ok::created_group(None, group_name), owner_id)
+            self.broadcast_all_except(&ok::created_group(None, group_name), owner_id)
                 .await?;
             Ok(true)
         } else {
@@ -86,10 +86,10 @@ impl Concierge {
 
         if let Some(group) = groups.get(group_name) {
             if group.owner == owner_id {
-                ws::broadcast(self, group, ok::unsubscribed(None, group_name))
-                    .await?;
+                // ws::broadcast(self, group, ok::unsubscribed(None, group_name))
+                //     .await?;
                 // Note: The caller will handle telling the owner
-                ws::broadcast_all_except(self, ok::deleted_group(None, group_name), owner_id)
+                self.broadcast_all_except(&ok::deleted_group(None, group_name), owner_id)
                     .await?;
                 groups.remove(group_name);
                 return Ok(true);
@@ -110,10 +110,10 @@ impl Concierge {
 
         for key in removing {
             let group = groups.remove(&key).unwrap();
-            ws::broadcast(self, &group, ok::unsubscribed(None, &key))
+            ws::broadcast(self, &group, &ok::unsubscribed(None, &key))
                 .await?;
             // NOTE: This is only called when the owner leaves, so we can safely ignore the owner
-            ws::broadcast_all(self, ok::deleted_group(None, &key))
+            self.broadcast_all(&ok::deleted_group(None, &key))
                 .await?;
         }
         return Ok(())
@@ -148,7 +148,8 @@ impl Concierge {
     pub async fn handle_socket_conn(self: Arc<Self>, socket: WebSocket, addr: Option<SocketAddr>) {
         // Connection must have an incoming socket address
         if let Some(addr) = addr {
-            if let Err(err) = ws::handle_socket_conn(&self, socket, addr).await {
+            let socket_conn = SocketConnection { concierge: &self };
+            if let Err(err) = socket_conn.handle_socket_conn(socket, addr).await {
                 error!("WS error: {:?}", err);
             }
         } else {
@@ -237,7 +238,7 @@ impl Group {
     pub async fn broadcast(
         &self,
         concierge: &Concierge,
-        payload: impl Serialize,
+        payload: &impl Serialize,
     ) -> Result<(), WsError> {
         ws::broadcast(concierge, self, payload).await
     }

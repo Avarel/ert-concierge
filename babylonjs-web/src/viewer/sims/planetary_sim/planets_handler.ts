@@ -211,13 +211,14 @@ export class PlanetsHandler extends ServiceEventHandler {
 
     async upload(baseURL: URL, formData: FormData) {
         let url = new URL(`/fs/${this.client.name}/system.json`, baseURL);
+        let headers = new Headers();
+        headers.append("x-fs-key", this.client.uuid);
         let response = await fetch(url.toString(), {
             method: 'POST',
-            headers: {
-                authorization: this.client.uuid
-            },
+            headers,
             body: formData,
         });
+
         switch (response.status) {
             case 200:
             case 201:

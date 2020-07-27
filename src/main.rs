@@ -21,10 +21,12 @@ use warp::{http::Method, hyper::header, multipart::FormData, path::Tail, Filter}
 
 // isten on every available network interface
 pub const SOCKET_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 64209);
-pub const VERSION: &str = "0.1.0";
-pub const MIN_VERSION: &str = "^0.1.0";
+pub const VERSION: &str = "0.1.1";
+pub const MIN_VERSION: &str = "^0.1.1";
 pub const SECRET: Option<&str> = None;
 pub const SUBPROTOCOL: &str = "ert-concierge";
+
+pub const FS_KEY_HEADER: &str = "x-fs-key";
 
 pub fn min_version_req() -> VersionReq {
     VersionReq::parse(crate::MIN_VERSION).expect("Valid versioning scheme")
@@ -78,14 +80,13 @@ async fn serve(concierge: Arc<Concierge>) {
                     concierge.handle_socket_conn(websocket, addr).await
                 })
             })
-        // Enable in 0.2.0
-        // .map(|reply| {
-        //     warp::reply::with_header(
-        //         reply,
-        //         header::SEC_WEBSOCKET_PROTOCOL.as_str(),
-        //         SUBPROTOCOL,
-        //     )
-        // });
+            .map(|reply| {
+                warp::reply::with_header(
+                    reply,
+                    header::SEC_WEBSOCKET_PROTOCOL.as_str(),
+                    SUBPROTOCOL,
+                )
+            })
     };
 
     let fs_download_route = {
@@ -94,7 +95,7 @@ async fn serve(concierge: Arc<Concierge>) {
             .and(warp::path("fs"))
             .and(warp::path::param::<String>())
             .and(warp::path::tail())
-            .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
+            .and(warp::header::<Uuid>(FS_KEY_HEADER))
             .and_then(move |name: String, path: Tail, auth: Uuid| {
                 let concierge = concierge.clone();
                 async move { concierge.handle_file_get(name, auth, path.as_str()).await }
@@ -108,7 +109,7 @@ async fn serve(concierge: Arc<Concierge>) {
             .and(warp::path("fs"))
             .and(warp::path::param::<String>())
             .and(warp::path::tail())
-            .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
+            .and(warp::header::<Uuid>(FS_KEY_HEADER))
             // 2mb upload limit
             .and(warp::body::content_length_limit(1024 * 1024 * 2))
             .and(warp::body::aggregate())
@@ -122,14 +123,14 @@ async fn serve(concierge: Arc<Concierge>) {
             })
     };
 
-    // Form upload (preferred)
+    // Form upload
     let fs_upload_multipart_route = {
         let concierge = concierge.clone();
         warp::post()
             .and(warp::path("fs"))
             .and(warp::path::param::<String>())
             .and(warp::path::tail())
-            .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
+            .and(warp::header::<Uuid>(FS_KEY_HEADER))
             .and(warp::multipart::form())
             .and_then(
                 move |name: String, tail: Tail, auth: Uuid, data: FormData| {
@@ -148,7 +149,7 @@ async fn serve(concierge: Arc<Concierge>) {
             .and(warp::path("fs"))
             .and(warp::path::param::<String>())
             .and(warp::path::tail())
-            .and(warp::header::<Uuid>(header::AUTHORIZATION.as_str()))
+            .and(warp::header::<Uuid>(FS_KEY_HEADER))
             .and_then(move |name: String, tail: Tail, auth: Uuid| {
                 let concierge = concierge.clone();
                 async move {
@@ -166,10 +167,9 @@ async fn serve(concierge: Arc<Concierge>) {
             warp::cors()
                 .allow_any_origin()
                 .allow_methods(&[Method::POST, Method::GET, Method::DELETE])
-                .allow_headers(&[header::AUTHORIZATION])
+                // .allow_headers(&[FS_KEY_HEADER])
                 .allow_header("*"),
         );
-    // WARNING: DON'T LET BROWSER PLUGINS HIJACK YOUR REQUESTS
 
     warp::serve(routes)
         // .tls()

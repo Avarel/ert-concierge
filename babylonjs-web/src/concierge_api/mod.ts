@@ -28,7 +28,7 @@ export class Client {
         console.info("Trying to connect to ", this.url);
         this.version = version;
         this.secret = secret;
-        this.socket = new WebSocket(this.url);
+        this.socket = new WebSocket(this.url, "ert-concierge");
         this.socket.onopen = event => this.onOpen(event);
         this.socket.onmessage = event => this.onReceive(event);
         this.socket.onerror = event => this.onError(event);
