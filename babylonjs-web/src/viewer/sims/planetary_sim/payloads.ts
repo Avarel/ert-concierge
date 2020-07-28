@@ -23,14 +23,22 @@ export interface SystemObject {
     direction: [number, number, number]
 }
 
-export interface SystemDump {
-    type: "SYSTEM_DUMP"
-    systemData: SystemData,
+export interface SystemObjsDump {
+    type: "SYSTEM_OBJS_DUMP"
     objects: SystemObject[]
+}
+
+export interface SystemDataDump {
+    type: "SYSTEM_DATA_DUMP",
+    data: SystemData
 }
 
 export interface SystemClear {
     type: "SYSTEM_CLEAR"
 }
 
-export type PlanetaryPayload = SystemDump | SystemClear;
+export interface FetchSystemData {
+    type: "FETCH_SYSTEM_DATA"
+}
+
+export type PlanetaryPayload = SystemObjsDump | SystemDataDump | SystemClear | FetchSystemData;

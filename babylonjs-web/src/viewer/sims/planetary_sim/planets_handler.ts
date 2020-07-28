@@ -1,11 +1,11 @@
 import "./style.scss";
 
-import { DeepImmutable, Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, StandardMaterial, ActionManager, MeshBuilder, Mesh, IAction } from "babylonjs";
+import { DeepImmutable, Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, StandardMaterial, ActionManager, MeshBuilder, Mesh, IAction, TrailMesh } from "babylonjs";
 import { Renderer } from "../../renderer";
 import { ServiceEventHandler } from "../../../concierge_api/handlers";
 import { Client } from "../../../concierge_api/mod";
 import { Payload } from "../../../concierge_api/payloads";
-import { SystemObject, SystemDump, SystemData, PlanetaryPayload } from "./payloads";
+import { SystemObject, SystemObjsDump, SystemData, PlanetaryPayload } from "./payloads";
 import { controlWindowUI } from "../../viewer";
 
 export const PLANET_SIM_NAME = "planetary_simulation";
@@ -26,15 +26,17 @@ class Planet {
     id: string;
     centroid: Vector3;
     mesh: Mesh;
+    trailMesh?: TrailMesh;
     enterAction?: IAction;
     exitAction?: IAction;
     clickAction?: IAction;
     data?: SystemObject;
 
-    private constructor(id: string, centroid: Vector3, mesh: Mesh) {
+    private constructor(id: string, centroid: Vector3, mesh: Mesh, trailMesh?: TrailMesh) {
         this.id = id;
         this.centroid = centroid;
         this.mesh = mesh;
+        this.trailMesh = trailMesh;
     }
 
     static create(id: string, centroid: Vector3, radius: number, scene: Scene, color: Color3, scale: number = 1): Planet {
@@ -47,7 +49,15 @@ class Planet {
 
         mesh.actionManager = new ActionManager(scene);
 
-        return new Planet(id, centroid, mesh);
+        let trailMesh = new TrailMesh("trail", mesh, scene, 0.02, 1000, true);
+
+        return new Planet(id, centroid, mesh, trailMesh);
+    }
+
+    dispose() {
+        this.unhookHover();
+        this.trailMesh?.dispose();
+        this.mesh.dispose();
     }
 
     hookHover(handler: PlanetsHandler) {
@@ -107,10 +117,17 @@ class Planet {
     }
 }
 
+enum InfoPaneType {
+    None,
+    System,
+    Planet
+}
+
 export class PlanetsHandler extends ServiceEventHandler {
     readonly renderer: Renderer;
     readonly client: Client;
 
+    private infoPaneType: InfoPaneType = InfoPaneType.None;
     /** Map of planets */
     private planets: Map<string, Planet>;
     /** Keeps track of the planet IDs that are hovered over. */
@@ -129,7 +146,7 @@ export class PlanetsHandler extends ServiceEventHandler {
         this.planets = new Map();
     }
 
-    onRecvMessage(message: Payload.Message<SystemDump>) {
+    onRecvMessage(message: Payload.Message<SystemObjsDump>) {
         if (message.origin!.name != PLANET_SIM_NAME) {
             return;
         }
@@ -141,6 +158,17 @@ export class PlanetsHandler extends ServiceEventHandler {
         this.setupController(this.controllerElement);
         controlWindowUI.addTab(PLANET_SIM_NAME, "Planetary Controls", this.controllerElement);
         console.log("Planet simulator client is ready to go!");
+
+        this.client.sendJSON({
+            type: "MESSAGE",
+            target: {
+                type: "NAME",
+                name: PLANET_SIM_NAME
+            },
+            data: {
+                type: "FETCH_SYSTEM_DATA"
+            }
+        });
     }
 
     setupController(controllerElement: HTMLElement) {
@@ -254,7 +282,7 @@ export class PlanetsHandler extends ServiceEventHandler {
             if (this.planets.has(key)) {
                 let shape = this.planets.get(key)!;
                 this.renderer.shadowGenerator?.removeShadowCaster(shape.mesh);
-                shape.mesh.dispose();
+                shape.dispose();
                 this.planets.delete(key);
             }
         }
@@ -262,8 +290,13 @@ export class PlanetsHandler extends ServiceEventHandler {
 
     private processPlanetsPayload(payload: PlanetaryPayload) {
         switch (payload.type) {
-            case "SYSTEM_DUMP": 
-                this.sysData = payload.systemData;
+            case "SYSTEM_DATA_DUMP":
+                this.sysData = payload.data;
+                return;
+            case "SYSTEM_OBJS_DUMP":
+                if (this.sysData == undefined) {
+                    return;
+                }
                 for (let obj of payload.objects) {
                     let location = new Vector3(obj.location[0], obj.location[1], obj.location[2])
                         .scaleInPlace(1 / this.sysData.scale)
@@ -325,7 +358,8 @@ export class PlanetsHandler extends ServiceEventHandler {
                 let first = this.hoveredPlanets.values().next()!;
                 let planet = this.planets.get(first.value)!;
                 this.updateInfo(infoDiv, planet);
-            } else {
+            } else if (this.infoPaneType != InfoPaneType.System) {
+                this.infoPaneType = InfoPaneType.System;
                 infoDiv.innerHTML = sysinfo_template(this.sysData);
                 for (let planet of this.planets.values()) {
                     (planet.mesh.material as StandardMaterial).diffuseColor = Color3.FromArray(planet.data!.color);
@@ -335,6 +369,7 @@ export class PlanetsHandler extends ServiceEventHandler {
     }
 
     updateInfo(infoDiv: HTMLElement, planet: Planet, lock: boolean = false) {
+        this.infoPaneType = InfoPaneType.Planet;
         (planet.mesh.material as StandardMaterial).diffuseColor = Color3.Red();
         infoDiv.innerHTML = info_template({lock, ...planet.data});
     }

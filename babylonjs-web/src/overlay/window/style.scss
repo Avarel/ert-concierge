@@ -17,7 +17,7 @@ $drawer-height: 40px;
     box-sizing: border-box;
     transition: margin-left 0.5s, margin-bottom 0.5s;
     flex-direction: column;
-    font-family: "Roboto", sans-serif;
+    font-family: "Titillium Web", "Roboto", sans-serif;
 
     &.left {
         left: 50px;
@@ -92,8 +92,12 @@ $drawer-height: 40px;
             cursor: pointer;
             transition: background-color 0.2s, color 0.2s;
             white-space: nowrap;
-            &.active, &:hover {
+            &:hover {
                 color: white;
+            }
+            &.active {
+                @extend :hover;
+                font-weight: bold;
             }
         }
 

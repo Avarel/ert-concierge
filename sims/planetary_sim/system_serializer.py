@@ -5,7 +5,7 @@
 from gravity_system import GravitySystem
 from body import Body
 from vector import Vector
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, List
 
 
 def vector_to_object(vector: Vector) -> Tuple[float, float, float]:
@@ -25,8 +25,7 @@ def body_to_object(body: Body) -> Dict[str, Any]:
     }
     return data
 
-
-def system_to_object(system: GravitySystem) -> Dict[str, Any]:
+def system_data_to_object(system: GravitySystem) -> Dict[str, Any]:
     systemData = {
         "gravityConstant": system.G,
         "scale": system.scale,
@@ -39,7 +38,9 @@ def system_to_object(system: GravitySystem) -> Dict[str, Any]:
         "handMass": system.hand_mass,
         "boundary": system.system_radius
     }
+    return systemData
 
+def system_objects_to_object(system: GravitySystem) -> List[Dict[str, Any]]:
     objects = []
     if system.central_body != None:
         centralJson = body_to_object(system.central_body)
@@ -48,6 +49,11 @@ def system_to_object(system: GravitySystem) -> Dict[str, Any]:
     for b in system.orbiting_bodies:
         bodyJson = body_to_object(b)
         objects.append(bodyJson)
+    return objects
+
+def system_to_object(system: GravitySystem) -> Dict[str, Any]:
+    systemData = system_data_to_object(system)
+    objects = system_objects_to_object(system)
 
     obj = {
         "systemData": systemData,

@@ -7,7 +7,8 @@ import json
 import system_serializer
 import signal
 import requests
-from concierge_api import GroupCreate, Identify, Message, Payload, TargetGroup
+from concierge_api import GroupCreate, Identify, Message, Payload, TargetGroup, TargetUuid
+from system_serializer import system_data_to_object
 
 name = "planetary_simulation"
 nickname = "Planetary Simulation"
@@ -56,8 +57,8 @@ async def send_loop(socket: websockets.WebSocketClientProtocol):
     global running, paused, send_interval
     while running:
         await socket.send(Message(None, TargetGroup(group_name), {
-            "type": "SYSTEM_DUMP",
-            **system_serializer.system_to_object(system)
+            "type": "SYSTEM_OBJS_DUMP",
+            "objects": system_serializer.system_objects_to_object(system)
         }).to_json())
         if not paused:
             await asyncio.sleep(send_interval)
@@ -87,6 +88,7 @@ async def recv_loop(socket: websockets.WebSocketClientProtocol):
         payload = Payload.from_object(json.loads(msg))
         if payload != None:
             if payload.type == "MESSAGE":
+                global system
                 message = cast(Message, payload)
                 if message.data.get("type") == "PAUSE":
                     print("Paused")
@@ -98,6 +100,11 @@ async def recv_loop(socket: websockets.WebSocketClientProtocol):
                     simulation_interval /= 2
                 elif message.data.get("type") == "FASTBACKWARD":
                     simulation_interval *= 2
+                elif message.data.get("type") == "FETCH_SYSTEM_DATA":
+                    await socket.send(Message(None, TargetUuid(message.origin.uuid), {
+                        "type": "SYSTEM_DATA_DUMP",
+                        "data": system_data_to_object(system)
+                    }).to_json())
                 elif message.data.get("type") == "LOAD_SYSTEM":
                     url: str = message.data["url"]
                     print("Recv request to download remote system at", url)
@@ -105,7 +112,6 @@ async def recv_loop(socket: websockets.WebSocketClientProtocol):
                     try:
                         headers = {'x-fs-key': uuid}
                         r = requests.get(url, headers=headers)
-                        global system
                         paused = True
                         await socket.send(Message(None, TargetGroup(group_name), {
                             "type": "SYSTEM_CLEAR",
