@@ -146,11 +146,22 @@ export class PlanetsHandler extends ServiceEventHandler {
         this.planets = new Map();
     }
 
-    onRecvMessage(message: Payload.Message<SystemObjsDump>) {
+    onRecvMessage(message: Payload.Message<PlanetaryPayload>) {
         if (message.origin!.name != PLANET_SIM_NAME) {
             return;
         }
         this.processPlanetsPayload(message.data);
+    }
+
+    sendToSim(data: PlanetaryPayload) {
+        this.client.sendJSON({
+            type: "MESSAGE",
+            target: {
+                type: "NAME",
+                name: PLANET_SIM_NAME
+            },
+            data
+        });
     }
 
     onSubscribe() {
@@ -159,79 +170,45 @@ export class PlanetsHandler extends ServiceEventHandler {
         controlWindowUI.addTab(PLANET_SIM_NAME, "Planetary Controls", this.controllerElement);
         console.log("Planet simulator client is ready to go!");
 
-        this.client.sendJSON({
-            type: "MESSAGE",
-            target: {
-                type: "NAME",
-                name: PLANET_SIM_NAME
-            },
-            data: {
-                type: "FETCH_SYSTEM_DATA"
-            }
+        this.sendToSim({
+            type: "FETCH_SYSTEM_DATA"
         });
     }
 
     setupController(controllerElement: HTMLElement) {
-        let pauseButton = controllerElement.querySelector("#planetary-pause");
-        pauseButton?.addEventListener("click", () => {
-            this.client.sendJSON({
-                type: "MESSAGE",
-                target: {
-                    type: "NAME",
-                    name: PLANET_SIM_NAME
-                },
-                data: {
-                    type: "PAUSE"
-                }
+        controllerElement.querySelector("#planetary-pause")?.addEventListener("click", () => {
+            this.sendToSim({
+                type: "PAUSE"
             })
         });
 
-        let playButton = controllerElement.querySelector("#planetary-play");
-        playButton?.addEventListener("click", () => {
-            this.client.sendJSON({
-                type: "MESSAGE",
-                target: {
-                    type: "NAME",
-                    name: PLANET_SIM_NAME
-                },
-                data: {
-                    type: "PLAY"
-                }
+        controllerElement.querySelector("#planetary-play")?.addEventListener("click", () => {
+            this.sendToSim({
+                type: "PLAY"
             })
         });
 
-        let ffButton = controllerElement.querySelector("#planetary-ff");
-        ffButton?.addEventListener("click", () => {
-            this.client.sendJSON({
-                type: "MESSAGE",
-                target: {
-                    type: "NAME",
-                    name: PLANET_SIM_NAME
-                },
-                data: {
-                    type: "FASTFORWARD"
-                }
+        controllerElement.querySelector("#planetary-sf")?.addEventListener("click", () => {
+            this.sendToSim({
+                type: "STEP_FORWARD"
             })
         });
 
-        let fbButton = controllerElement.querySelector("#planetary-fb");
-        fbButton?.addEventListener("click", () => {
-            this.client.sendJSON({
-                type: "MESSAGE",
-                target: {
-                    type: "NAME",
-                    name: PLANET_SIM_NAME
-                },
-                data: {
-                    type: "FASTBACKWARD"
-                }
+        controllerElement.querySelector("#planetary-ff")?.addEventListener("click", () => {
+            this.sendToSim({
+                type: "FAST_FORWARD"
             })
         });
 
-        let uploadForm = controllerElement.querySelector<HTMLFormElement>('#planetary-upload')!;
-        uploadForm.addEventListener('submit', (e) => {
+        controllerElement.querySelector("#planetary-fb")?.addEventListener("click", () => {
+            this.sendToSim({
+                type: "FAST_BACKWARD"
+            })
+        });
+
+        controllerElement.querySelector<HTMLFormElement>('#planetary-upload')?.addEventListener('submit', function(e) {
             e.preventDefault()
-            let formData = new FormData(uploadForm);
+            let formData = new FormData(this);
             let url = new URL(window.location.href);
             url.port = "64209";
             this.upload(url, formData);
@@ -239,10 +216,10 @@ export class PlanetsHandler extends ServiceEventHandler {
     }
 
     async upload(baseURL: URL, formData: FormData) {
-        let url = new URL(`/fs/${this.client.name}/system.json`, baseURL);
-        let headers = new Headers();
+        const url = new URL(`/fs/${this.client.name}/system.json`, baseURL);
+        const headers = new Headers();
         headers.append("x-fs-key", this.client.uuid);
-        let response = await fetch(url.toString(), {
+        const response = await fetch(url.toString(), {
             method: 'POST',
             headers,
             body: formData,
@@ -251,17 +228,10 @@ export class PlanetsHandler extends ServiceEventHandler {
         switch (response.status) {
             case 200:
             case 201:
-                this.client.sendJSON({
-                    type: "MESSAGE",
-                    target: {
-                        type: "NAME",
-                        name: PLANET_SIM_NAME
-                    },
-                    data: {
-                        type: "LOAD_SYSTEM",
-                        url: url.toString()
-                    }
-                })
+                this.sendToSim({
+                    type: "LOAD_SYSTEM",
+                    url: url.toString()
+                });
                 break;
             default:
                 alert("Unexpected response:" + response.status + " " + response.statusText);
@@ -280,7 +250,7 @@ export class PlanetsHandler extends ServiceEventHandler {
     clearShapes() {
         for (let key of this.planets.keys()) {
             if (this.planets.has(key)) {
-                let shape = this.planets.get(key)!;
+                const shape = this.planets.get(key)!;
                 this.renderer.shadowGenerator?.removeShadowCaster(shape.mesh);
                 shape.dispose();
                 this.planets.delete(key);
@@ -292,7 +262,10 @@ export class PlanetsHandler extends ServiceEventHandler {
         switch (payload.type) {
             case "SYSTEM_DATA_DUMP":
                 this.sysData = payload.data;
-                return;
+                this.sendToSim({
+                    type: "FETCH_SYSTEM_OBJS"
+                });
+                break;
             case "SYSTEM_OBJS_DUMP":
                 if (this.sysData == undefined) {
                     return;
@@ -348,19 +321,22 @@ export class PlanetsHandler extends ServiceEventHandler {
     }
 
     updateInfoDiv() {
-        let infoDiv = this.controllerElement?.querySelector<HTMLElement>(".planetary-controls .info");
+        const infoDiv = this.controllerElement?.querySelector<HTMLElement>(".planetary-controls .info");
 
         if (infoDiv) {
             if (this.planetLock) {
                 let planet = this.planets.get(this.planetLock)!;
-                this.updateInfo(infoDiv, planet, true);
+                this.updateInfo(infoDiv, planet);
             } else if (this.hoveredPlanets.size != 0) {
                 let first = this.hoveredPlanets.values().next()!;
                 let planet = this.planets.get(first.value)!;
                 this.updateInfo(infoDiv, planet);
-            } else if (this.infoPaneType != InfoPaneType.System) {
-                this.infoPaneType = InfoPaneType.System;
-                infoDiv.innerHTML = sysinfo_template(this.sysData);
+            } else {
+                if (this.infoPaneType != InfoPaneType.System) {
+                    infoDiv.innerHTML = sysinfo_template();
+                    this.infoPaneType = InfoPaneType.System;
+                }
+                this.updateInputFields(infoDiv, this.sysData);
                 for (let planet of this.planets.values()) {
                     (planet.mesh.material as StandardMaterial).diffuseColor = Color3.FromArray(planet.data!.color);
                 }
@@ -368,9 +344,27 @@ export class PlanetsHandler extends ServiceEventHandler {
         }
     }
 
-    updateInfo(infoDiv: HTMLElement, planet: Planet, lock: boolean = false) {
-        this.infoPaneType = InfoPaneType.Planet;
+    updateInfo(infoDiv: HTMLElement, planet: Planet) {
+        if (this.infoPaneType != InfoPaneType.Planet) {
+            infoDiv.innerHTML = info_template();
+            this.infoPaneType = InfoPaneType.Planet;
+        }
+        this.updateInputFields(infoDiv, planet.data);
         (planet.mesh.material as StandardMaterial).diffuseColor = Color3.Red();
-        infoDiv.innerHTML = info_template({lock, ...planet.data});
+    }
+
+    updateInputFields(element: HTMLElement, obj: any | undefined) {
+        if (obj) {
+            for (const e of element.querySelectorAll<HTMLElement>("input,[var]")) {
+                let attr = e.getAttribute("var");
+                if (attr) {
+                    if (e.nodeName == "INPUT") {
+                        (e as HTMLInputElement).value = eval(`obj.${attr}`);
+                    } else {
+                        e.textContent = eval(`obj.${attr}`);
+                    }
+                }
+            }
+        }
     }
 }

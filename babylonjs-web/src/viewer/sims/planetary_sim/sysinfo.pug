@@ -1,28 +1,38 @@
-.name System Data
+.name 
+    .value System Data
 .entry
     .name Gravity Constant
-    .value=gravityConstant
+    .value
+        input(var="gravityConstant")
 .entry
     .name Scale
-    .value=scale
+    .value
+        input(var="scale")
 .entry
     .name Time Scale
-    .value=timeScale
+    .value
+        input(var="timeScale")
 .entry
     .name Body Scale
-    .value=bodyScale
+    .value
+        input(var="bodyScale")
 .entry
     .name Central Body Scale
-    .value=centralBodyScale
+    .value
+        input(var="centralBodyScale")
 .entry
     .name Elasticity
-    .value=elasticity
+    .value
+        input(var="elasticity")
 .entry
     .name Central Body Name
-    .value=centralBodyName
+    .value
+        input(var="centralBodyName", readonly)
 .entry
     .name Hand Mass
-    .value=handMass
+    .value
+        input(var="handMass", readonly)
 .entry
     .name Boundary
-    .value=boundary
+    .value
+        input(var="boundary")

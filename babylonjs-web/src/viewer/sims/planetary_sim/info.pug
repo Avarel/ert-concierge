@@ -1,28 +1,30 @@
 .name
-    | #{name}&nbsp;
-    if lock
-        i.fa.fa-lock
+    .value(var="name")
 .entry
     .name Mass
-    .value=mass
+    .value
+        input(var="mass")
 .entry
     .name Radius
-    .value=radius
+    .value
+        input(var="radius")
 .entry
     .name Location
     .value
-        .x=location[0]
-        .y=location[1]
-        .z=location[2]
+        input(var="location[0]")
+        input(var="location[1]")
+        input(var="location[2]")
 .entry
     .name Orbit Radius
-    .value=orbitRadius
+    .value
+        input(var="orbitRadius")
 .entry
     .name Orbit Speed
-    .value=orbitSpeed
+    .value
+        input(var="orbitSpeed")
 .entry
     .name Orbit Direction
     .value
-        .x=direction[0]
-        .y=direction[1]
-        .z=direction[2]
+        input(var="direction[0]")
+        input(var="direction[1]")
+        input(var="direction[2]")

@@ -41,4 +41,35 @@ export interface FetchSystemData {
     type: "FETCH_SYSTEM_DATA"
 }
 
-export type PlanetaryPayload = SystemObjsDump | SystemDataDump | SystemClear | FetchSystemData;
+export interface FetchSystemObjs {
+    type: "FETCH_SYSTEM_OBJS"
+}
+
+export interface Play {
+    type: "PLAY"
+}
+
+export interface Pause {
+    type: "PAUSE"
+}
+
+export interface FastForward {
+    type: "FAST_FORWARD"
+}
+
+export interface StepForward {
+    type: "STEP_FORWARD"
+}
+
+export interface FastBackward {
+    type: "FAST_BACKWARD"
+}
+
+export interface LoadSystem {
+    type: "LOAD_SYSTEM",
+    url: string
+}
+
+export type PlanetaryPayload = SystemObjsDump | SystemDataDump | SystemClear
+    | FetchSystemData | FetchSystemObjs | Play | Pause | FastForward 
+    | StepForward | FastBackward | LoadSystem;

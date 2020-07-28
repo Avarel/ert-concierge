@@ -29,7 +29,7 @@ simulation_interval = 0.01
 pause_check_interval = 0.1
 
 
-async def hello():
+async def concierge_bot():
     global uri
     print("Connecting")
     async with websockets.connect(uri, subprotocols="ert-concierge") as socket:
@@ -56,20 +56,23 @@ async def hello():
 async def send_loop(socket: websockets.WebSocketClientProtocol):
     global running, paused, send_interval
     while running:
-        await socket.send(Message(None, TargetGroup(group_name), {
-            "type": "SYSTEM_OBJS_DUMP",
-            "objects": system_serializer.system_objects_to_object(system)
-        }).to_json())
         if not paused:
+            await broadcast_system(socket)
             await asyncio.sleep(send_interval)
         else:
             # less intensive pause check
             await asyncio.sleep(pause_check_interval)
 
-# System simulation loop
 
+async def broadcast_system(socket: websockets.WebSocketClientProtocol):
+    global group_name
+    await socket.send(Message(None, TargetGroup(group_name), {
+        "type": "SYSTEM_OBJS_DUMP",
+        "objects": system_serializer.system_objects_to_object(system)
+    }).to_json())
 
 async def system_loop():
+    """System simulation loop"""
     global running, paused, simulation_interval, pause_check_inteval
     while running:
         if not paused:
@@ -79,33 +82,42 @@ async def system_loop():
             # less intensive pause check
             await asyncio.sleep(pause_check_interval)
 
-# Incoming message loop
-
 
 async def recv_loop(socket: websockets.WebSocketClientProtocol):
+    """Incoming message loop"""
     global paused, simulation_interval, uuid
     async for msg in socket:
         payload = Payload.from_object(json.loads(msg))
         if payload != None:
             if payload.type == "MESSAGE":
-                global system
+                global system, paused
                 message = cast(Message, payload)
-                if message.data.get("type") == "PAUSE":
+                msg_type = message.data.get("type")
+                if msg_type == "PAUSE":
                     print("Paused")
                     paused = True
-                elif message.data.get("type") == "PLAY":
+                elif msg_type == "PLAY":
                     print("Resume")
                     paused = False
-                elif message.data.get("type") == "FASTFORWARD":
+                elif msg_type == "FAST_FORWARD":
                     simulation_interval /= 2
-                elif message.data.get("type") == "FASTBACKWARD":
+                elif msg_type == "STEP_FORWARD":
+                    system.tick_system(dt)
+                    if paused:
+                        await broadcast_system(socket)
+                elif msg_type == "FAST_BACKWARD":
                     simulation_interval *= 2
-                elif message.data.get("type") == "FETCH_SYSTEM_DATA":
+                elif msg_type == "FETCH_SYSTEM_DATA":
                     await socket.send(Message(None, TargetUuid(message.origin.uuid), {
                         "type": "SYSTEM_DATA_DUMP",
                         "data": system_data_to_object(system)
                     }).to_json())
-                elif message.data.get("type") == "LOAD_SYSTEM":
+                elif msg_type == "FETCH_SYSTEM_OBJS":
+                    await socket.send(Message(None, TargetUuid(message.origin.uuid), {
+                        "type": "SYSTEM_OBJS_DUMP",
+                        "objects": system_serializer.system_objects_to_object(system)
+                    }).to_json())
+                elif msg_type == "LOAD_SYSTEM":
                     url: str = message.data["url"]
                     print("Recv request to download remote system at", url)
 
@@ -131,6 +143,6 @@ def stop(signal: signal.Signals, frame: FrameType):
 
 signal.signal(signal.SIGINT, stop)
 
-asyncio.get_event_loop().run_until_complete(hello())
+asyncio.get_event_loop().run_until_complete(concierge_bot())
 
 exit(0)
