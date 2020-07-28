@@ -2,7 +2,6 @@
     position: relative;
     width: 100%;
     height: 100%;
-    padding: 10px;
     font-family: "Titillium Web", "Roboto", sans-serif;
     box-sizing: border-box;
     overflow: auto;
@@ -36,6 +35,7 @@
 
     .icons {
         @extend .box;
+        background: white;
         font-size: 30px;
         position: relative;
         text-align: center;
@@ -54,8 +54,7 @@
     }
 
     .info {
-        @extend .box;
-
+        padding: 10px;
         > .name {
             .value {
                 text-transform: uppercase;

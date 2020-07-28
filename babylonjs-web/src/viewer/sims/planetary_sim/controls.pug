@@ -1,5 +1,5 @@
-.tab
-    .planetary-controls
+.window-tab.planetary-controls
+    .header
         .icons
             i.fa.fa-fast-backward#planetary-fb
             i.fa.fa-pause#planetary-pause
@@ -7,10 +7,12 @@
             i.fa.fa-step-forward#planetary-sf
             i.fa.fa-fast-forward#planetary-ff
         .info
+    .body
         .box
             h1 
                 | Upload JSON System
             form#planetary-upload
                 input#file(type="file" name="file")
                 button(type="submit") Submit
-        .box Planetary Simulation by Alison Noyes
+        .box
+            | Planetary Simulation by Alison Noyes

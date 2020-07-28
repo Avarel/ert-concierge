@@ -38,7 +38,7 @@ export module Window {
 
         constructor(rootElement: HTMLElement) {
             this.rootElement = rootElement;
-            this.headerElement = rootElement.querySelector<HTMLElement>(".header") || createElement("div", ["header"]);
+            this.headerElement = rootElement.querySelector<HTMLElement>(".window-header") || createElement("div", ["window-header"]);
             this.rootElement.prepend(this.headerElement);
             this.drawerElement = this.headerElement.querySelector(".window-drawer") || createElement("div", ["window-drawer"]);
             this.headerElement.prepend(this.drawerElement);
@@ -47,10 +47,10 @@ export module Window {
                 this.toggle();
             });
 
-            this.bodyElement = rootElement.querySelector<HTMLElement>(".body") || createElement("div", ["body"]);
+            this.bodyElement = rootElement.querySelector<HTMLElement>(".window-body") || createElement("div", ["window-body"]);
             this.rootElement.append(this.bodyElement);
 
-            this.bodyElement.querySelectorAll<HTMLElement>(".tab").forEach((tabBody, i) => {
+            this.bodyElement.querySelectorAll<HTMLElement>(".window-tab").forEach((tabBody, i) => {
                 let bodyTag = tabBody.getAttribute("tag");
                 if (bodyTag) {
                     let label = tabBody.getAttribute("label") || bodyTag;
@@ -61,7 +61,7 @@ export module Window {
         }
 
         addTab(tag: string, label: string, tabBody: HTMLElement): Tab {
-            let tabHeader = createElement("div", ["tab"]);
+            let tabHeader = createElement("div", ["window-header-tab"]);
             tabHeader.innerText = label;
             this.headerElement.appendChild(tabHeader);
             this.bodyElement.appendChild(tabBody);

@@ -206,9 +206,10 @@ export class PlanetsHandler extends ServiceEventHandler {
             })
         });
 
-        controllerElement.querySelector<HTMLFormElement>('#planetary-upload')?.addEventListener('submit', function(e) {
+        let formElement = controllerElement.querySelector<HTMLFormElement>('#planetary-upload');
+        formElement?.addEventListener('submit', (e) => {
             e.preventDefault()
-            let formData = new FormData(this);
+            let formData = new FormData(formElement!);
             let url = new URL(window.location.href);
             url.port = "64209";
             this.upload(url, formData);
@@ -265,6 +266,7 @@ export class PlanetsHandler extends ServiceEventHandler {
                 this.sendToSim({
                     type: "FETCH_SYSTEM_OBJS"
                 });
+                this.updateInfoDiv();
                 break;
             case "SYSTEM_OBJS_DUMP":
                 if (this.sysData == undefined) {

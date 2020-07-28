@@ -1,4 +1,6 @@
 $drawer-height: 40px;
+$normal-height: 500px;
+$tall-height: $normal-height + 300px;
 
 @mixin small-screen {
     @media screen and (max-width: 500px) {
@@ -19,13 +21,26 @@ $drawer-height: 40px;
     flex-direction: column;
     font-family: "Titillium Web", "Roboto", sans-serif;
 
+    &.tall {
+        height: $tall-height;
+
+        &.hidden {
+            margin-bottom: calc(
+                max(
+                    -#{$tall-height - $drawer-height},
+                    -100vh + #{$drawer-height}
+                )
+            );
+        }
+    }
+
     &.left {
         left: 50px;
     }
 
     &.right {
         right: 50px;
-        .header {
+        .window-header {
             flex-direction: row-reverse;
         }
     }
@@ -41,7 +56,7 @@ $drawer-height: 40px;
     &.hidden {
         margin-bottom: calc(
             max(
-                -500px + #{$drawer-height},
+                -#{$normal-height - $drawer-height},
                 -100vh + #{$drawer-height}
             )
         );
@@ -53,7 +68,7 @@ $drawer-height: 40px;
         }
     }
 
-    .header {
+    > .window-header {
         min-height: $drawer-height;
         height: $drawer-height;
         max-height: $drawer-height;
@@ -80,7 +95,7 @@ $drawer-height: 40px;
             }
         }
 
-        .tab {
+        > .window-header-tab {
             display: inline;
             max-height: $drawer-height;
             line-height: $drawer-height;
@@ -101,8 +116,8 @@ $drawer-height: 40px;
             }
         }
 
-        .window-drawer {
-            @extend .tab;
+        > .window-drawer {
+            @extend .window-header-tab;
             margin-top: 0;
             background: none;
             color: white;
@@ -112,20 +127,54 @@ $drawer-height: 40px;
         }
     }
 
-    .body {
-        background: #ccc;
+    > .window-body {
+        background: #bbb;
         height: 100%;
         width: 100%;
         border-radius: 5px 5px 0 0;
         overflow: hidden;
         color: black;
 
-        .tab {
+        > .window-tab {
             height: 100%;
             width: 100%;
             display: none;
             &.active {
                 display: inherit;
+            }
+
+            position: relative;
+            font-family: "Titillium Web", "Roboto", sans-serif;
+            box-sizing: border-box;
+            overflow: auto;
+
+            h1 {
+                font-size: 20px;
+                margin-bottom: 5px;
+                font-weight: bold;
+            }
+
+            > .header {
+                background: #ddd;
+                padding: 10px;
+            }
+
+            > .body {
+                padding: 10px;
+                
+                > .box {
+                    width: 100%;
+                    padding: 10px;
+                    background: #ccc;
+                    border-radius: 5px;
+                    box-sizing: border-box;
+                    word-break: break-word;
+                    margin-top: 10px;
+            
+                    &:first-child {
+                        margin-top: 0;
+                    }
+                }
             }
         }
     }

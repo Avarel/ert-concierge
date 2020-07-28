@@ -9,33 +9,3 @@ body {
     height: 100%;
     touch-action: none;
 }
-
-.about-tab {
-    position: relative;
-    color: black;
-    width: 100%;
-    height: 100%;
-    background: #ccc;
-    padding: 10px;
-    font-family: "Roboto", sans-serif;
-    box-sizing: border-box;
-    overflow: auto;
-
-    .box {
-        h1 {
-            font-size: 20px;
-        }
-
-        width: 100%;
-        border-radius: 5px;
-        padding: 10px;
-        background: white;
-        box-sizing: border-box;
-        word-break: break-word;
-        margin-bottom: 10px;
-
-        &:last-child {
-            margin-bottom: 0px;
-        }
-    }
-}

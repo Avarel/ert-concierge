@@ -7,7 +7,7 @@ import json
 import system_serializer
 import signal
 import requests
-from concierge_api import GroupCreate, Identify, Message, Payload, TargetGroup, TargetUuid
+from concierge_api import GroupCreate, Identify, Message, Payload, TargetGroup, TargetUuid, Target
 from system_serializer import system_data_to_object
 
 name = "planetary_simulation"
@@ -55,21 +55,31 @@ async def concierge_bot():
 
 async def send_loop(socket: websockets.WebSocketClientProtocol):
     global running, paused, send_interval
+    await send_system_data(TargetGroup(group_name), socket)
     while running:
         if not paused:
-            await broadcast_system(socket)
+            await send_system_objs(TargetGroup(group_name), socket)
             await asyncio.sleep(send_interval)
         else:
             # less intensive pause check
             await asyncio.sleep(pause_check_interval)
 
 
-async def broadcast_system(socket: websockets.WebSocketClientProtocol):
+async def send_system_data(target: Target, socket: websockets.WebSocketClientProtocol):
     global group_name
-    await socket.send(Message(None, TargetGroup(group_name), {
+    await socket.send(Message(None, target, {
+        "type": "SYSTEM_DATA_DUMP",
+        "data": system_data_to_object(system)
+    }).to_json())
+
+async def send_system_objs(target: Target, socket: websockets.WebSocketClientProtocol):
+    global group_name
+    await socket.send(Message(None, target, {
         "type": "SYSTEM_OBJS_DUMP",
         "objects": system_serializer.system_objects_to_object(system)
     }).to_json())
+
+
 
 async def system_loop():
     """System simulation loop"""
@@ -104,19 +114,13 @@ async def recv_loop(socket: websockets.WebSocketClientProtocol):
                 elif msg_type == "STEP_FORWARD":
                     system.tick_system(dt)
                     if paused:
-                        await broadcast_system(socket)
+                        await send_system_objs(TargetGroup(group_name), socket)
                 elif msg_type == "FAST_BACKWARD":
                     simulation_interval *= 2
                 elif msg_type == "FETCH_SYSTEM_DATA":
-                    await socket.send(Message(None, TargetUuid(message.origin.uuid), {
-                        "type": "SYSTEM_DATA_DUMP",
-                        "data": system_data_to_object(system)
-                    }).to_json())
+                    await send_system_data(TargetUuid(message.origin.uuid), socket)
                 elif msg_type == "FETCH_SYSTEM_OBJS":
-                    await socket.send(Message(None, TargetUuid(message.origin.uuid), {
-                        "type": "SYSTEM_OBJS_DUMP",
-                        "objects": system_serializer.system_objects_to_object(system)
-                    }).to_json())
+                    await send_system_objs(TargetUuid(message.origin.uuid), socket)
                 elif msg_type == "LOAD_SYSTEM":
                     url: str = message.data["url"]
                     print("Recv request to download remote system at", url)
@@ -132,8 +136,6 @@ async def recv_loop(socket: websockets.WebSocketClientProtocol):
                         paused = False
                     except Exception as e:
                         print("Unable to load remote content:", e)
-
-                    pass
 
 
 def stop(signal: signal.Signals, frame: FrameType):
