@@ -35,7 +35,7 @@ export module Chat {
             inputDiv.appendChild(inputField);
             let buttonDiv = inputDiv.querySelector<HTMLInputElement>("div.button") || createElement("div", ["button"]);
             inputDiv.appendChild(buttonDiv);
-            inputField.addEventListener("keyup", (event) => {
+            inputField.addEventListener("keydown", (event) => {
                 if (event.keyCode === 13) {
                     event.preventDefault();
                     buttonDiv.click();
@@ -81,6 +81,7 @@ export module Chat {
         addStatus(text: string) {
             let element = this.createStatusElement(text);
             this.messagesElement.appendChild(element);
+            this.messagesElement.scrollTop = this.messagesElement.scrollHeight;
         }
 
         /**
@@ -92,7 +93,8 @@ export module Chat {
         addMessage(name: string, text: string, you: boolean = false) {
             let element = this.createMessageElement(name, text, you);
             this.messagesElement.appendChild(element);
-            this.messages.push({ name, text, element })
+            this.messages.push({ name, text, element });
+            this.messagesElement.scrollTop = this.messagesElement.scrollHeight;
         }
     }
 }

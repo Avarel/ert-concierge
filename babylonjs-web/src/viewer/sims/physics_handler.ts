@@ -152,7 +152,7 @@ export class PhysicsHandler extends ServiceEventHandler {
         for (let key of this.shapes.keys()) {
             if (this.shapes.has(key)) {
                 let shape = this.shapes.get(key)!;
-                this.renderer.shadowGenerator?.removeShadowCaster(shape.mesh);
+                // this.renderer.shadowGenerator?.removeShadowCaster(shape.mesh);
                 shape.mesh.dispose();
                 this.shapes.delete(key);
             }
@@ -163,7 +163,7 @@ export class PhysicsHandler extends ServiceEventHandler {
         if (this.renderer.scene) {
             let shape = PolygonShape.createPolygon(new Vector3(centroid.x, 0, centroid.y), points, this.renderer.scene, color, this.visualScale);
             this.shapes.set(id, shape);
-            this.renderer.shadowGenerator?.addShadowCaster(shape.mesh);
+            // this.renderer.shadowGenerator?.addShadowCaster(shape.mesh);
             return shape;
         }
         throw new Error("Scene not initialized!")

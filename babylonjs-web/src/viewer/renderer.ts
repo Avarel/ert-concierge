@@ -5,7 +5,7 @@ export class Renderer {
     canvas: HTMLCanvasElement;
     engine: BABYLON.Engine;
     scene?: BABYLON.Scene;
-    shadowGenerator?: BABYLON.ShadowGenerator;
+    // shadowGenerator?: BABYLON.ShadowGenerator;
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
@@ -33,8 +33,8 @@ export class Renderer {
         light.intensity = 1.0;
 
         let helper = scene.createDefaultEnvironment({
-            skyboxSize: 50,
-            groundSize: 50,
+            skyboxSize: 500,
+            groundSize: 500,
             groundShadowLevel: 0.5,
             enableGroundShadow: true
         });

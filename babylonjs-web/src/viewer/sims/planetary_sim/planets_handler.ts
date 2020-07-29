@@ -12,8 +12,8 @@ export const PLANET_SIM_NAME = "planetary_simulation";
 export const PLANET_SIM_GROUP = "planetary_simulation_out";
 
 let controls_template: (locals?: any) => string = require("./controls.pug");
-let sysinfo_template: (locals?: any) => string = require("./sysinfo.pug");
-let info_template: (locals?: any) => string = require("./info.pug");
+let system_info_template: (locals?: any) => string = require("./system_info.pug");
+let planet_info_template: (locals?: any) => string = require("./planet_info.pug");
 
 function htmlToElement(html: string): HTMLElement {
     var template = document.createElement('template');
@@ -49,7 +49,7 @@ class Planet {
 
         mesh.actionManager = new ActionManager(scene);
 
-        let trailMesh = new TrailMesh("trail", mesh, scene, 0.02, 1000, true);
+        let trailMesh = new TrailMesh("trail", mesh, scene, Math.min(0.02, radius * scale), 1000, true);
 
         return new Planet(id, centroid, mesh, trailMesh);
     }
@@ -60,48 +60,54 @@ class Planet {
         this.mesh.dispose();
     }
 
-    hookHover(handler: PlanetsHandler) {
-        this.enterAction = new ExecuteCodeAction(
-            BABYLON.ActionManager.OnPointerOverTrigger,
-            () => {
-                handler.hoveredPlanets.add(this.id);
-                handler.updateInfoDiv();
-            }
-        );
-        this.exitAction = new ExecuteCodeAction(
-            BABYLON.ActionManager.OnPointerOutTrigger,
-            () => {
-                handler.hoveredPlanets.delete(this.id);
-                handler.updateInfoDiv();
-            }
-        );
-        this.clickAction = new ExecuteCodeAction(
-            BABYLON.ActionManager.OnPickTrigger,
-            () => {
-                if (handler.planetLock == this.id) {
-                    handler.planetLock = undefined;
-                } else {
-                    handler.planetLock = this.id;
+    hookHover(handler: PlanetInfoHandler) {
+        if (this.mesh.actionManager) {
+            this.enterAction = new ExecuteCodeAction(
+                BABYLON.ActionManager.OnPointerOverTrigger,
+                () => {
+                    handler.hover(this.id);
+                    handler.update();
+
                 }
-            }
-        );
-        this.mesh.actionManager!.registerAction(this.enterAction);
-        this.mesh.actionManager!.registerAction(this.exitAction);
-        this.mesh.actionManager!.registerAction(this.clickAction);
+            );
+            this.exitAction = new ExecuteCodeAction(
+                BABYLON.ActionManager.OnPointerOutTrigger,
+                () => {
+                    handler.unhover(this.id);
+                    handler.update();
+
+                }
+            );
+            this.clickAction = new ExecuteCodeAction(
+                BABYLON.ActionManager.OnPickTrigger,
+                () => {
+                    if (handler.getLock() == this.id) {
+                        handler.unlock();
+                    } else {
+                        handler.lock(this.id);
+                    }
+                }
+            );
+            this.mesh.actionManager.registerAction(this.enterAction);
+            this.mesh.actionManager.registerAction(this.exitAction);
+            this.mesh.actionManager.registerAction(this.clickAction);
+        }
     }
 
     unhookHover() {
-        if (this.enterAction) {
-            this.mesh.actionManager?.unregisterAction(this.enterAction);
-            this.enterAction = undefined;
-        }
-        if (this.exitAction) {
-            this.mesh.actionManager?.unregisterAction(this.exitAction);
-            this.exitAction = undefined;
-        }
-        if (this.clickAction) {
-            this.mesh.actionManager?.unregisterAction(this.clickAction);
-            this.clickAction = undefined;
+        if (this.mesh.actionManager) {
+            if (this.enterAction) {
+                this.mesh.actionManager.unregisterAction(this.enterAction);
+                this.enterAction = undefined;
+            }
+            if (this.exitAction) {
+                this.mesh.actionManager.unregisterAction(this.exitAction);
+                this.exitAction = undefined;
+            }
+            if (this.clickAction) {
+                this.mesh.actionManager.unregisterAction(this.clickAction);
+                this.clickAction = undefined;
+            }
         }
     }
 
@@ -117,27 +123,18 @@ class Planet {
     }
 }
 
-enum InfoPaneType {
-    None,
-    System,
-    Planet
-}
-
 export class PlanetsHandler extends ServiceEventHandler {
     readonly renderer: Renderer;
     readonly client: Client;
 
-    private infoPaneType: InfoPaneType = InfoPaneType.None;
-    /** Map of planets */
-    private planets: Map<string, Planet>;
-    /** Keeps track of the planet IDs that are hovered over. */
-    planetLock?: string;
-    hoveredPlanets: Set<string> = new Set();
-
     /** Keeps latest batch of sys data */
-    private sysData!: SystemData;
+    sysData!: SystemData;
+    /** Map of planets */
+    planets: Map<string, Planet>;
+
     private readonly visualScale: number = 5;
     private controllerElement?: HTMLElement;
+    infoHandler?: PlanetInfoHandler;
 
     constructor(client: Client, renderer: Renderer) {
         super(client, PLANET_SIM_GROUP);
@@ -166,6 +163,7 @@ export class PlanetsHandler extends ServiceEventHandler {
 
     onSubscribe() {
         this.controllerElement = htmlToElement(controls_template());
+        this.infoHandler = new PlanetInfoHandler(this, this.controllerElement.querySelector<HTMLElement>(".planetary-controls .info")!);
         this.setupController(this.controllerElement);
         controlWindowUI.addTab(PLANET_SIM_NAME, "Planetary Controls", this.controllerElement);
         console.log("Planet simulator client is ready to go!");
@@ -176,37 +174,37 @@ export class PlanetsHandler extends ServiceEventHandler {
     }
 
     setupController(controllerElement: HTMLElement) {
-        controllerElement.querySelector("#planetary-pause")?.addEventListener("click", () => {
+        controllerElement.querySelector(".planetary-pause")?.addEventListener("click", () => {
             this.sendToSim({
                 type: "PAUSE"
             })
         });
 
-        controllerElement.querySelector("#planetary-play")?.addEventListener("click", () => {
+        controllerElement.querySelector(".planetary-play")?.addEventListener("click", () => {
             this.sendToSim({
                 type: "PLAY"
             })
         });
 
-        controllerElement.querySelector("#planetary-sf")?.addEventListener("click", () => {
+        controllerElement.querySelector(".planetary-sf")?.addEventListener("click", () => {
             this.sendToSim({
                 type: "STEP_FORWARD"
             })
         });
 
-        controllerElement.querySelector("#planetary-ff")?.addEventListener("click", () => {
+        controllerElement.querySelector(".planetary-ff")?.addEventListener("click", () => {
             this.sendToSim({
                 type: "FAST_FORWARD"
             })
         });
 
-        controllerElement.querySelector("#planetary-fb")?.addEventListener("click", () => {
+        controllerElement.querySelector(".planetary-fb")?.addEventListener("click", () => {
             this.sendToSim({
                 type: "FAST_BACKWARD"
             })
         });
 
-        let formElement = controllerElement.querySelector<HTMLFormElement>('#planetary-upload');
+        let formElement = controllerElement.querySelector<HTMLFormElement>('.planetary-upload');
         formElement?.addEventListener('submit', (e) => {
             e.preventDefault()
             let formData = new FormData(formElement!);
@@ -243,17 +241,17 @@ export class PlanetsHandler extends ServiceEventHandler {
         controlWindowUI.removeTab(PLANET_SIM_NAME);
         this.controllerElement?.remove();
         this.clearShapes();
-        this.hoveredPlanets.clear();
-        this.planetLock = undefined;
+        this.infoHandler?.clear();
+        this.infoHandler = undefined;
         console.log("Planet simulator client has disconnected!");
     }
 
     clearShapes() {
         for (let key of this.planets.keys()) {
-            if (this.planets.has(key)) {
-                const shape = this.planets.get(key)!;
-                this.renderer.shadowGenerator?.removeShadowCaster(shape.mesh);
-                shape.dispose();
+            const planet = this.planets.get(key)!;
+            if (planet) {
+                // this.renderer.shadowGenerator?.removeShadowCaster(planet.mesh);
+                planet.dispose();
                 this.planets.delete(key);
             }
         }
@@ -261,12 +259,22 @@ export class PlanetsHandler extends ServiceEventHandler {
 
     private processPlanetsPayload(payload: PlanetaryPayload) {
         switch (payload.type) {
+            case "SYSTEM_REMOVE_PLANETS":
+                for (const id of payload.ids) {
+                    let planet = this.planets.get(id);
+                    if (planet) {
+                        planet.dispose();
+                        this.planets.delete(id);
+                    }
+                }
+                break;
             case "SYSTEM_DATA_DUMP":
                 this.sysData = payload.data;
+                this.clearShapes();
                 this.sendToSim({
                     type: "FETCH_SYSTEM_OBJS"
                 });
-                this.updateInfoDiv();
+                this.infoHandler!.update();
                 break;
             case "SYSTEM_OBJS_DUMP":
                 if (this.sysData == undefined) {
@@ -292,7 +300,7 @@ export class PlanetsHandler extends ServiceEventHandler {
                                 location.scaleInPlace(this.sysData.centralBodyScale);
                             }
 
-                            console.log(`Creating object (radius = ${radius}, location = ${location.toString()})`)
+                            // console.log(`Creating object (radius = ${radius}, location = ${location.toString()})`)
 
                             let planet = Planet.create(
                                 obj.name,
@@ -301,72 +309,159 @@ export class PlanetsHandler extends ServiceEventHandler {
                                 this.renderer.scene,
                                 color
                             );
-                            planet.hookHover(this);
+                            if (this.infoHandler) {
+                                planet.hookHover(this.infoHandler);
+                            }
                             planet.data = obj;
 
                             this.planets.set(obj.name, planet);
-                            this.renderer.shadowGenerator?.addShadowCaster(planet.mesh);
+                            // this.renderer.shadowGenerator?.addShadowCaster(planet.mesh);
                         } else {
                             throw new Error("Scene not initialized!")
                         }
                     }
                 }
-                this.updateInfoDiv();
+                this.infoHandler!.update();
                 break;
             case "SYSTEM_CLEAR":
                 console.log("Clearing shapes");
-                this.hoveredPlanets.clear();
-                this.planetLock = undefined;
+                this.infoHandler!.clear();
                 this.clearShapes();
                 break;
         }
     }
+}
 
-    updateInfoDiv() {
-        const infoDiv = this.controllerElement?.querySelector<HTMLElement>(".planetary-controls .info");
+enum InfoPaneType {
+    None,
+    System,
+    Planet
+}
 
-        if (infoDiv) {
-            if (this.planetLock) {
-                let planet = this.planets.get(this.planetLock)!;
-                this.updateInfo(infoDiv, planet);
-            } else if (this.hoveredPlanets.size != 0) {
-                let first = this.hoveredPlanets.values().next()!;
-                let planet = this.planets.get(first.value)!;
-                this.updateInfo(infoDiv, planet);
-            } else {
-                if (this.infoPaneType != InfoPaneType.System) {
-                    infoDiv.innerHTML = sysinfo_template();
-                    this.infoPaneType = InfoPaneType.System;
-                }
-                this.updateInputFields(infoDiv, this.sysData);
-                for (let planet of this.planets.values()) {
-                    (planet.mesh.material as StandardMaterial).diffuseColor = Color3.FromArray(planet.data!.color);
-                }
-            }
+class PlanetInfoHandler {
+    rootElement: HTMLElement;
+    handler: PlanetsHandler;
+
+    /** Keeps track of the planet IDs that are hovered over. */
+    private infoPaneType: InfoPaneType = InfoPaneType.None;
+    private planetLock?: string;
+    private hoveredPlanets: Set<string> = new Set();
+
+    private unlockAction?: number;
+    private lockedInputs: HTMLInputElement[] = [];
+
+    constructor(handler: PlanetsHandler, rootElement: HTMLElement) {
+        this.handler = handler;
+        this.rootElement = rootElement;
+    }
+
+    getLock(): string | undefined {
+        return this.planetLock;
+    }
+
+    lock(id: string) {
+        this.planetLock = id;
+    }
+
+    unlock() {
+        this.planetLock = undefined;
+    }
+
+    hover(id: string) {
+        this.hoveredPlanets.add(id);
+    }
+
+    unhover(id: string) {
+        this.hoveredPlanets.delete(id);
+    }
+
+    clear() {
+        this.hoveredPlanets.clear();
+        this.planetLock = undefined;
+        this.rootElement.innerHTML = "";
+        this.infoPaneType = InfoPaneType.None;
+    }
+
+    update() {
+        if (this.planetLock) {
+            let planet = this.handler.planets.get(this.planetLock)!;
+            this.updateInfoPlanet(planet);
+        } else if (this.hoveredPlanets.size != 0) {
+            let first = this.hoveredPlanets.values().next()!;
+            let planet = this.handler.planets.get(first.value)!;
+            this.updateInfoPlanet(planet);
+        } else {
+            this.updateInfoSystem(this.handler.sysData);
         }
     }
 
-    updateInfo(infoDiv: HTMLElement, planet: Planet) {
+    private updateInfoPlanet(planet: Planet) {
         if (this.infoPaneType != InfoPaneType.Planet) {
-            infoDiv.innerHTML = info_template();
+            this.rootElement.innerHTML = planet_info_template();
+            this.setupInputFields(planet.id);
             this.infoPaneType = InfoPaneType.Planet;
         }
-        this.updateInputFields(infoDiv, planet.data);
+        this.updateInputFields(planet.data);
         (planet.mesh.material as StandardMaterial).diffuseColor = Color3.Red();
     }
 
-    updateInputFields(element: HTMLElement, obj: any | undefined) {
+    private updateInfoSystem(sysData: SystemData) {
+        if (this.infoPaneType != InfoPaneType.System) {
+            this.rootElement.innerHTML = system_info_template();
+            this.setupInputFields("system");
+            this.infoPaneType = InfoPaneType.System;
+        }
+        this.updateInputFields(sysData);
+        for (let planet of this.handler.planets.values()) {
+            (planet.mesh.material as StandardMaterial).diffuseColor = Color3.FromArray(planet.data!.color);
+        }
+    }
+
+    private setupInputFields(id: string) {
+        for (const input of this.rootElement.querySelectorAll("input")) {
+            let attr = input.getAttribute("var");
+            if (attr) {
+                input.addEventListener("keydown", (event) => {
+                    if (event.keyCode === 13) {
+                        event.preventDefault();
+                        // alert("Updating [" + id + "] " + attr + ": " + input.value);
+                        this.handler.sendToSim({
+                            type: "UPDATE_DATA",
+                            target: id,
+                            field: attr!,
+                            value: input.value
+                        })
+                    }
+                });
+            }
+        }
+    }
+
+    private updateInputFields(obj: any | undefined) {
         if (obj) {
-            for (const e of element.querySelectorAll<HTMLElement>("input,[var]")) {
-                let attr = e.getAttribute("var");
+            clearTimeout(this.unlockAction);
+            for (const elem of this.rootElement.querySelectorAll<HTMLElement>("input,[var]")) {
+                let attr = elem.getAttribute("var");
                 if (attr) {
-                    if (e.nodeName == "INPUT") {
-                        (e as HTMLInputElement).value = eval(`obj.${attr}`);
+                    if (elem.nodeName == "INPUT") {
+                        let input = elem as HTMLInputElement;
+                        input.value = eval(`obj.${attr}`);
+
+                        if (elem.getAttribute("readonly") != "always") {
+                            input.readOnly = true;
+                            this.lockedInputs.push(input);
+                        }
                     } else {
-                        e.textContent = eval(`obj.${attr}`);
+                        elem.textContent = eval(`obj.${attr}`);
                     }
                 }
             }
+            this.unlockAction = window.setTimeout(() => {
+                for (const input of this.lockedInputs) {
+                    input.readOnly = false;
+                }
+                this.lockedInputs.length = 0;
+            }, 200);
         }
     }
 }

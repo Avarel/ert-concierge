@@ -33,6 +33,11 @@ export interface SystemDataDump {
     data: SystemData
 }
 
+export interface SystemRemovePlanets {
+    type: "SYSTEM_REMOVE_PLANETS",
+    ids: string[]
+}
+
 export interface SystemClear {
     type: "SYSTEM_CLEAR"
 }
@@ -70,6 +75,13 @@ export interface LoadSystem {
     url: string
 }
 
-export type PlanetaryPayload = SystemObjsDump | SystemDataDump | SystemClear
+export interface UpdateData {
+    type: "UPDATE_DATA",
+    target: string,
+    field: string,
+    value: any
+}
+
+export type PlanetaryPayload = SystemObjsDump | SystemDataDump | SystemClear | SystemRemovePlanets
     | FetchSystemData | FetchSystemObjs | Play | Pause | FastForward 
-    | StepForward | FastBackward | LoadSystem;
+    | StepForward | FastBackward | LoadSystem | UpdateData;

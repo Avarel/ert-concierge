@@ -10,8 +10,6 @@ import { Chat, Sidebar, Window } from "../overlay/mod";
 
 const queries = new URLSearchParams(window.location.search);
 
-// http://localhost:8080/?server=ws%3A%2F%2Fcompute-cpu2.cms.caltech.edu%3A64209%2Fws&name=Anthony
-// http://localhost:8080/?server=ws%3A%2F%2F127.0.0.1%3A64209%2Fws&name=Anthony
 let serverURL = queries.get("server") || prompt("Enter the server address.", "ws://127.0.0.1:64209/ws");
 if (!serverURL || serverURL.length == 0) {
     throw alert("Malformed server address!");

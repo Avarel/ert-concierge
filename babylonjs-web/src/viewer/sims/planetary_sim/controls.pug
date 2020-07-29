@@ -1,18 +1,19 @@
 .window-tab.planetary-controls
     .header
         .icons
-            i.fa.fa-fast-backward#planetary-fb
-            i.fa.fa-pause#planetary-pause
-            i.fa.fa-play#planetary-play
-            i.fa.fa-step-forward#planetary-sf
-            i.fa.fa-fast-forward#planetary-ff
+            i.fa.fa-fast-backward.planetary-fb
+            i.fa.fa-pause.planetary-pause
+            i.fa.fa-play.planetary-play
+            i.fa.fa-step-forward.planetary-sf
+            i.fa.fa-fast-forward.planetary-ff
         .info
     .body
         .box
-            h1 
-                | Upload JSON System
-            form#planetary-upload
-                input#file(type="file" name="file")
+            h1 Upload JSON System
+            form.planetary-upload
+                input.file(type="file" name="file")
                 button(type="submit") Submit
         .box
-            | Planetary Simulation by Alison Noyes
+            h1 Planetary Simulation
+            p Python Simulation by Alison Noyes
+            p BabylonJS frontend by An Tran

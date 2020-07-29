@@ -154,7 +154,7 @@ class GravitySystem:
             self.statistics += "Orbit speed:" + \
                 str(b.orbitSpeed) + "<line><line>"
 
-    def tick_system(self, dt):
+    def tick_system(self, dt) -> List[Body]:
         self.apply_forces()
         self.apply_impulses()
 
