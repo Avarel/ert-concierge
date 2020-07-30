@@ -209,7 +209,8 @@ impl SocketConnection {
         namespace.insert(id.name.clone(), uuid);
         drop(namespace);
         // Create the client struct
-        let (client, rx) = Client::new(uuid, id.name, id.nickname, id.tags);
+        let mut client= Client::new(uuid, id.name, id.nickname, id.tags);
+        let rx = client.take_rx().unwrap();
 
         broadcast_all(
             &self.concierge,
@@ -363,7 +364,9 @@ impl SocketConnection {
                 warn!("Concierge attempted the slow message path!");
                 // This is a fallback path. It's somewhat important that this path is
                 // never used since it means that the server is deserializing the irrelevant data,
-                // which takes up CPU cycles.
+                // which takes up CPU cycles. If this path runs, it is most likely that the
+                // structure of PayloadRawMessage does not match the structure of Payload::Message.
+                // In that case, you should fix that.
                 drop(clients);
                 let data = serde_json::value::to_raw_value(&data)?;
                 self.handle_raw_message(client_uuid, seq, PayloadRawMessage::new(target, &data))

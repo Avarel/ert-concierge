@@ -237,18 +237,17 @@ pub async fn handle_file_put_multipart(
         .await?;
     file.set_len(0).await?;
 
+    let mut flag = true;
     let mut file_name = None;
     while let Some(Ok(mut part)) = data.next().await {
-        // Check that all parts are part of one file. The file name must
-        // be consistent with the first part uploaded, else it will be ignored.
-        if let Some(name) = part.filename() {
-            if file_name.is_none() {
+        if flag {
+            if let Some(name) = part.filename() {
                 file_name = Some(name.to_owned());
-            } else if name != file_name.as_ref().unwrap() {
-                continue;
             }
-        } else if file_name.is_some() {
-            // ignore part if filename has been set, but the part has no filename.
+            flag = false;
+        } else if part.filename() != file_name.as_deref() {
+            // check that all parts uploaded are consistent with the first part
+            // can probably be done better, but this will suffice for now.
             continue;
         }
 

@@ -1,5 +1,5 @@
 import Chat from "./chat/mod";
 import Sidebar from "./sidebar/mod";
-import Window from "./window/mod";
+import Drawer from "./window/mod";
 
-export { Chat, Sidebar, Window };
+export { Chat, Sidebar, Drawer };

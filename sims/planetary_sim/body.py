@@ -174,3 +174,4 @@ class Body:
         self.orbitRadius = self.location.magnitude()
         self.scaledOrbitRadius = self.scaledLocation.magnitude()
         self.orbitSpeed = abs(self.velocity.magnitude())
+        self.orbitDirection = self.velocity.normalize()

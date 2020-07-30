@@ -9,6 +9,7 @@ use tokio::sync::{
 use uuid::Uuid;
 use warp::ws::Message;
 
+/// A struct holding information regarding the client.
 pub struct Client {
     /// Client id.
     uuid: Uuid,
@@ -20,29 +21,38 @@ pub struct Client {
     tags: Vec<String>,
     /// Sender channel.
     tx: UnboundedSender<Message>,
+    rx: Option<UnboundedReceiver<Message>>,
     /// Groups.
     pub subscriptions: RwLock<HashSet<String>>,
 }
 
 impl Client {
     /// Create a new client.
-    pub fn new(uuid: Uuid, name: String, nickname: Option<String>, tags: Vec<String>) -> (Self, UnboundedReceiver<Message>) {
+    ///
+    /// This returns the client struct and the single-consumer receiver side of
+    /// the sender-receiver channel.
+    pub fn new(uuid: Uuid, name: String, nickname: Option<String>, tags: Vec<String>) -> Self {
         // This is our channels for messages.
         // rx: (receive) where messages are received
         // tx: (transmit) where we send messages
         let (tx, rx) = unbounded_channel();
-        let instance = Self {
+        Self {
             uuid,
             name,
             nickname,
             tags,
             tx,
+            rx: Some(rx),
             subscriptions: RwLock::default(),
-        };
-        (instance, rx)
+        }
     }
 
-    /// Returns the Uuid of the client.
+    /// Take the receiver channel.
+    pub fn take_rx(&mut self) -> Option<UnboundedReceiver<Message>> {
+        self.rx.take()
+    }
+
+    /// Returns the uuid of the client.
     pub fn uuid(&self) -> Uuid {
         self.uuid
     }

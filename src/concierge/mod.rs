@@ -211,6 +211,7 @@ impl Concierge {
     }
 }
 
+/// A struct containing group information.
 pub struct Group {
     pub name: String,
     pub owner: Uuid,
@@ -218,6 +219,7 @@ pub struct Group {
 }
 
 impl Group {
+    /// Create a new group associated with an owner uuid.
     pub fn new(name: String, owner: Uuid) -> Self {
         Self {
             name,
@@ -226,10 +228,12 @@ impl Group {
         }
     }
 
+    /// Add the client to the group.
     pub fn add_client(&mut self, _: &Concierge, uuid: Uuid) {
         self.clients.insert(uuid);
     }
 
+    /// Remove the client from the group.
     pub fn remove_client(&mut self, _: &Concierge, uuid: &Uuid) {
         self.clients.remove(&uuid);
     }

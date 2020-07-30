@@ -1,12 +1,12 @@
 import "./style.scss";
 
-import { DeepImmutable, Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, StandardMaterial, ActionManager, MeshBuilder, Mesh, IAction, TrailMesh } from "babylonjs";
+import { Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, StandardMaterial, ActionManager, MeshBuilder, Mesh, IAction, TrailMesh } from "babylonjs";
 import { Renderer } from "../../renderer";
 import { ServiceEventHandler } from "../../../concierge_api/handlers";
 import { Client } from "../../../concierge_api/mod";
 import { Payload } from "../../../concierge_api/payloads";
-import { SystemObject, SystemObjsDump, SystemData, PlanetaryPayload } from "./payloads";
-import { controlWindowUI } from "../../viewer";
+import { SystemObject, SystemData, PlanetaryPayload } from "./payloads";
+import { Drawer } from "../../../overlay/mod";
 
 export const PLANET_SIM_NAME = "planetary_simulation";
 export const PLANET_SIM_GROUP = "planetary_simulation_out";
@@ -75,7 +75,6 @@ class Planet {
                 () => {
                     handler.unhover(this.id);
                     handler.update();
-
                 }
             );
             this.clickAction = new ExecuteCodeAction(
@@ -86,6 +85,7 @@ class Planet {
                     } else {
                         handler.lock(this.id);
                     }
+                    handler.update();
                 }
             );
             this.mesh.actionManager.registerAction(this.enterAction);
@@ -132,15 +132,17 @@ export class PlanetsHandler extends ServiceEventHandler {
     /** Map of planets */
     planets: Map<string, Planet>;
 
+    drawerUI: Drawer.UI | undefined;
     private readonly visualScale: number = 5;
     private controllerElement?: HTMLElement;
     infoHandler?: PlanetInfoHandler;
 
-    constructor(client: Client, renderer: Renderer) {
+    constructor(client: Client, renderer: Renderer, drawerUI?: Drawer.UI) {
         super(client, PLANET_SIM_GROUP);
         this.client = client;
         this.renderer = renderer;
         this.planets = new Map();
+        this.drawerUI = drawerUI;
     }
 
     onRecvMessage(message: Payload.Message<PlanetaryPayload>) {
@@ -165,7 +167,7 @@ export class PlanetsHandler extends ServiceEventHandler {
         this.controllerElement = htmlToElement(controls_template());
         this.infoHandler = new PlanetInfoHandler(this, this.controllerElement.querySelector<HTMLElement>(".planetary-controls .info")!);
         this.setupController(this.controllerElement);
-        controlWindowUI.addTab(PLANET_SIM_NAME, "Planetary Controls", this.controllerElement);
+        this.drawerUI?.addTab(PLANET_SIM_NAME, "Planetary Controls", this.controllerElement);
         console.log("Planet simulator client is ready to go!");
 
         this.sendToSim({
@@ -238,7 +240,7 @@ export class PlanetsHandler extends ServiceEventHandler {
     }
 
     onUnsubscribe() {
-        controlWindowUI.removeTab(PLANET_SIM_NAME);
+        this.drawerUI?.removeTab(PLANET_SIM_NAME);
         this.controllerElement?.remove();
         this.clearShapes();
         this.infoHandler?.clear();
@@ -287,7 +289,7 @@ export class PlanetsHandler extends ServiceEventHandler {
 
                     if (this.planets.has(obj.name)) {
                         let planet = this.planets.get(obj.name)!;
-                        planet.moveTo(location)
+                        planet.moveTo(location);
                         planet.data = obj;
                     } else {
                         if (this.renderer.scene) {
@@ -346,7 +348,8 @@ class PlanetInfoHandler {
     private infoPaneType: InfoPaneType = InfoPaneType.None;
     private planetLock?: string;
     private hoveredPlanets: Set<string> = new Set();
-
+    private inputTarget?: string;
+    private littedPlanet?: string;
     private unlockAction?: number;
     private lockedInputs: HTMLInputElement[] = [];
 
@@ -395,33 +398,60 @@ class PlanetInfoHandler {
         }
     }
 
+    unlitPlanet(planet: Planet | undefined) {
+        if (planet) {
+            (planet.mesh.material as StandardMaterial).emissiveColor = Color3.Black();
+            this.littedPlanet = undefined;
+        }
+    }
+    
+    litPlanet(planet: Planet | undefined) {
+        if (planet) {
+            (planet.mesh.material as StandardMaterial).emissiveColor = Color3.Red();
+            this.littedPlanet = planet.id;
+        }
+    }
+
     private updateInfoPlanet(planet: Planet) {
+        if (this.littedPlanet && this.littedPlanet != planet.id) {
+            let planet = this.handler.planets.get(this.littedPlanet)!;
+            this.unlitPlanet(planet)
+        }
+
         if (this.infoPaneType != InfoPaneType.Planet) {
             this.rootElement.innerHTML = planet_info_template();
             this.setupInputFields(planet.id);
             this.infoPaneType = InfoPaneType.Planet;
+        } else if (this.inputTarget != planet.id) {
+            this.setupInputFields(planet.id);
         }
+
         this.updateInputFields(planet.data);
-        (planet.mesh.material as StandardMaterial).diffuseColor = Color3.Red();
+
+        this.litPlanet(planet)
     }
 
     private updateInfoSystem(sysData: SystemData) {
+        if (this.littedPlanet) {
+            let planet = this.handler.planets.get(this.littedPlanet)!;
+            (planet.mesh.material as StandardMaterial).emissiveColor = Color3.Black();
+            this.littedPlanet = undefined;
+        }
+
         if (this.infoPaneType != InfoPaneType.System) {
             this.rootElement.innerHTML = system_info_template();
             this.setupInputFields("system");
             this.infoPaneType = InfoPaneType.System;
         }
+
         this.updateInputFields(sysData);
-        for (let planet of this.handler.planets.values()) {
-            (planet.mesh.material as StandardMaterial).diffuseColor = Color3.FromArray(planet.data!.color);
-        }
     }
 
     private setupInputFields(id: string) {
         for (const input of this.rootElement.querySelectorAll("input")) {
             let attr = input.getAttribute("var");
             if (attr) {
-                input.addEventListener("keydown", (event) => {
+                input.onkeydown = (event) => {
                     if (event.keyCode === 13) {
                         event.preventDefault();
                         // alert("Updating [" + id + "] " + attr + ": " + input.value);
@@ -435,6 +465,7 @@ class PlanetInfoHandler {
                 });
             }
         }
+        this.inputTarget = id;
     }
 
     private updateInputFields(obj: any | undefined) {

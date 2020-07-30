@@ -6,7 +6,7 @@ function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: s
     return div;
 }
 
-export module Window {
+export module Drawer {
     export class Tab {
         tag: string;
         header: HTMLElement;
@@ -83,6 +83,11 @@ export module Window {
                 tab.body.remove();
                 tab.header.remove();
                 this.tabs.delete(tag);
+                
+                let firstTab = this.tabs.keys().next().value;
+                if (firstTab) {
+                    this.showTab(firstTab);
+                }
             }
         }
 
@@ -113,4 +118,4 @@ export module Window {
     }
 }
 
-export default Window;
+export default Drawer;
