@@ -462,7 +462,7 @@ class PlanetInfoHandler {
                             value: input.value
                         })
                     }
-                });
+                };
             }
         }
         this.inputTarget = id;

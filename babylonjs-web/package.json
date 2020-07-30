@@ -5,11 +5,11 @@
         "start": "webpack-dev-server --open --config webpack.dev.js --hot"
     },
     "dependencies": {
-        "tippy.js": "^6.2.5"
+        "tippy.js": "^6.2.6"
     },
     "devDependencies": {
-        "babylonjs": "^4.2.0-alpha.26",
-        "babylonjs-gui": "^4.2.0-alpha.26",
+        "babylonjs": "^4.2.0-alpha.27",
+        "babylonjs-gui": "^4.2.0-alpha.27",
         "css-loader": "^3.6.0",
         "file-loader": "^6.0.0",
         "html-webpack-plugin": "^4.3.0",
@@ -20,7 +20,7 @@
         "style-loader": "^1.2.1",
         "ts-loader": "^7.0.5",
         "typescript": "^3.9.7",
-        "webpack": "^4.43.0",
+        "webpack": "^4.44.1",
         "webpack-cli": "^3.3.12",
         "webpack-dev-middleware": "^3.7.2",
         "webpack-dev-server": "^3.11.0",
