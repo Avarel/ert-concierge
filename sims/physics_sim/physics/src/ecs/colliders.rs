@@ -3,7 +3,7 @@ use crate::polygon::Polygon;
 use specs::prelude::*;
 use specs::Component;
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct Shape(pub Polygon);
 
 pub struct ShapeKineticSys;
@@ -45,9 +45,13 @@ impl ColliderPair {
     }
 }
 
-pub struct PhysicalColliderSys(pub Vec<ColliderPair>);
+#[derive(Default)]
+pub struct ColliderList(pub Vec<ColliderPair>);
+
+pub struct PhysicalColliderSys;
 impl<'a> System<'a> for PhysicalColliderSys {
     type SystemData = (
+        Read<'a, ColliderList>,
         Entities<'a>,
         WriteStorage<'a, Pos>,
         WriteStorage<'a, Vel>,
@@ -55,10 +59,10 @@ impl<'a> System<'a> for PhysicalColliderSys {
         ReadStorage<'a, Mass>,
     );
 
-    fn run(&mut self, (entities, mut pos, mut vel, mut shape, mass): Self::SystemData) {
+    fn run(&mut self, (colliders, entities, mut pos, mut vel, mut shape, mass): Self::SystemData) {
         let mut joiner = (&mut shape, &mut pos, &mut vel, &mass).join();
         
-        for &ColliderPair { elasticity, entity } in &self.0 {
+        for &ColliderPair { elasticity, entity } in &colliders.0 {
             if entity.0 == entity.1 {
                 panic!("Warning! Two entities in physical collider pair are the same!");
             }

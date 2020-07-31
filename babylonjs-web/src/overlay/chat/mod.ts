@@ -30,10 +30,13 @@ export module Chat {
         private setup() {
             let messagesDiv = this.rootElement.querySelector<HTMLDivElement>("div.messages")
                 || createElement("div", ["messages"]);
-            let inputDiv = this.rootElement.querySelector<HTMLDivElement>("div.input") || createElement("div", ["input"]);
-            let inputField = inputDiv.querySelector<HTMLInputElement>("input") || createElement("input");
+            let inputDiv = this.rootElement.querySelector<HTMLDivElement>("div.input")
+                || createElement("div", ["input"]);
+            let inputField = inputDiv.querySelector<HTMLInputElement>("input")
+                || createElement("input");
             inputDiv.appendChild(inputField);
-            let buttonDiv = inputDiv.querySelector<HTMLInputElement>("div.button") || createElement("div", ["button"]);
+            let buttonDiv = inputDiv.querySelector<HTMLInputElement>("div.button")
+                || createElement("div", ["button"]);
             inputDiv.appendChild(buttonDiv);
             inputField.addEventListener("keydown", (event) => {
                 if (event.keyCode === 13) {
@@ -56,7 +59,9 @@ export module Chat {
         }
 
         private createMessageElement(name: string, text: string, you: boolean = false): HTMLDivElement {
-            let entryDiv = you ? createElement("div", ["entry", "you"]) : createElement("div", ["entry"]);
+            let entryDiv = you
+                ? createElement("div", ["entry", "you"])
+                : createElement("div", ["entry"]);
             let nameDiv = createElement("div", ["name"]);
             nameDiv.innerText = name;
             let textDiv = createElement("div", ["text"]);

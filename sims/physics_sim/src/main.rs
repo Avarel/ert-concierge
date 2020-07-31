@@ -61,7 +61,7 @@ async fn system_loop(running: Arc<AtomicBool>, aworld: Arc<RwLock<World>>) {
 
     let ent1 = world
         .create_entity()
-        .with(Id(String::from("green")))
+        .with(Id::random())
         .with(Pos(body.centroid()))
         .with(Vel((0.0, 0.0).into()))
         // .with(Acc::default())
@@ -75,7 +75,7 @@ async fn system_loop(running: Arc<AtomicBool>, aworld: Arc<RwLock<World>>) {
 
     let ent2 = world
         .create_entity()
-        .with(Id(String::from("blue")))
+        .with(Id::random())
         .with(Pos(body.centroid()))
         .with(Vel((-50.0, 0.0).into()))
         // .with(Acc::default())
@@ -86,16 +86,29 @@ async fn system_loop(running: Arc<AtomicBool>, aworld: Arc<RwLock<World>>) {
         .build();
 
     body.translate((250.0, -100.0).into());
+    
 
     let ent3 = world
         .create_entity()
-        .with(Id(String::from("red")))
+        .with(Id::random())
         .with(Pos(body.centroid()))
         .with(Vel((0.0, 50.0).into()))
         .with(Mass(500.0))
         .with(Shape(body))
         .with(Rgb(255, 0, 0))
         .build();
+
+    world.insert(ColliderList(vec![
+        ColliderPair::new(1.0, ent1, ent2),
+        ColliderPair::new(1.0, ent1, ent3),
+        ColliderPair::new(1.0, ent2, ent3),
+    ]));
+    
+    world.insert(GravityList(vec![
+        GravityPair::new(6.673e3, ent1, ent2),
+        GravityPair::new(6.673e3, ent1, ent3),
+        GravityPair::new(6.673e3, ent2, ent3),
+    ]));
 
     let mut dispatcher = DispatcherBuilder::new()
         .with(TranslationalKinematicSys, "kine", &[])
@@ -110,16 +123,12 @@ async fn system_loop(running: Arc<AtomicBool>, aworld: Arc<RwLock<World>>) {
             &[],
         )
         .with(
-            PhysicalColliderSys(vec![
-                ColliderPair::new(1.0, ent1, ent2),
-                ColliderPair::new(1.0, ent1, ent3),
-                ColliderPair::new(1.0, ent2, ent3),
-            ]),
+            PhysicalColliderSys,
             "collider",
             &["edge_deflect"],
         )
         .with(
-            GravitySys(6.673e3, vec![(ent1, ent2), (ent1, ent3), (ent2, ent3)]),
+            GravitySys,
             "grav",
             &["edge_deflect"],
         )

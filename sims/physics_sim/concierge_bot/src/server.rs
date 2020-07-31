@@ -2,7 +2,7 @@ use crate::physics_payload::{EntityDump, EntityUpdate, Payload, PhysicsPayload};
 use anyhow::Result;
 use concierge_api_rs::payload::{ClientPayload, Origin, Target};
 use cs3_physics::{
-    ecs::{colliders::Shape, kinetics::Pos, Id, Rgb},
+    ecs::{colliders::{ColliderList, Shape, ColliderPair}, kinetics::{Vel, Pos}, Id, Rgb, dynamics::{GravityList, Mass, GravityPair}},
     specs::prelude::*,
 };
 use futures::{SinkExt, Stream, StreamExt};
@@ -24,6 +24,10 @@ use tokio_tungstenite::tungstenite::Message;
 use url::Url;
 
 pub const MS_SEND_INTERVAL: u64 = 20;
+
+pub const GROUP_TARGET: Target = Target::Group {
+    group: crate::PHYSICS_ENGINE_GROUP,
+};
 
 pub async fn init_bot(running: Arc<AtomicBool>, world: Arc<RwLock<World>>) -> Result<()> {
     let connect_addr = std::env::args()
@@ -83,7 +87,7 @@ pub async fn send_loop(
         let updates = (&id, &pos)
             .par_join()
             .map(|(id, pos)| EntityUpdate {
-                id: id.0.to_owned(),
+                id: id.0,
                 position: pos.0,
             })
             .collect::<Vec<_>>();
@@ -155,12 +159,11 @@ pub async fn recv_loop<T>(
                     let ids = world.read_component::<Id>();
                     let mut color = world.write_component::<Rgb>();
 
-                    let toggled_entities = (&entities, &ids)
+                    let touched_entity = (&entities, &ids)
                         .par_join()
-                        .filter(|(_, Id(iid))| iid == id)
-                        .collect::<Vec<_>>();
+                        .find_first(|(_, Id(iid))| iid == &id);
 
-                    for (entity, Id(id)) in toggled_entities {
+                    if let Some((entity, Id(id))) = touched_entity {
                         if let Some(color) = color.get_mut(entity) {
                             *color = match color {
                                 Rgb(255, 0, 0) => Rgb(0, 255, 0),
@@ -170,16 +173,82 @@ pub async fn recv_loop<T>(
                             let _ = tx.send(Message::text(
                                 serde_json::to_string(&Payload::Message {
                                     origin: None,
-                                    target: Target::Group {
-                                        group: crate::PHYSICS_ENGINE_GROUP,
-                                    },
+                                    target: GROUP_TARGET,
                                     data: PhysicsPayload::ColorUpdate {
-                                        id,
+                                        id: *id,
                                         color: (color.0, color.1, color.2),
                                     },
                                 })
                                 .unwrap(),
                             ));
+                        }
+                    }
+                }
+                Ok(Payload::Message {
+                    data: PhysicsPayload::TouchEntity { id },
+                    ..
+                }) => {
+                    let mut world = world.write().await;
+                    let entities = world.entities();
+                    let ids = world.read_component::<Id>();
+
+                    let touched_entity = (&entities, &ids)
+                        .par_join()
+                        .find_first(|(_, Id(iid))| iid == &id)
+                        .map(|(e, _)| e.clone());
+
+                    drop(ids);
+
+                    if let Some(touched_entity) = touched_entity {
+                        let shapes = world.read_component::<Shape>();
+                        let poss = world.read_component::<Pos>();
+                        let masss = world.read_component::<Mass>();
+                        let colors = world.read_component::<Rgb>();
+                        
+                        let mut joiner = (&shapes, &poss, &masss, &colors).join();
+                        
+                        if let Some((shape, &pos, &mass, &rgb)) = joiner.get(touched_entity, &entities) {
+                            let shape = shape.clone();
+
+                            let entities_to_bind = entities.par_join().collect::<Vec<_>>();
+
+                            drop(joiner);
+                            // drop binding
+                            let _ = (colors, masss, poss, shapes, entities);
+
+                            let id = Id::random();
+
+                            let entity = world
+                                .create_entity()
+                                .with(id)
+                                .with(pos)
+                                .with(mass)
+                                .with(Vel((0.0, 0.0).into()))
+                                .with(shape.clone())
+                                .with(rgb)
+                                .build();
+
+                            let mut gravity = world.write_resource::<GravityList>();
+                            let mut colliders = world.write_resource::<ColliderList>();
+                            for other_entity in entities_to_bind {
+                                gravity.0.push(GravityPair::new(6.673e3, entity, other_entity));
+                                colliders.0.push(ColliderPair::new(1.0, entity, other_entity));
+                            }
+
+                            tx.send(Message::text(
+                                serde_json::to_string(&Payload::Message {
+                                    origin: None,
+                                    target: GROUP_TARGET,
+                                    data: PhysicsPayload::EntityNew {
+                                        entity: EntityDump {
+                                            id: id.0,
+                                            polygon: shape.0,
+                                            color: (rgb.0, rgb.1, rgb.2)
+                                        }
+                                    },
+                                })
+                                .unwrap(),
+                            )).unwrap();
                         }
                     }
                 }

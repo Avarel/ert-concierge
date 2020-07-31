@@ -1,31 +1,45 @@
 import "./style.scss";
+import { AbstractBody, Header, Body } from "./manager";
 
-function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: string[] = []): HTMLElementTagNameMap[K] {
+export function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: string[] = []): HTMLElementTagNameMap[K] {
     let div = document.createElement(tag);
     div.classList.add(...classes);
     return div;
 }
 
 export module Drawer {
-    export class Tab {
+    export class Tab extends AbstractBody {
         tag: string;
-        header: HTMLElement;
-        body: HTMLElement;
+        private headerTabElement: HTMLElement;
 
         constructor(tag: string, headerElement: HTMLElement, bodyElement: HTMLElement) {
+            super(undefined, bodyElement);
             this.tag = tag;
-            this.header = headerElement;
-            this.body = bodyElement;
+            this.headerTabElement = headerElement;
+        }
+
+        addHeader(callback?: (header: Header) => void): Header {
+            return this.addChild(new Header(this), callback);
+        }
+
+        addBody(callback?: (header: Body) => void): Body {
+            return this.addChild(new Body(this), callback);
         }
 
         show(flag: boolean = true) {
             if (flag) {
-                this.header.classList.add("active");
-                this.body.classList.add("active");
+                this.headerTabElement.classList.add("active");
+                this.bodyElement.classList.add("active");
             } else {
-                this.header.classList.remove("active");
-                this.body.classList.remove("active");
+                this.headerTabElement.classList.remove("active");
+                this.bodyElement.classList.remove("active");
             }
+        }
+
+        remove() {
+            this.headerTabElement.remove();
+            this.bodyElement.remove();
+            super.remove();
         }
     }
 
@@ -38,29 +52,33 @@ export module Drawer {
 
         constructor(rootElement: HTMLElement) {
             this.rootElement = rootElement;
-            this.headerElement = rootElement.querySelector<HTMLElement>(".window-header") || createElement("div", ["window-header"]);
+            this.headerElement = rootElement.querySelector<HTMLElement>(".window-header")
+                || createElement("div", ["window-header"]);
             this.rootElement.prepend(this.headerElement);
-            this.drawerElement = this.headerElement.querySelector(".window-drawer") || createElement("div", ["window-drawer"]);
+            this.drawerElement = this.headerElement.querySelector(".window-drawer")
+                || createElement("div", ["window-drawer"]);
             this.headerElement.prepend(this.drawerElement);
 
             this.drawerElement.addEventListener("click", () => {
                 this.toggle();
             });
 
-            this.bodyElement = rootElement.querySelector<HTMLElement>(".window-body") || createElement("div", ["window-body"]);
+            this.bodyElement = rootElement.querySelector<HTMLElement>(".window-body")
+                || createElement("div", ["window-body"]);
             this.rootElement.append(this.bodyElement);
 
             this.bodyElement.querySelectorAll<HTMLElement>(".window-tab").forEach((tabBody, i) => {
                 let bodyTag = tabBody.getAttribute("tag");
                 if (bodyTag) {
                     let label = tabBody.getAttribute("label") || bodyTag;
-                    let tab = this.addTab(bodyTag, label, tabBody);
+                    let tab = this.addPopulatedTab(bodyTag, label, tabBody);
                     tab.show(i == 0);
                 }
             });
         }
 
-        addTab(tag: string, label: string, tabBody: HTMLElement): Tab {
+        /** Add a populated tab. */
+        addPopulatedTab(tag: string, label: string, tabBody: HTMLElement): Tab {
             let tabHeader = createElement("div", ["window-header-tab"]);
             tabHeader.innerText = label;
             this.headerElement.appendChild(tabHeader);
@@ -77,13 +95,34 @@ export module Drawer {
             return tab;
         }
 
+        /** Add an empty tab. */
+        addTab(tag: string, label: string, callback: (tab: Tab) => void): Tab {
+            const tabHeader = createElement("div", ["window-header-tab"]);
+            tabHeader.innerText = label;
+            this.headerElement.appendChild(tabHeader);
+            const tabBody = createElement("div", ["window-tab"]);
+            this.bodyElement.appendChild(tabBody);
+
+            let tab = new Tab(tag, tabHeader, tabBody);
+            this.tabs.set(tag, tab);
+
+            tabHeader.addEventListener("click", () => {
+                this.show(true);
+                this.showTab(tag!);
+            });
+            
+            callback?.(tab);
+
+            return tab;
+        }
+
+        /** Remove the tab by its tag, and show the first remaining tab. */
         removeTab(tag: string) {
             let tab = this.tabs.get(tag);
             if (tab) {
-                tab.body.remove();
-                tab.header.remove();
+                tab.remove();
                 this.tabs.delete(tag);
-                
+
                 let firstTab = this.tabs.keys().next().value;
                 if (firstTab) {
                     this.showTab(firstTab);
@@ -91,15 +130,14 @@ export module Drawer {
             }
         }
 
+        /** Show a certain tab by its tag. */
         showTab(tag: string) {
             for (let [key, value] of this.tabs) {
                 value.show(key == tag);
             }
         }
 
-        /**
-         * Toggle the window from on or off position.
-         */
+        /** Toggle the window from on or off position. */
         toggle() {
             this.rootElement.classList.toggle("hidden");
         }

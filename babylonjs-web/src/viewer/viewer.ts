@@ -12,6 +12,32 @@ export namespace Viewer {
     let leftDrawerUI = new Drawer.UI(document.querySelector<HTMLElement>(".window#chat-window")!);
     let rightDrawerUI = new Drawer.UI(document.querySelector<HTMLElement>(".window#control-window")!);
 
+    rightDrawerUI.addTab("about", "About", (tab) => {
+        tab.addHeader((header) => {
+            header.addH1("ERT Concierge / BabylonJS Front-end");
+            header.addP("SURF 2020 / OVRAS");
+        });
+        tab.addBody((body) => {
+            body.addBox((box) => {
+                box.addH1("An Tran");
+                box.addP("Intern");
+            });
+            body.addBox((box) => {
+                box.addH1("Santiago Lombeyda");
+                box.addP("Mentor");
+            });
+            body.addBox((box) => {
+                box.addH1("Front-end");
+                box.addP("Pug/SCSS/TypeScript + Webpack");
+            });
+            body.addBox((box) => {
+                box.addH1("Back=end");
+                box.addP("Rust");
+            });
+        });
+    });
+    rightDrawerUI.showTab("about");
+
     export function start() {
         const queries = new URLSearchParams(window.location.search);
 
@@ -33,6 +59,8 @@ export namespace Viewer {
         let renderer = new Renderer(canvas);
     
         let client = new ConciergeAPI.Client(name, serverURL, true);
+
+        
     
         // simulations
         let physicsHandler = new PhysicsHandler(client, renderer);

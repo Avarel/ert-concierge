@@ -154,26 +154,89 @@ $tall-height: $normal-height + 300px;
                 font-weight: bold;
             }
 
-            > .header {
-                background: #ddd;
-                padding: 10px;
+            p {
+                margin-bottom: 5px;
+                &:last-child {
+                    margin-bottom: 0;
+                }
             }
 
-            > .body {
+            > .window-tab-header {
+                background: #ddd;
+                padding: 10px;
+
+                > .window-tab-box {
+                    background: #eee;
+                }
+            }
+
+            .window-tab-box {
+                width: 100%;
+                padding: 10px;
+                border-radius: 5px;
+                box-sizing: border-box;
+                word-break: break-word;
+                margin-top: 10px;
+        
+                &:first-child {
+                    margin-top: 0;
+                }
+
+                .entry {
+                    display: flex;
+                    margin-bottom: 5px;
+        
+                    > .name {
+                        width: 40%;
+                        text-align: right;
+                        padding-right: 10px;
+                        box-sizing: border-box;
+                    }
+        
+                    > .value {
+                        flex: 1 0 auto;
+                        display: flex;
+                        flex-direction: column;
+        
+                        input {
+                            font-family: inherit;
+                            width: 100%;
+                            padding: 5px;
+                            box-sizing: border-box;
+                            border: none;
+                            background: white;
+                            text-align: right;
+                            transition: background-color 0.2s;
+        
+                            &:read-only {
+                                background: #eee;
+                                outline: none;
+                            }
+                            &:first-child {
+                                border-radius: 5px 5px 0 0;
+                            }
+                            &:not(:first-child):not(:last-child) {
+                                border-radius: 0;
+                            }
+                            &:not(:last-child) {
+                                margin-bottom: 1px;
+                            }
+                            &:last-child {
+                                border-radius: 0 0 5px 5px;
+                            }
+                            &:first-child:last-child {
+                                border-radius: 5px;
+                            }
+                        }
+                    }
+                }
+            }
+
+            > .window-tab-body {
                 padding: 10px;
                 
-                > .box {
-                    width: 100%;
-                    padding: 10px;
+                > .window-tab-box {
                     background: #ccc;
-                    border-radius: 5px;
-                    box-sizing: border-box;
-                    word-break: break-word;
-                    margin-top: 10px;
-            
-                    &:first-child {
-                        margin-top: 0;
-                    }
                 }
             }
         }

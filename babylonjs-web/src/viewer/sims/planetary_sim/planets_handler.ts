@@ -167,7 +167,7 @@ export class PlanetsHandler extends ServiceEventHandler {
         this.controllerElement = htmlToElement(controls_template());
         this.infoHandler = new PlanetInfoHandler(this, this.controllerElement.querySelector<HTMLElement>(".planetary-controls .info")!);
         this.setupController(this.controllerElement);
-        this.drawerUI?.addTab(PLANET_SIM_NAME, "Planetary Controls", this.controllerElement);
+        this.drawerUI?.addPopulatedTab(PLANET_SIM_NAME, "Planetary Controls", this.controllerElement);
         console.log("Planet simulator client is ready to go!");
 
         this.sendToSim({

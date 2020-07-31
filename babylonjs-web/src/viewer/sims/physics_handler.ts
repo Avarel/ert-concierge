@@ -48,14 +48,24 @@ namespace PhysicsPayloads {
         entities: Entity[]
     }
 
+    export interface EntityNew {
+        type: "ENTITY_NEW",
+        entity: Entity
+    }
+
     export interface PositionDump {
         type: "POSITION_DUMP"
         updates: EntityUpdate[]
     }
 
+    export interface TouchEntity {
+        type: "TOUCH_ENTITY",
+        id: string,
+    }
+
     export type Payload = EntityDump | PositionDump
         | FetchEntities | FetchPositions
-        | ColorUpdate | ToggleColor;
+        | ColorUpdate | ToggleColor | TouchEntity | EntityNew;
 }
 type PhysicsPayload = PhysicsPayloads.Payload;
 
@@ -123,6 +133,17 @@ export class PhysicsHandler extends ServiceEventHandler {
         this.renderer = renderer;
     }
 
+    sendToSim(data: PhysicsPayload) {
+        this.client.sendJSON({
+            type: "MESSAGE",
+            target: {
+                type: "NAME",
+                name: PHYSICS_ENGINE_NAME
+            },
+            data
+        });
+    }
+
     onRecvMessage(message: Payload.Message<PhysicsPayload>) {
         if (message.origin!.name != PHYSICS_ENGINE_NAME) {
             return;
@@ -179,17 +200,10 @@ export class PhysicsHandler extends ServiceEventHandler {
                 BABYLON.ActionManager.OnPickTrigger,
                 () => {
                     console.log("Clicking on object ", id, ".")
-                    this.client.sendJSON({
-                        type: "MESSAGE",
-                        target: {
-                            type: "NAME",
-                            name: PHYSICS_ENGINE_NAME
-                        },
-                        data: {
-                            type: "TOGGLE_COLOR",
-                            id: id,
-                        }
-                    })
+                    this.sendToSim({
+                        type: "TOUCH_ENTITY",
+                        id: id,
+                    });
                 }
             )
         );
@@ -212,6 +226,10 @@ export class PhysicsHandler extends ServiceEventHandler {
 
     private processPhysicsPayload(payload: DeepImmutable<PhysicsPayload>) {
         switch (payload.type) {
+            case "ENTITY_NEW":
+                let entity = payload.entity;
+                this.createShape(entity.id, entity.centroid, entity.points, entity.color);
+                break;
             case "ENTITY_DUMP":
                 // console.log("RECV", JSON.stringify(payload));
                 console.log("Dumping entities!");

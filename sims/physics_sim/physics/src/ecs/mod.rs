@@ -5,13 +5,20 @@ pub mod kinetics;
 use specs::prelude::*;
 use specs::Component;
 use std::time::Duration;
+use uuid::Uuid;
 
 pub struct DeltaTime(pub Duration);
 
-#[derive(Component)]
+#[derive(Component, Copy, Clone)]
 #[storage(VecStorage)]
 pub struct Rgb(pub u8, pub u8, pub u8);
 
-#[derive(Component)]
+#[derive(Component, Copy, Clone)]
 #[storage(DenseVecStorage)]
-pub struct Id(pub String);
+pub struct Id(pub Uuid);
+
+impl Id {
+    pub fn random() -> Self {
+        Self(Uuid::new_v4())
+    }
+}

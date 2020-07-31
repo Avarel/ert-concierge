@@ -3,19 +3,19 @@ use crate::vector::Vec2f;
 use specs::prelude::*;
 use specs::Component;
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 #[storage(VecStorage)]
 pub struct Pos(pub Vec2f);
 
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone, Copy)]
 #[storage(VecStorage)]
 pub struct Vel(pub Vec2f);
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 #[storage(VecStorage)]
 pub struct Theta(pub f64);
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 #[storage(VecStorage)]
 pub struct Omega(pub f64);
 
