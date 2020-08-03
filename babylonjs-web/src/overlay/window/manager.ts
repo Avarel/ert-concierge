@@ -106,11 +106,11 @@ export class Name extends AbstractBody<HTMLDivElement, never> {
         super(parent, createElement("div", ["name"]));
     }
 
-    set value(new_name: string | null) {
+    set text(new_name: string | null) {
         this.bodyElement.textContent = new_name
     }
 
-    get value(): string | null {
+    get text(): string | null {
         return this.bodyElement.textContent
     }
 }
@@ -135,12 +135,10 @@ export class Input extends AbstractBody<HTMLInputElement> {
         super(parent, createElement("input"));
         this.bodyElement.setAttribute("type", type);
         this.type = type;
-        let callbackWrapper = () => this.callback?.(this.value, this);
-        this.bodyElement.onblur = callbackWrapper;
         this.bodyElement.onkeydown = (event) => {
             if (event.keyCode === 13) {
                 event.preventDefault();
-                callbackWrapper();
+                callback?.(this.value, this);
             }
         };
     }

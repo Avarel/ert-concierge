@@ -70,10 +70,9 @@ export class Renderer {
         helper!.skybox!.isPickable = false;
         helper!.setMainColor(BABYLON.Color3.FromHexString("#909090"));
 
-        // var vrHelper = scene.createDefaultVRExperience({ createDeviceOrientationCamera: false });
-        // vrHelper.enableTeleportation({ floorMeshes: [helper!.ground!] });
-        
-        return new RendererView(this, canvas, scene, camera);
+        let view = new RendererView(this, canvas, scene, camera);
+        this.views.push(view);
+        return view;
     }
 
     start() {

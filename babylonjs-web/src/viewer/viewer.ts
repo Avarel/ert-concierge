@@ -31,12 +31,41 @@ export namespace Viewer {
                 box.addP("Pug/SCSS/TypeScript + Webpack");
             });
             body.addBox((box) => {
-                box.addH1("Back=end");
+                box.addH1("Back-end");
                 box.addP("Rust");
             });
         });
     });
     rightDrawerUI.showTab("about");
+
+    rightDrawerUI.addTab("example", "Example", (tab) => {
+        tab.addHeader((header) => {
+            header.addH1("Example Controls");
+            header.addP("Some Subtitle");
+        });
+        tab.addBody((body) => {
+            body.addBox((box) => {
+                box.addEntry((entry) => {
+                    entry.name.text = "Example Input"
+                    entry.value.addTextInput((value) => {
+                        alert(value);
+                    });
+                });
+                box.addEntry((entry) => {
+                    entry.name.text = "Multi-input"
+                    entry.value.addTextInput((value) => {
+                        alert(value);
+                    });
+                    entry.value.addTextInput((value) => {
+                        alert(value);
+                    });
+                    entry.value.addTextInput((value) => {
+                        alert(value);
+                    });
+                });
+            });
+        });
+    });
 
     export function start() {
         const queries = new URLSearchParams(window.location.search);
@@ -63,9 +92,7 @@ export namespace Viewer {
         let client = new ConciergeAPI.Client(name, serverURL, true);
 
         let view = renderer.createView(canvas);
-        renderer.views.push(view);
         // let secondView = renderer.createView(document.querySelector<HTMLCanvasElement>("canvas#renderCanvas2")!);
-        // renderer.views.push(secondView);
     
         // simulations
         let physicsHandler = new PhysicsHandler(client, view);
