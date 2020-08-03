@@ -6,7 +6,7 @@ import { ChatHandler } from "./chat_handler";
 import { PlanetsHandler } from "./sims/planetary_sim/planets_handler";
 import { UsersHandler } from "./users_handler";
 import { Renderer } from "./renderer";
-import { Chat, Sidebar, Drawer } from "../overlay/mod";
+import { Chat, Sidebar, Drawer, Views } from "../overlay/mod";
 
 export namespace Viewer {
     let leftDrawerUI = new Drawer.UI(document.querySelector<HTMLElement>(".window#chat-window")!);
@@ -14,25 +14,25 @@ export namespace Viewer {
 
     rightDrawerUI.addTab("about", "About", (tab) => {
         tab.addHeader((header) => {
-            header.addH1("ERT Concierge / BabylonJS Front-end");
-            header.addP("SURF 2020 / OVRAS");
+            header.add("h2", "ERT Concierge / BabylonJS Front-end");
+            header.add("p", "SURF 2020 / OVRAS");
         });
         tab.addBody((body) => {
             body.addBox((box) => {
-                box.addH1("An Tran");
-                box.addP("Intern");
+                box.add("h2", "An Tran");
+                box.add("p", "Intern");
             });
             body.addBox((box) => {
-                box.addH1("Santiago Lombeyda");
-                box.addP("Mentor");
+                box.add("h2", "Santiago Lombeyda");
+                box.add("p", "Mentor");
             });
             body.addBox((box) => {
-                box.addH1("Front-end");
-                box.addP("Pug/SCSS/TypeScript + Webpack");
+                box.add("h2", "Front-end");
+                box.add("p", "Pug/SCSS/TypeScript + Webpack");
             });
             body.addBox((box) => {
-                box.addH1("Back-end");
-                box.addP("Rust");
+                box.add("h2", "Back-end");
+                box.add("p", "Rust");
             });
         });
     });
@@ -40,8 +40,30 @@ export namespace Viewer {
 
     rightDrawerUI.addTab("example", "Example", (tab) => {
         tab.addHeader((header) => {
-            header.addH1("Example Controls");
-            header.addP("Some Subtitle");
+            header.addBox((box) => {
+                box.add("p", "Some Subtitle");
+            })
+            header.add("h1", "Example Controls");
+            header.add("p", "Some Subtitle");
+
+            header.addEntry((entry) => {
+                entry.name.text = "Example Input"
+                entry.value.addTextInput((value) => {
+                    alert(value);
+                });
+            });
+            header.addEntry((entry) => {
+                entry.name.text = "Multi-input"
+                entry.value.addTextInput((value) => {
+                    alert(value);
+                });
+                entry.value.addTextInput((value) => {
+                    alert(value);
+                });
+                entry.value.addTextInput((value) => {
+                    alert(value);
+                });
+            });
         });
         tab.addBody((body) => {
             body.addBox((box) => {
@@ -80,29 +102,36 @@ export namespace Viewer {
             throw alert("Malformed username!")
         }
     
-        let canvas = document.querySelector<HTMLCanvasElement>("canvas#renderCanvas");
-        if (!canvas) {
-            throw "Canvas is not found!";
-        }
-        canvas.focus();
+        // Setup the main view.
+        let viewManager = new Views.UI(".views");
 
+        let view = viewManager.addView("main");
+        let canvas = document.createElement("canvas");
+        canvas.classList.add("renderCanvas");
+        view.element.appendChild(canvas);
 
+        // let view2 = viewManager.addView("main1");
+        // let canvas2 = document.createElement("canvas");
+        // canvas2.classList.add("renderCanvas");
+        // view2.element.appendChild(canvas2);
+
+        // setup the renderer;
         let renderer = new Renderer();
     
         let client = new ConciergeAPI.Client(name, serverURL, true);
 
-        let view = renderer.createView(canvas);
-        // let secondView = renderer.createView(document.querySelector<HTMLCanvasElement>("canvas#renderCanvas2")!);
+        let rendererView = renderer.createView(canvas);
+        // let rendererView2 = renderer.createView(canvas2);
     
         // simulations
-        let physicsHandler = new PhysicsHandler(client, view);
+        let physicsHandler = new PhysicsHandler(client, rendererView);
         client.handlers.push(physicsHandler);
     
-        let planetHandler = new PlanetsHandler(client, view, rightDrawerUI);
+        let planetHandler = new PlanetsHandler(client, rendererView, rightDrawerUI);
         client.handlers.push(planetHandler);
     
         // chat
-        let chatUI = new Chat.UI(document.querySelector<HTMLElement>("#chat")!);
+        let chatUI = new Chat.UI("#chat");
         let chatHandler = new ChatHandler(client, chatUI);
         client.handlers.push(chatHandler);
     

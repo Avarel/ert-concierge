@@ -10,7 +10,9 @@
         "removeComments": true,
         "suppressImplicitAnyIndexErrors": true,
         "sourceMap": true,
-        "outDir": "./"
+        "outDir": "./",
+        "esModuleInterop": true,
+        "jsx": "react"
     },
     "include": [
         "./src/**/*",

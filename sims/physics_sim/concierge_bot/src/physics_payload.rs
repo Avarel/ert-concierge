@@ -31,6 +31,7 @@ pub enum PhysicsPayload<'a> {
     TouchEntity { id: Uuid },
     EntityDump { entities: Vec<EntityDump> },
     EntityNew { entity: EntityDump },
+    EntityDelete { id: Uuid },
     PositionDump { updates: Vec<EntityUpdate> },
     ColorUpdate { id: Uuid, color: RgbColor },
     Reserved {

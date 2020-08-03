@@ -44,17 +44,18 @@ impl<'a> System<'a> for GravitySys {
                 panic!("Warning! Two entities in gravity pair are the same!");
             }
 
-            let (Vel(vel1), &Pos(pos1), _) = joiner.get(*entity1, &entities).unwrap();
-            let (Vel(vel2), &Pos(pos2), &Mass(mass2)) = joiner.get(*entity2, &entities).unwrap();
-
-            let rv = pos2 - pos1;
-            let r = rv.norm();
-            if r > 1.0 {
-                let g = gravity* mass2 / r.powi(2);
-                let gv = g * rv.normalize(); // gravity vector
-                let impulse = gv * dt;
-                *vel1 += impulse;
-                *vel2 -= impulse;
+            if let Some((Vel(vel1), &Pos(pos1), _)) = joiner.get(*entity1, &entities) {
+                if let Some((Vel(vel2), &Pos(pos2), &Mass(mass2))) = joiner.get(*entity2, &entities) {
+                    let rv = pos2 - pos1;
+                    let r = rv.norm();
+                    if r > 1.0 {
+                        let g = gravity* mass2 / r.powi(2);
+                        let gv = g * rv.normalize(); // gravity vector
+                        let impulse = gv * dt;
+                        *vel1 += impulse;
+                        *vel2 -= impulse;
+                    }
+                }
             }
         }
     }

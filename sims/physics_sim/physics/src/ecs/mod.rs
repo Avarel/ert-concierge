@@ -14,8 +14,12 @@ pub struct DeltaTime(pub Duration);
 pub struct Rgb(pub u8, pub u8, pub u8);
 
 #[derive(Component, Copy, Clone)]
-#[storage(DenseVecStorage)]
+#[storage(VecStorage)]
 pub struct Id(pub Uuid);
+
+#[derive(Component, Copy, Clone)]
+#[storage(VecStorage)]
+pub struct Owner(pub Uuid);
 
 impl Id {
     pub fn random() -> Self {

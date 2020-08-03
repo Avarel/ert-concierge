@@ -27,21 +27,21 @@ export class HTMLBody<K extends keyof HTMLElementTagNameMap> extends AbstractBod
     }
 }
 
-abstract class TabSection extends AbstractBody<HTMLDivElement, Box | HTMLBody<keyof HTMLElementTagNameMap>> {
+abstract class TabSection extends AbstractBody<HTMLDivElement, Box | Entry | HTMLBody<keyof HTMLElementTagNameMap>> {
     constructor(parent: AbstractBody | undefined, body: HTMLDivElement) {
         super(parent, body)
+    }
+
+    addEntry(callback?: (entry: Entry) => void): Entry {
+        return this.addChild(new Entry(this), callback);
     }
 
     addBox(callback?: (box: Box) => void): Box {
         return this.addChild(new Box(this), callback);
     }
 
-    addH1(string: string) {
-        this.addChild(new HTMLBody(this, "h1", [])).bodyElement.textContent = string;
-    }
-
-    addP(string: string) {
-        this.addChild(new HTMLBody(this, "p", [])).bodyElement.textContent = string;
+    add(tag: keyof HTMLElementTagNameMap, string: string) {
+        this.addChild(new HTMLBody(this, tag, [])).bodyElement.textContent = string;
     }
 }
 
@@ -72,12 +72,8 @@ export class Box extends AbstractBody<HTMLDivElement, Entry | HTMLBody<keyof HTM
         return this.addChild(new Entry(this), callback);
     }
 
-    addH1(string: string) {
-        this.addChild(new HTMLBody(this, "h1", [])).bodyElement.textContent = string;
-    }
-
-    addP(string: string) {
-        this.addChild(new HTMLBody(this, "p", [])).bodyElement.textContent = string;
+    add(tag: keyof HTMLElementTagNameMap, string: string) {
+        this.addChild(new HTMLBody(this, tag, [])).bodyElement.textContent = string;
     }
 }
 

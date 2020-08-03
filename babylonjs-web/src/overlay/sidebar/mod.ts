@@ -1,12 +1,7 @@
 import "./style.scss";
 import tippy, { Props, Instance } from "tippy.js";
 import "tippy.js/dist/tippy.css";
-
-function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: string[] = []): HTMLElementTagNameMap[K] {
-    let div = document.createElement(tag);
-    div.classList.add(...classes);
-    return div;
-}
+import { createElement } from "../mod";
 
 export module Sidebar {
     export class Icon {

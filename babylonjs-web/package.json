@@ -5,9 +5,13 @@
         "start": "webpack-dev-server --open --config webpack.dev.js --hot"
     },
     "dependencies": {
+        "react": "^16.13.1",
+        "react-dom": "^16.13.1",
         "tippy.js": "^6.2.6"
     },
     "devDependencies": {
+        "@types/react": "^16.9.44",
+        "@types/react-dom": "^16.9.8",
         "babylonjs": "^4.2.0-alpha.27",
         "babylonjs-gui": "^4.2.0-alpha.27",
         "css-loader": "^3.6.0",

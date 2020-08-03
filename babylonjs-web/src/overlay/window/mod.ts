@@ -1,11 +1,7 @@
 import "./style.scss";
 import { AbstractBody, Header, Body } from "./manager";
-
-export function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: string[] = []): HTMLElementTagNameMap[K] {
-    let div = document.createElement(tag);
-    div.classList.add(...classes);
-    return div;
-}
+import { createElement } from "../mod";
+export { createElement };
 
 export module Drawer {
     export class Tab extends AbstractBody {
@@ -77,12 +73,16 @@ export module Drawer {
 
         /** Add a populated tab. */
         addPopulatedTab(tag: string, label: string, tabBody: HTMLElement): Tab {
-            let tabHeader = createElement("div", ["window-header-tab"]);
+            if (this.tabs.has(tag)) {
+                throw new Error("Tab " + tag + " already exists!");
+            }
+
+            const tabHeader = createElement("div", ["window-header-tab"]);
             tabHeader.innerText = label;
             this.headerElement.appendChild(tabHeader);
             this.bodyElement.appendChild(tabBody);
 
-            let tab = new Tab(tag, tabHeader, tabBody);
+            const tab = new Tab(tag, tabHeader, tabBody);
             this.tabs.set(tag, tab);
 
             tabHeader.addEventListener("click", () => {
@@ -95,19 +95,12 @@ export module Drawer {
 
         /** Add an empty tab. */
         addTab(tag: string, label: string, callback: (tab: Tab) => void): Tab {
-            const tabHeader = createElement("div", ["window-header-tab"]);
-            tabHeader.innerText = label;
-            this.headerElement.appendChild(tabHeader);
+            if (this.tabs.has(tag)) {
+                throw new Error("Tab " + tag + " already exists!");
+            }
+            
             const tabBody = createElement("div", ["window-tab"]);
-            this.bodyElement.appendChild(tabBody);
-
-            let tab = new Tab(tag, tabHeader, tabBody);
-            this.tabs.set(tag, tab);
-
-            tabHeader.addEventListener("click", () => {
-                this.show(true);
-                this.showTab(tag!);
-            });
+            let tab = this.addPopulatedTab(tag, label, tabBody);
 
             callback?.(tab);
 

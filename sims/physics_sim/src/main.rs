@@ -12,6 +12,7 @@ use std::{
     time::Duration,
 };
 use tokio::{sync::RwLock, time::delay_for};
+use uuid::Uuid;
 
 pub const MS_DT: u64 = 20;
 pub const MS_SIM_INTERVAL: u64 = 10;
@@ -20,6 +21,8 @@ pub const MS_SIM_INTERVAL: u64 = 10;
 async fn main() -> Result<(), String> {
     let mut world = World::new();
     world.register::<Id>();
+    world.register::<Owner>();
+
     world.register::<Pos>();
     world.register::<Vel>();
 
@@ -67,6 +70,7 @@ async fn system_loop(running: Arc<AtomicBool>, aworld: Arc<RwLock<World>>) {
         // .with(Acc::default())
         // .with(Omega(3.14))
         .with(Mass(500.0))
+        .with(Owner(Uuid::nil()))
         .with(Shape(body.clone()))
         .with(Rgb(0, 255, 0))
         .build();
@@ -81,6 +85,7 @@ async fn system_loop(running: Arc<AtomicBool>, aworld: Arc<RwLock<World>>) {
         // .with(Acc::default())
         // .with(Omega(1.57))
         .with(Mass(500.0))
+        .with(Owner(Uuid::nil()))
         .with(Shape(body.clone()))
         .with(Rgb(0, 0, 255))
         .build();
@@ -94,6 +99,7 @@ async fn system_loop(running: Arc<AtomicBool>, aworld: Arc<RwLock<World>>) {
         .with(Pos(body.centroid()))
         .with(Vel((0.0, 50.0).into()))
         .with(Mass(500.0))
+        .with(Owner(Uuid::nil()))
         .with(Shape(body))
         .with(Rgb(255, 0, 0))
         .build();

@@ -3,10 +3,11 @@ import { Vector3 } from 'babylonjs';
 
 export class RendererView {
     isFocused: boolean = false;
+
     constructor(
         protected renderer: Renderer,
         public canvas: HTMLCanvasElement,
-        public scene: BABYLON.Scene, 
+        public scene: BABYLON.Scene,
         public camera: BABYLON.Camera
     ) {
         renderer.engine.registerView(canvas, camera);
@@ -20,7 +21,11 @@ export class RendererView {
         canvas.addEventListener("blur", () => {
             this.detachControl();
             this.isFocused = false;
-        })
+        });
+
+        if (this.renderer.engine.inputElement == null) {
+            canvas.click();
+        }
     }
 
     attachControl() {
@@ -50,13 +55,13 @@ export class Renderer {
         let scene = new BABYLON.Scene(this.engine);
         let camera = new BABYLON.UniversalCamera("UniversalCamera", new Vector3(0, 10, -10), scene);
         camera.setTarget(new Vector3(0, 0, 0));
-        camera.speed = 0.5;
-        camera.keysDownward.push(17);   //CTRL
-        camera.keysUpward.push(32);     //SPACE
-        camera.keysUp.push(87);         //W
-        camera.keysDown.push(83)        //D
-        camera.keysLeft.push(65);       //A
-        camera.keysRight.push(68);      //S
+        camera.speed = 0.5;                 // KEYS:
+        camera.keysDownward.push(17, 16);   // CTRL, SHIFT
+        camera.keysUpward.push(32);         // SPACE
+        camera.keysUp.push(87, 38);         // W, UP
+        camera.keysDown.push(83, 40)        // D, DOWN
+        camera.keysLeft.push(65, 37);       // A, LEFT
+        camera.keysRight.push(68, 39);      // S, RIGHT
 
         let light = new BABYLON.PointLight("light1", new BABYLON.Vector3(0, 500, 0), scene);
         light.intensity = 1.0;

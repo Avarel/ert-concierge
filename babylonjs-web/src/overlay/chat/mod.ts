@@ -1,10 +1,5 @@
 import "./style.scss";
-
-function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: string[] = []): HTMLElementTagNameMap[K] {
-    let div = document.createElement(tag);
-    div.classList.add(...classes);
-    return div;
-}
+import { createElement } from "../mod";
 
 export module Chat {
     export interface Message {
@@ -14,11 +9,24 @@ export module Chat {
     }
 
     export class UI {
+        rootElement: HTMLElement;
         messagesElement!: HTMLDivElement;
         messages: Message[] = [];
         onEnter?: (text: string) => void;
 
-        constructor(public rootElement: HTMLElement) {
+        constructor(rootElement: HTMLElement | string) {
+            if (rootElement == undefined) {
+                throw new Error("Root element must not be null!");
+            } else if (typeof rootElement == "string") {
+                let element = document.querySelector<HTMLElement>(rootElement);
+                if (!element) {
+                    throw new Error("Query selector " + rootElement + " return null!");
+                }
+                this.rootElement = element;
+            } else {
+                this.rootElement = rootElement;
+            }
+
             this.setup();
         }
 

@@ -2,10 +2,18 @@ use crate::physics_payload::{EntityDump, EntityUpdate, Payload, PhysicsPayload};
 use anyhow::Result;
 use concierge_api_rs::payload::{ClientPayload, Origin, Target};
 use cs3_physics::{
-    ecs::{colliders::{ColliderList, Shape, ColliderPair}, kinetics::{Vel, Pos}, Id, Rgb, dynamics::{GravityList, Mass, GravityPair}},
+    ecs::{
+        colliders::{ColliderList, ColliderPair, Shape},
+        dynamics::{GravityList, GravityPair, Mass},
+        kinetics::{Pos, Vel},
+        Id, Owner, Rgb,
+    },
+    polygon::Polygon,
     specs::prelude::*,
+    vector::Vec2f,
 };
 use futures::{SinkExt, Stream, StreamExt};
+use palette;
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -28,6 +36,27 @@ pub const MS_SEND_INTERVAL: u64 = 20;
 pub const GROUP_TARGET: Target = Target::Group {
     group: crate::PHYSICS_ENGINE_GROUP,
 };
+
+fn color_from_string_hash(string: &str) -> (u8, u8, u8) {
+    fn js_hash_string(string: &str) -> u32 {
+        let mut hash = 0;
+        for c in string.chars() {
+            hash = ((hash << 5) - hash) + c as u32;
+            hash |= 0;
+        }
+        return hash;
+    }
+
+    let hash = js_hash_string(string);
+    let h = hash % 360;
+    let hsv = palette::Hsv::new(h as f32, 1.0, 0.25);
+    let rgb = palette::LinSrgb::from(hsv);
+    return (
+        (rgb.red * 255.0) as u8,
+        (rgb.green * 255.0) as u8,
+        (rgb.blue * 255.0) as u8,
+    );
+}
 
 pub async fn init_bot(running: Arc<AtomicBool>, world: Arc<RwLock<World>>) -> Result<()> {
     let connect_addr = std::env::args()
@@ -114,41 +143,96 @@ pub async fn recv_loop<T>(
 ) {
     while let Some(Ok(msg)) = stream.next().await {
         if let Ok(string) = msg.to_text() {
-            // println!("{}", string);
             match serde_json::from_str::<Payload>(string) {
                 Ok(Payload::Message {
                     data: PhysicsPayload::FetchEntities,
-                    origin:
-                        Some(Origin {
-                            client: ClientPayload { uuid, .. },
-                            ..
-                        }),
+                    origin: Some(Origin { client, .. }),
                     ..
                 }) => {
-                    let world = world.read().await;
-                    let id = world.read_component::<Id>();
-                    let shape = world.read_component::<Shape>();
-                    let color = world.read_component::<Rgb>();
+                    let mut world = world.write().await;
 
-                    let entities = (&id, &shape, &color)
-                        .par_join()
-                        .map(|(id, shape, rgb)| EntityDump {
-                            id: id.0.to_owned(),
-                            polygon: shape.0.clone(),
-                            color: (rgb.0, rgb.1, rgb.2),
-                        })
-                        .collect::<Vec<_>>();
+                    /* Delete your current entitties. */
+                    {
+                        let entities = world.entities();
+                        let owners = world.read_component::<Owner>();
+                        let to_delete = (&entities, &owners)
+                            .par_join()
+                            .filter(|(_, owner)| owner.0 == client.uuid)
+                            .map(|(ent, _)| ent)
+                            .collect::<Vec<_>>();
 
-                    let _ = tx.send(Message::text(
-                        serde_json::to_string(&Payload::Message {
-                            origin: None,
-                            target: Target::Uuid { uuid },
-                            data: PhysicsPayload::EntityDump {
-                                entities: entities.clone(),
-                            },
-                        })
-                        .unwrap(),
-                    ));
+                        for entity in to_delete {
+                            let _ = entities.delete(entity);
+                        }
+                    }
+
+                    /* Broadcast all existing entitites. */
+                    {
+                        let id = world.read_component::<Id>();
+                        let shape = world.read_component::<Shape>();
+                        let color = world.read_component::<Rgb>();
+
+                        let entities = (&id, &shape, &color)
+                            .par_join()
+                            .map(|(id, shape, rgb)| EntityDump {
+                                id: id.0.to_owned(),
+                                polygon: shape.0.clone(),
+                                color: (rgb.0, rgb.1, rgb.2),
+                            })
+                            .collect::<Vec<_>>();
+
+                        let _ = tx.send(Message::text(
+                            serde_json::to_string(&Payload::Message {
+                                origin: None,
+                                target: Target::Uuid { uuid: client.uuid },
+                                data: PhysicsPayload::EntityDump {
+                                    entities: entities.clone(),
+                                },
+                            })
+                            .unwrap(),
+                        ));
+                    }
+
+                    // /* Create new entity. */
+                    // {
+                    //     let mut body = Polygon::new(vec![
+                    //         Vec2f::new(100.0, 100.0),
+                    //         Vec2f::new(150.0, 100.0),
+                    //         Vec2f::new(150.0, 150.0),
+                    //         Vec2f::new(100.0, 150.0),
+                    //     ]);
+                    //     body.translate((200.0, 0.0).into());
+                    //     let color = color_from_string_hash(&client.name);
+
+                    //     let id = Id::random();
+
+                    //     world
+                    //         .create_entity()
+                    //         .with(id)
+                    //         .with(Pos(body.centroid()))
+                    //         .with(Mass(500.0))
+                    //         .with(Vel((0.0, 0.0).into()))
+                    //         .with(Owner(client.uuid))
+                    //         .with(Shape(body.clone()))
+                    //         .with(Rgb(color.0, color.1, color.2))
+                    //         .build();
+
+                    //     tx.send(Message::text(
+                    //         serde_json::to_string(&Payload::Message {
+                    //             origin: None,
+                    //             target: GROUP_TARGET,
+                    //             data: PhysicsPayload::EntityNew {
+                    //                 entity: EntityDump {
+                    //                     id: id.0,
+                    //                     polygon: body,
+                    //                     color: (color.0, color.1, color.2),
+                    //                 },
+                    //             },
+                    //         })
+                    //         .unwrap(),
+                    //     ))
+                    //     .unwrap();
+                    // }
                 }
                 Ok(Payload::Message {
                     data: PhysicsPayload::ToggleColor { id },
@@ -186,6 +270,7 @@ pub async fn recv_loop<T>(
                 }
                 Ok(Payload::Message {
                     data: PhysicsPayload::TouchEntity { id },
+                    origin: Some(Origin { client, .. }),
                     ..
                 }) => {
                     let mut world = world.write().await;
@@ -200,14 +285,54 @@ pub async fn recv_loop<T>(
                     drop(ids);
 
                     if let Some(touched_entity) = touched_entity {
+                        let owners = world.read_component::<Owner>();
+                        let delete = owners
+                            .get(touched_entity)
+                            .map(|owner| owner.0 != client.uuid)
+                            .unwrap_or(true);
+                        drop(owners);
+
+                        if delete {
+                            // {
+                            //     let mut list = world.write_resource::<ColliderList>();
+                            //     list.0.retain(|pair| {
+                            //         pair.entity.0 != touched_entity && pair.entity.1 != touched_entity
+                            //     });
+
+                            //     let mut list = world.write_resource::<GravityList>();
+                            //     list.0.retain(|pair| {
+                            //         pair.entity.0 != touched_entity && pair.entity.1 != touched_entity
+                            //     });
+                            // }
+
+                            // tx.send(Message::text(
+                            //     serde_json::to_string(&Payload::Message {
+                            //         origin: None,
+                            //         target: GROUP_TARGET,
+                            //         data: PhysicsPayload::EntityDelete { id },
+                            //     })
+                            //     .unwrap(),
+                            // ))
+                            // .unwrap();
+
+                            // drop(entities);
+                            // world.delete_entities(&[touched_entity]).unwrap();
+                            let _ = entities.delete(touched_entity);
+
+                            return;
+                        }
+
                         let shapes = world.read_component::<Shape>();
                         let poss = world.read_component::<Pos>();
                         let masss = world.read_component::<Mass>();
                         let colors = world.read_component::<Rgb>();
-                        
+
                         let mut joiner = (&shapes, &poss, &masss, &colors).join();
-                        
-                        if let Some((shape, &pos, &mass, &rgb)) = joiner.get(touched_entity, &entities) {
+
+                        // Create and clone shape!
+                        if let Some((shape, &pos, &mass, &rgb)) =
+                            joiner.get(touched_entity, &entities)
+                        {
                             let shape = shape.clone();
 
                             let entities_to_bind = entities.par_join().collect::<Vec<_>>();
@@ -224,6 +349,7 @@ pub async fn recv_loop<T>(
                                 .with(pos)
                                 .with(mass)
                                 .with(Vel((0.0, 0.0).into()))
+                                .with(Owner(client.uuid))
                                 .with(shape.clone())
                                 .with(rgb)
                                 .build();
@@ -231,8 +357,12 @@ pub async fn recv_loop<T>(
                             let mut gravity = world.write_resource::<GravityList>();
                             let mut colliders = world.write_resource::<ColliderList>();
                             for other_entity in entities_to_bind {
-                                gravity.0.push(GravityPair::new(6.673e3, entity, other_entity));
-                                colliders.0.push(ColliderPair::new(1.0, entity, other_entity));
+                                gravity
+                                    .0
+                                    .push(GravityPair::new(6.673e3, entity, other_entity));
+                                colliders
+                                    .0
+                                    .push(ColliderPair::new(1.0, entity, other_entity));
                             }
 
                             tx.send(Message::text(
@@ -243,12 +373,13 @@ pub async fn recv_loop<T>(
                                         entity: EntityDump {
                                             id: id.0,
                                             polygon: shape.0,
-                                            color: (rgb.0, rgb.1, rgb.2)
-                                        }
+                                            color: (rgb.0, rgb.1, rgb.2),
+                                        },
                                     },
                                 })
                                 .unwrap(),
-                            )).unwrap();
+                            ))
+                            .unwrap();
                         }
                     }
                 }

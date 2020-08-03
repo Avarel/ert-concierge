@@ -53,6 +53,11 @@ namespace PhysicsPayloads {
         entity: Entity
     }
 
+    export interface EntityDelete {
+        type: "ENTITY_DELETE",
+        id: string,
+    }
+
     export interface PositionDump {
         type: "POSITION_DUMP"
         updates: EntityUpdate[]
@@ -65,7 +70,7 @@ namespace PhysicsPayloads {
 
     export type Payload = EntityDump | PositionDump
         | FetchEntities | FetchPositions
-        | ColorUpdate | ToggleColor | TouchEntity | EntityNew;
+        | ColorUpdate | ToggleColor | TouchEntity | EntityNew | EntityDelete;
 }
 type PhysicsPayload = PhysicsPayloads.Payload;
 
@@ -117,6 +122,10 @@ class PolygonShape {
 
         this.mesh.position.addInPlace(translate);
         this.centroid.set(point.x, point.y, point.z);
+    }
+
+    dispose() {
+        this.mesh.dispose();
     }
 }
 
@@ -172,7 +181,7 @@ export class PhysicsHandler extends ServiceEventHandler {
             if (this.shapes.has(key)) {
                 let shape = this.shapes.get(key)!;
                 // this.renderer.shadowGenerator?.removeShadowCaster(shape.mesh);
-                shape.mesh.dispose();
+                shape.dispose();
                 this.shapes.delete(key);
             }
         }
@@ -207,6 +216,14 @@ export class PhysicsHandler extends ServiceEventHandler {
         );
     }
 
+    private removeShape(id: string) {
+        let shape = this.shapes.get(id);
+        if (shape) {
+            shape.dispose();
+            this.shapes.delete(id);
+        }
+    }
+
     private updateShape(id: string, centroid: Vec2f) {
         let shape = this.shapes.get(id);
         if (shape) {
@@ -227,6 +244,9 @@ export class PhysicsHandler extends ServiceEventHandler {
             case "ENTITY_NEW":
                 let entity = payload.entity;
                 this.createShape(entity.id, entity.centroid, entity.points, entity.color);
+                break;
+            case "ENTITY_DELETE":
+                this.removeShape(payload.id);
                 break;
             case "ENTITY_DUMP":
                 // console.log("RECV", JSON.stringify(payload));

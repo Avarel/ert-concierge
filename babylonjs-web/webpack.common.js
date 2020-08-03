@@ -1,35 +1,37 @@
 const path = require("path");
-const HtmlWebpackPlugin = require('html-webpack-plugin');
+const HtmlWebpackPlugin = require("html-webpack-plugin");
 
 module.exports = {
     entry: {
-        login: './src/login/login.ts',
-        viewer: './src/viewer/viewer.ts'
+        login: "./src/login/login.ts",
+        viewer: "./src/viewer/viewer.ts"
     },
     output: {
-        filename: '[name].bundle.js',
-        chunkFilename: '[name].bundle.js',
-        path: path.resolve(__dirname, 'dist')
+        filename: "[name].bundle.js",
+        chunkFilename: "[name].bundle.js",
+        path: path.resolve(__dirname, "dist")
     },
     externals: {
-        'babylonjs': "BABYLON",
-        'babylonjs-gui': "BABYLON.GUI"
+        "babylonjs": "BABYLON",
+        "babylonjs-gui": "BABYLON.GUI",
+        "react": "React",
+        "react-dom": "ReactDOM"
     },
     plugins: [
         new HtmlWebpackPlugin({
-            template: './src/login/login.pug',
-            scriptLoading: 'defer',
+            template: "./src/login/login.pug",
+            scriptLoading: "defer",
             chunks: ["login"]
         }),
         new HtmlWebpackPlugin({
-            filename: 'viewer.html',
-            template: './src/viewer/viewer.pug',
-            scriptLoading: 'defer',
+            filename: "viewer.html",
+            template: "./src/viewer/viewer.pug",
+            scriptLoading: "defer",
             chunks: ["viewer"]
         })
     ],
     resolve: {
-        extensions: [".ts", ".js", ".scss", ".css",  ".pug", ".html"]
+        extensions: [".ts", ".tsx", ".js", ".scss", ".css",  ".pug", ".html"]
     },
     module: {
         rules: [
@@ -38,22 +40,22 @@ module.exports = {
                 loader: "ts-loader"
             },
             {
-                test: /\.css$/i,
-                use: ['style-loader', 'css-loader'],
+                test: /\.css$/,
+                use: ["style-loader", "css-loader"],
             },
             {
                 test: /\.s[ac]ss$/,
-                use: ['style-loader', 'css-loader', 'sass-loader']
+                use: ["style-loader", "css-loader", "sass-loader"]
             },
             {
                 test: /\.pug$/,
-                loaders: ['pug-loader']
+                loaders: ["pug-loader"]
             }
         ]
     },
     optimization: {
         splitChunks: {
-            chunks: 'all',
+            chunks: "all",
         },
     },
 };
