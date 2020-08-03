@@ -2,12 +2,17 @@ doctype html
 head
     title ERT Concierge: Babylon
     meta(name="viewport", content="width=device-width, initial-scale=1")
+    //- Misc stylesheets
     link(rel="stylesheet", href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css")
     link(rel="stylesheet", href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.14.0/css/all.min.css")
     link(rel="stylesheet", href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;700&display=swap")
+    //- BabylonJS
     script(defer, src="https://preview.babylonjs.com/earcut.min.js")
     script(defer, src="https://preview.babylonjs.com/babylon.js")
     script(defer, src="https://cdn.babylonjs.com/gui/babylon.gui.min.js")
+    //- ReactJS
+    script(defer, crossorigin, src="https://unpkg.com/react@16/umd/react.production.min.js")
+    script(defer, crossorigin, src="https://unpkg.com/react-dom@16/umd/react-dom.production.min.js")
 body
     .sidebar#users
     .window.left#chat-window

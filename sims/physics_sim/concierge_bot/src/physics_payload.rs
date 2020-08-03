@@ -27,11 +27,12 @@ pub struct EntityUpdate {
 pub enum PhysicsPayload<'a> {
     FetchEntities,
     FetchPositions,
+    SpawnEntity,
     ToggleColor { id: Uuid },
     TouchEntity { id: Uuid },
     EntityDump { entities: Vec<EntityDump> },
     EntityNew { entity: EntityDump },
-    EntityDelete { id: Uuid },
+    EntityDelete { ids: Vec<Uuid> },
     PositionDump { updates: Vec<EntityUpdate> },
     ColorUpdate { id: Uuid, color: RgbColor },
     Reserved {

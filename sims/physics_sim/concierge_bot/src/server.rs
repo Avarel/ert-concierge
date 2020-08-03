@@ -1,6 +1,9 @@
 use crate::physics_payload::{EntityDump, EntityUpdate, Payload, PhysicsPayload};
 use anyhow::Result;
-use concierge_api_rs::payload::{ClientPayload, Origin, Target};
+use concierge_api_rs::{
+    payload::{ClientPayload, Origin, Target},
+    status::StatusPayload,
+};
 use cs3_physics::{
     ecs::{
         colliders::{ColliderList, ColliderPair, Shape},
@@ -19,7 +22,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    time::Duration,
+    time::{UNIX_EPOCH, Duration, SystemTime},
 };
 use tokio::{
     sync::{
@@ -49,7 +52,7 @@ fn color_from_string_hash(string: &str) -> (u8, u8, u8) {
 
     let hash = js_hash_string(string);
     let h = hash % 360;
-    let hsv = palette::Hsv::new(h as f32, 1.0, 0.25);
+    let hsv = palette::Hsv::new(h as f32, 1.0, 0.50);
     let rgb = palette::LinSrgb::from(hsv);
     return (
         (rgb.red * 255.0) as u8,
@@ -145,246 +148,319 @@ pub async fn recv_loop<T>(
         if let Ok(string) = msg.to_text() {
             match serde_json::from_str::<Payload>(string) {
                 Ok(Payload::Message {
-                    data: PhysicsPayload::FetchEntities,
+                    data,
                     origin: Some(Origin { client, .. }),
                     ..
                 }) => {
-                    let mut world = world.write().await;
-
-                    /* Delete your current entitties. */
-                    {
-                        let entities = world.entities();
-                        let owners = world.read_component::<Owner>();
-                        let to_delete = (&entities, &owners)
-                            .par_join()
-                            .filter(|(_, owner)| owner.0 == client.uuid)
-                            .map(|(ent, _)| ent)
-                            .collect::<Vec<_>>();
-
-                        for entity in to_delete {
-                            let _ = entities.delete(entity);
-                        }
-                    }
-
-                    /* Broadcast all existing entitites. */
-                    {
-                        let id = world.read_component::<Id>();
-                        let shape = world.read_component::<Shape>();
-                        let color = world.read_component::<Rgb>();
-
-                        let entities = (&id, &shape, &color)
-                            .par_join()
-                            .map(|(id, shape, rgb)| EntityDump {
-                                id: id.0.to_owned(),
-                                polygon: shape.0.clone(),
-                                color: (rgb.0, rgb.1, rgb.2),
-                            })
-                            .collect::<Vec<_>>();
-
-                        let _ = tx.send(Message::text(
-                            serde_json::to_string(&Payload::Message {
-                                origin: None,
-                                target: Target::Uuid { uuid: client.uuid },
-                                data: PhysicsPayload::EntityDump {
-                                    entities: entities.clone(),
-                                },
-                            })
-                            .unwrap(),
-                        ));
-                    }
-
-                    // /* Create new entity. */
-                    // {
-                    //     let mut body = Polygon::new(vec![
-                    //         Vec2f::new(100.0, 100.0),
-                    //         Vec2f::new(150.0, 100.0),
-                    //         Vec2f::new(150.0, 150.0),
-                    //         Vec2f::new(100.0, 150.0),
-                    //     ]);
-                    //     body.translate((200.0, 0.0).into());
-                    //     let color = color_from_string_hash(&client.name);
-
-                    //     let id = Id::random();
-
-                    //     world
-                    //         .create_entity()
-                    //         .with(id)
-                    //         .with(Pos(body.centroid()))
-                    //         .with(Mass(500.0))
-                    //         .with(Vel((0.0, 0.0).into()))
-                    //         .with(Owner(client.uuid))
-                    //         .with(Shape(body.clone()))
-                    //         .with(Rgb(color.0, color.1, color.2))
-                    //         .build();
-
-                    //     tx.send(Message::text(
-                    //         serde_json::to_string(&Payload::Message {
-                    //             origin: None,
-                    //             target: GROUP_TARGET,
-                    //             data: PhysicsPayload::EntityNew {
-                    //                 entity: EntityDump {
-                    //                     id: id.0,
-                    //                     polygon: body,
-                    //                     color: (color.0, color.1, color.2),
-                    //                 },
-                    //             },
-                    //         })
-                    //         .unwrap(),
-                    //     ))
-                    //     .unwrap();
-                    // }
+                    handle_message(data, client, &world, &tx).await;
                 }
-                Ok(Payload::Message {
-                    data: PhysicsPayload::ToggleColor { id },
-                    ..
-                }) => {
-                    let world = world.read().await;
-                    let entities = world.entities();
-                    let ids = world.read_component::<Id>();
-                    let mut color = world.write_component::<Rgb>();
-
-                    let touched_entity = (&entities, &ids)
-                        .par_join()
-                        .find_first(|(_, Id(iid))| iid == &id);
-
-                    if let Some((entity, Id(id))) = touched_entity {
-                        if let Some(color) = color.get_mut(entity) {
-                            *color = match color {
-                                Rgb(255, 0, 0) => Rgb(0, 255, 0),
-                                Rgb(0, 255, 0) => Rgb(0, 0, 255),
-                                Rgb(0, 0, 255) | _ => Rgb(255, 0, 0),
-                            };
-                            let _ = tx.send(Message::text(
-                                serde_json::to_string(&Payload::Message {
-                                    origin: None,
-                                    target: GROUP_TARGET,
-                                    data: PhysicsPayload::ColorUpdate {
-                                        id: *id,
-                                        color: (color.0, color.1, color.2),
-                                    },
-                                })
-                                .unwrap(),
-                            ));
-                        }
-                    }
-                }
-                Ok(Payload::Message {
-                    data: PhysicsPayload::TouchEntity { id },
-                    origin: Some(Origin { client, .. }),
+                Ok(Payload::Status {
+                    data: StatusPayload::ClientLeft { data: client },
                     ..
                 }) => {
                     let mut world = world.write().await;
                     let entities = world.entities();
-                    let ids = world.read_component::<Id>();
-
-                    let touched_entity = (&entities, &ids)
+                    let owners = world.read_component::<Owner>();
+                    let to_delete = (&entities, &owners)
                         .par_join()
-                        .find_first(|(_, Id(iid))| iid == &id)
-                        .map(|(e, _)| e.clone());
+                        .filter(|(_, owner)| owner.0 == client.uuid)
+                        .map(|(ent, _)| ent)
+                        .collect::<Vec<_>>();
+                    drop(owners);
+                    drop(entities);
 
+                    let ids = world.read_component::<Id>();
+                    let ids_to_delete = to_delete
+                        .iter()
+                        .filter_map(|ent| ids.get(*ent))
+                        .map(|id| id.0)
+                        .collect::<Vec<_>>();
+        
+                    tx.send(Message::text(
+                        serde_json::to_string(&Payload::Message {
+                            origin: None,
+                            target: GROUP_TARGET,
+                            data: PhysicsPayload::EntityDelete { ids: ids_to_delete },
+                        })
+                        .unwrap(),
+                    ))
+                    .unwrap();
+        
                     drop(ids);
-
-                    if let Some(touched_entity) = touched_entity {
-                        let owners = world.read_component::<Owner>();
-                        let delete = owners
-                            .get(touched_entity)
-                            .map(|owner| owner.0 != client.uuid)
-                            .unwrap_or(true);
-                        drop(owners);
-
-                        if delete {
-                            // {
-                            //     let mut list = world.write_resource::<ColliderList>();
-                            //     list.0.retain(|pair| {
-                            //         pair.entity.0 != touched_entity && pair.entity.1 != touched_entity
-                            //     });
-
-                            //     let mut list = world.write_resource::<GravityList>();
-                            //     list.0.retain(|pair| {
-                            //         pair.entity.0 != touched_entity && pair.entity.1 != touched_entity
-                            //     });
-                            // }
-
-                            // tx.send(Message::text(
-                            //     serde_json::to_string(&Payload::Message {
-                            //         origin: None,
-                            //         target: GROUP_TARGET,
-                            //         data: PhysicsPayload::EntityDelete { id },
-                            //     })
-                            //     .unwrap(),
-                            // ))
-                            // .unwrap();
-
-                            // drop(entities);
-                            // world.delete_entities(&[touched_entity]).unwrap();
-                            let _ = entities.delete(touched_entity);
-
-                            return;
-                        }
-
-                        let shapes = world.read_component::<Shape>();
-                        let poss = world.read_component::<Pos>();
-                        let masss = world.read_component::<Mass>();
-                        let colors = world.read_component::<Rgb>();
-
-                        let mut joiner = (&shapes, &poss, &masss, &colors).join();
-
-                        // Create and clone shape!
-                        if let Some((shape, &pos, &mass, &rgb)) =
-                            joiner.get(touched_entity, &entities)
-                        {
-                            let shape = shape.clone();
-
-                            let entities_to_bind = entities.par_join().collect::<Vec<_>>();
-
-                            drop(joiner);
-                            // drop binding
-                            let _ = (colors, masss, poss, shapes, entities);
-
-                            let id = Id::random();
-
-                            let entity = world
-                                .create_entity()
-                                .with(id)
-                                .with(pos)
-                                .with(mass)
-                                .with(Vel((0.0, 0.0).into()))
-                                .with(Owner(client.uuid))
-                                .with(shape.clone())
-                                .with(rgb)
-                                .build();
-
-                            let mut gravity = world.write_resource::<GravityList>();
-                            let mut colliders = world.write_resource::<ColliderList>();
-                            for other_entity in entities_to_bind {
-                                gravity
-                                    .0
-                                    .push(GravityPair::new(6.673e3, entity, other_entity));
-                                colliders
-                                    .0
-                                    .push(ColliderPair::new(1.0, entity, other_entity));
-                            }
-
-                            tx.send(Message::text(
-                                serde_json::to_string(&Payload::Message {
-                                    origin: None,
-                                    target: GROUP_TARGET,
-                                    data: PhysicsPayload::EntityNew {
-                                        entity: EntityDump {
-                                            id: id.0,
-                                            polygon: shape.0,
-                                            color: (rgb.0, rgb.1, rgb.2),
-                                        },
-                                    },
-                                })
-                                .unwrap(),
-                            ))
-                            .unwrap();
-                        }
-                    }
+        
+                    world.delete_entities(&to_delete).expect("Delete fail");
                 }
                 Ok(_) | Err(_) => {}
             }
         }
+    }
+}
+
+async fn handle_message(
+    data: PhysicsPayload<'_>,
+    client: ClientPayload<'_>,
+    world: &RwLock<World>,
+    tx: &UnboundedSender<Message>,
+) {
+    match data {
+        PhysicsPayload::SpawnEntity => {
+            let mut world = world.write().await;
+            /* Delete all your current entitties. */
+            let entities = world.entities();
+            let owners = world.read_component::<Owner>();
+            let to_delete = (&entities, &owners)
+                .par_join()
+                .filter(|(_, owner)| owner.0 == client.uuid)
+                .map(|(ent, _)| ent)
+                .collect::<Vec<_>>();
+            drop(owners);
+
+            let entities_to_bind = entities.par_join().collect::<Vec<_>>();
+            drop(entities);
+
+            let ids = world.read_component::<Id>();
+            let ids_to_delete = to_delete
+                .iter()
+                .filter_map(|ent| ids.get(*ent))
+                .map(|id| id.0)
+                .collect::<Vec<_>>();
+
+            tx.send(Message::text(
+                serde_json::to_string(&Payload::Message {
+                    origin: None,
+                    target: GROUP_TARGET,
+                    data: PhysicsPayload::EntityDelete { ids: ids_to_delete },
+                })
+                .unwrap(),
+            ))
+            .unwrap();
+
+            drop(ids);
+
+            world.delete_entities(&to_delete).expect("Delete fail");
+
+            // Generate a random location.
+            let start = SystemTime::now();
+            let since_the_epoch = start
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards");
+            let mut rng = oorandom::Rand64::new(since_the_epoch.as_millis());
+
+            let x = rng.rand_float() * 500.0 + 250.0;
+            let y = rng.rand_float() * 500.0 + 250.0;
+
+            /* Create new entity. */
+            let mut body = Polygon::new(vec![
+                Vec2f::new(0.0, 0.0),
+                Vec2f::new(50.0, 0.0),
+                Vec2f::new(50.0, 50.0),
+                Vec2f::new(0.0, 50.0),
+            ]);
+            body.translate((x, y).into());
+            let color = color_from_string_hash(&client.name);
+
+            let id = Id::random();
+
+            let entity = world
+                .create_entity()
+                .with(id)
+                .with(Pos(body.centroid()))
+                .with(Mass(500.0))
+                .with(Vel((0.0, 0.0).into()))
+                .with(Owner(client.uuid))
+                .with(Shape(body.clone()))
+                .with(Rgb(color.0, color.1, color.2))
+                .build();
+
+            let mut gravity = world.write_resource::<GravityList>();
+            let mut colliders = world.write_resource::<ColliderList>();
+            for other_entity in entities_to_bind {
+                gravity
+                    .0
+                    .push(GravityPair::new(6.673e3, entity, other_entity));
+                colliders
+                    .0
+                    .push(ColliderPair::new(1.0, entity, other_entity));
+            }
+
+            tx.send(Message::text(
+                serde_json::to_string(&Payload::Message {
+                    origin: None,
+                    target: GROUP_TARGET,
+                    data: PhysicsPayload::EntityNew {
+                        entity: EntityDump {
+                            id: id.0,
+                            polygon: body,
+                            color: (color.0, color.1, color.2),
+                        },
+                    },
+                })
+                .unwrap(),
+            ))
+            .unwrap();
+        }
+        PhysicsPayload::FetchEntities => {
+            let world = world.read().await;
+
+            let id = world.read_component::<Id>();
+            let shape = world.read_component::<Shape>();
+            let color = world.read_component::<Rgb>();
+
+            let entities = (&id, &shape, &color)
+                .par_join()
+                .map(|(id, shape, rgb)| EntityDump {
+                    id: id.0.to_owned(),
+                    polygon: shape.0.clone(),
+                    color: (rgb.0, rgb.1, rgb.2),
+                })
+                .collect::<Vec<_>>();
+
+            let _ = tx.send(Message::text(
+                serde_json::to_string(&Payload::Message {
+                    origin: None,
+                    target: Target::Uuid { uuid: client.uuid },
+                    data: PhysicsPayload::EntityDump {
+                        entities: entities.clone(),
+                    },
+                })
+                .unwrap(),
+            ));
+        }
+        PhysicsPayload::ToggleColor { id } => {
+            let world = world.read().await;
+            let entities = world.entities();
+            let ids = world.read_component::<Id>();
+            let mut color = world.write_component::<Rgb>();
+
+            let touched_entity = (&entities, &ids)
+                .par_join()
+                .find_first(|(_, Id(iid))| iid == &id);
+
+            if let Some((entity, Id(id))) = touched_entity {
+                if let Some(color) = color.get_mut(entity) {
+                    *color = match color {
+                        Rgb(255, 0, 0) => Rgb(0, 255, 0),
+                        Rgb(0, 255, 0) => Rgb(0, 0, 255),
+                        Rgb(0, 0, 255) | _ => Rgb(255, 0, 0),
+                    };
+                    let _ = tx.send(Message::text(
+                        serde_json::to_string(&Payload::Message {
+                            origin: None,
+                            target: GROUP_TARGET,
+                            data: PhysicsPayload::ColorUpdate {
+                                id: *id,
+                                color: (color.0, color.1, color.2),
+                            },
+                        })
+                        .unwrap(),
+                    ));
+                }
+            }
+        }
+        PhysicsPayload::TouchEntity { id } => {
+            let mut world = world.write().await;
+            let entities = world.entities();
+            let ids = world.read_component::<Id>();
+
+            let touched_entity = (&entities, &ids)
+                .par_join()
+                .find_first(|(_, Id(iid))| iid == &id)
+                .map(|(e, _)| e.clone());
+
+            drop(ids);
+
+            if let Some(touched_entity) = touched_entity {
+                let owners = world.read_component::<Owner>();
+                if owners
+                    .get(touched_entity)
+                    .map(|owner| owner.0 != client.uuid)
+                    .unwrap_or(true)
+                {
+                    drop(owners);
+                    entities.delete(touched_entity).expect("Delete fail");
+
+                    let mut list = world.write_resource::<ColliderList>();
+                    list.0.retain(|pair| {
+                        pair.entity.0 != touched_entity && pair.entity.1 != touched_entity
+                    });
+
+                    let mut list = world.write_resource::<GravityList>();
+                    list.0.retain(|pair| {
+                        pair.entity.0 != touched_entity && pair.entity.1 != touched_entity
+                    });
+
+                    tx.send(Message::text(
+                        serde_json::to_string(&Payload::Message {
+                            origin: None,
+                            target: GROUP_TARGET,
+                            data: PhysicsPayload::EntityDelete { ids: vec![id] },
+                        })
+                        .unwrap(),
+                    ))
+                    .unwrap();
+                } else {
+                    drop(owners);
+
+                    let shapes = world.read_component::<Shape>();
+                    let poss = world.read_component::<Pos>();
+                    let masss = world.read_component::<Mass>();
+                    let colors = world.read_component::<Rgb>();
+
+                    let mut joiner = (&shapes, &poss, &masss, &colors).join();
+
+                    if let Some((shape, &pos, &mass, &rgb)) = joiner.get(touched_entity, &entities)
+                    {
+                        let shape = shape.clone();
+
+                        let entities_to_bind = entities.par_join().collect::<Vec<_>>();
+
+                        drop(joiner);
+                        // drop binding
+                        let _ = (colors, masss, poss, shapes, entities);
+
+                        let id = Id::random();
+
+                        let entity = world
+                            .create_entity()
+                            .with(id)
+                            .with(pos)
+                            .with(mass)
+                            .with(Vel((0.0, 0.0).into()))
+                            .with(Owner(client.uuid))
+                            .with(shape.clone())
+                            .with(rgb)
+                            .build();
+
+                        let mut gravity = world.write_resource::<GravityList>();
+                        let mut colliders = world.write_resource::<ColliderList>();
+                        for other_entity in entities_to_bind {
+                            gravity
+                                .0
+                                .push(GravityPair::new(6.673e3, entity, other_entity));
+                            colliders
+                                .0
+                                .push(ColliderPair::new(1.0, entity, other_entity));
+                        }
+
+                        tx.send(Message::text(
+                            serde_json::to_string(&Payload::Message {
+                                origin: None,
+                                target: GROUP_TARGET,
+                                data: PhysicsPayload::EntityNew {
+                                    entity: EntityDump {
+                                        id: id.0,
+                                        polygon: shape.0,
+                                        color: (rgb.0, rgb.1, rgb.2),
+                                    },
+                                },
+                            })
+                            .unwrap(),
+                        ))
+                        .unwrap();
+                    }
+                }
+            }
+        }
+        _ => {}
     }
 }

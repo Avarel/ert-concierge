@@ -167,6 +167,25 @@ $tall-height: $normal-height + 300px;
                 }
             }
 
+            button {
+                background: rgb(255, 94, 0);
+                font-family: inherit;
+                font-size: 15px;
+                padding: 10px;
+                border: none;
+                border-radius: 5px;
+
+                &:focus {
+                    outline: none;
+                }
+                &:hover {
+                    background: rgb(255, 145, 82);
+                }
+                &:active {
+                    background: rgb(255, 203, 172);
+                }
+            }
+
             .entry {
                 display: flex;
                 margin-bottom: 5px;
@@ -242,7 +261,7 @@ $tall-height: $normal-height + 300px;
             > .window-tab-body {
                 padding: 10px;
                 
-                > .window-tab-box {
+                .window-tab-box {
                     background: #ccc;
                 }
             }

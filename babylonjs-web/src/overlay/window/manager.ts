@@ -3,6 +3,8 @@ import { createElement } from "./mod";
 export abstract class AbstractBody<E extends Node = HTMLElement, C extends AbstractBody<any, any> = any> {
     children: C[] = [];
 
+    abstract readonly type: string;
+
     constructor(parent: AbstractBody | undefined, public bodyElement: E) {
         this.bodyElement = bodyElement;
         parent?.bodyElement.appendChild(bodyElement);
@@ -22,12 +24,14 @@ export abstract class AbstractBody<E extends Node = HTMLElement, C extends Abstr
 }
 
 export class HTMLBody<K extends keyof HTMLElementTagNameMap> extends AbstractBody<HTMLElementTagNameMap[K], never> {
+    readonly type = "HTMLBODY";
+    
     constructor(parent: AbstractBody, tag: K, classes: string[] = []) {
         super(parent, createElement(tag, classes));
     }
 }
 
-abstract class TabSection extends AbstractBody<HTMLDivElement, Box | Entry | HTMLBody<keyof HTMLElementTagNameMap>> {
+abstract class TabSection extends AbstractBody<HTMLDivElement, Box | Button | Entry | HTMLBody<keyof HTMLElementTagNameMap>> {
     constructor(parent: AbstractBody | undefined, body: HTMLDivElement) {
         super(parent, body)
     }
@@ -40,8 +44,14 @@ abstract class TabSection extends AbstractBody<HTMLDivElement, Box | Entry | HTM
         return this.addChild(new Box(this), callback);
     }
 
-    add(tag: keyof HTMLElementTagNameMap, string: string) {
-        this.addChild(new HTMLBody(this, tag, [])).bodyElement.textContent = string;
+    add<K extends keyof HTMLElementTagNameMap>(tag: K, string: string): HTMLBody<K> {
+        let body = new HTMLBody(this, tag, []);
+        body.bodyElement.textContent = string;
+        return this.addChild(body);
+    }
+
+    addButton(string: string, callback?: (button: Button) => void): Button {
+        return this.addChild(new Button(this, string, callback));
     }
 }
 
@@ -61,19 +71,23 @@ export class Body extends TabSection {
     }
 }
 
-export class Box extends AbstractBody<HTMLDivElement, Entry | HTMLBody<keyof HTMLElementTagNameMap>> {
+export class Box extends TabSection {
     readonly type = "BOX";
 
     constructor(parent: AbstractBody) {
         super(parent, createElement("div", ["window-tab-box"]));
     }
+}
 
-    addEntry(callback?: (entry: Entry) => void): Entry {
-        return this.addChild(new Entry(this), callback);
-    }
+export class Button extends AbstractBody<HTMLButtonElement, never> {
+    readonly type = "BUTTON"
 
-    add(tag: keyof HTMLElementTagNameMap, string: string) {
-        this.addChild(new HTMLBody(this, tag, [])).bodyElement.textContent = string;
+    constructor(parent: AbstractBody, string: string, public callback?: (button: Button) => void) {
+        super(parent, createElement("button", []));
+        this.bodyElement.textContent = string;
+        this.bodyElement.onclick = () => {
+            this.callback?.(this);
+        }
     }
 }
 
@@ -125,16 +139,15 @@ export class Value extends AbstractBody<HTMLDivElement, Input> {
 
 export class Input extends AbstractBody<HTMLInputElement> {
     type: string;
-    callback?: (value: string, input: Input) => void;
 
-    constructor(parent: AbstractBody, type: string, callback?: (value: string, input: Input) => void) {
+    constructor(parent: AbstractBody, type: string, public callback?: (value: string, input: Input) => void) {
         super(parent, createElement("input"));
         this.bodyElement.setAttribute("type", type);
         this.type = type;
         this.bodyElement.onkeydown = (event) => {
             if (event.keyCode === 13) {
                 event.preventDefault();
-                callback?.(this.value, this);
+                this.callback?.(this.value, this);
             }
         };
     }

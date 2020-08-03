@@ -53,7 +53,7 @@ export class Renderer {
 
     createView(canvas: HTMLCanvasElement): RendererView {
         let scene = new BABYLON.Scene(this.engine);
-        let camera = new BABYLON.UniversalCamera("UniversalCamera", new Vector3(0, 10, -10), scene);
+        let camera = new BABYLON.UniversalCamera("UniversalCamera", new Vector3(0, 15, -15), scene);
         camera.setTarget(new Vector3(0, 0, 0));
         camera.speed = 0.5;                 // KEYS:
         camera.keysDownward.push(17, 16);   // CTRL, SHIFT

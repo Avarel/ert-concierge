@@ -5,6 +5,8 @@ export { createElement };
 
 export module Drawer {
     export class Tab extends AbstractBody {
+        readonly type = "TAB";
+
         constructor(
             public tag: string,
             private headerTabElement: HTMLElement,

@@ -1,78 +1,10 @@
-import * as ConciergeAPI from "../../concierge_api/mod";
+import * as ConciergeAPI from "../../../concierge_api/mod";
 import { DeepImmutable, Vector2, DeepImmutableArray, Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, PolygonMeshBuilder, StandardMaterial, ActionManager, MeshBuilder, Mesh } from "babylonjs";
-import { RendererView } from "../renderer";
-import { ServiceEventHandler } from "../../concierge_api/handlers";
-import { Payload } from "../../concierge_api/payloads";
-
-interface Vec2f {
-    x: number,
-    y: number
-}
-
-type RgbColor = [number, number, number];
-
-namespace PhysicsPayloads {
-    export interface Entity {
-        id: string,
-        centroid: Vec2f,
-        points: Vec2f[],
-        color: RgbColor
-    }
-
-    export interface ToggleColor {
-        type: "TOGGLE_COLOR",
-        id: string,
-    }
-
-    export interface ColorUpdate {
-        type: "COLOR_UPDATE",
-        id: string,
-        color: RgbColor
-    }
-
-    export interface EntityUpdate {
-        id: string,
-        position: Vec2f,
-    }
-
-    export interface FetchEntities {
-        type: "FETCH_ENTITIES"
-    }
-
-    export interface FetchPositions {
-        type: "FETCH_POSITIONS"
-    }
-
-    export interface EntityDump {
-        type: "ENTITY_DUMP",
-        entities: Entity[]
-    }
-
-    export interface EntityNew {
-        type: "ENTITY_NEW",
-        entity: Entity
-    }
-
-    export interface EntityDelete {
-        type: "ENTITY_DELETE",
-        id: string,
-    }
-
-    export interface PositionDump {
-        type: "POSITION_DUMP"
-        updates: EntityUpdate[]
-    }
-
-    export interface TouchEntity {
-        type: "TOUCH_ENTITY",
-        id: string,
-    }
-
-    export type Payload = EntityDump | PositionDump
-        | FetchEntities | FetchPositions
-        | ColorUpdate | ToggleColor | TouchEntity | EntityNew | EntityDelete;
-}
-type PhysicsPayload = PhysicsPayloads.Payload;
+import { RendererView } from "../../renderer";
+import { ServiceEventHandler } from "../../../concierge_api/handlers";
+import { Payload } from "../../../concierge_api/payloads";
+import { Drawer } from "../../../overlay/mod";
+import { Vec2f, RgbColor, PhysicsPayload } from "./payloads";
 
 export const PHYSICS_ENGINE_NAME = "physics_engine";
 export const PHYSICS_ENGINE_GROUP = "physics_engine_out";
@@ -135,7 +67,8 @@ export class PhysicsHandler extends ServiceEventHandler {
 
     constructor(
         client: ConciergeAPI.Client,
-        private readonly renderer: RendererView
+        private readonly renderer: RendererView,
+        private drawerUI?: Drawer.UI
     ) {
         super(client, PHYSICS_ENGINE_GROUP);
     }
@@ -160,20 +93,46 @@ export class PhysicsHandler extends ServiceEventHandler {
 
     onSubscribe() {
         console.log("Fetching...")
-        this.client.sendJSON({
-            type: "MESSAGE",
-            target: {
-                type: "NAME",
-                name: PHYSICS_ENGINE_NAME
-            },
-            data: {
-                type: "FETCH_ENTITIES"
-            }
+        this.sendToSim({
+            type: "FETCH_ENTITIES"
         });
+        this.sendToSim({
+            type: "SPAWN_ENTITY"
+        });
+
+        this.setupController();
+    }
+
+    setupController() {
+        this.drawerUI?.addTab(PHYSICS_ENGINE_NAME, "Rust Physics", tab => {
+            tab.addHeader(header => {
+                header.add("h1", "Rust Physics");
+                header.add("p", "SURF 2020 / OVRAS");
+                header.addButton("Respawn", () => {
+                    this.sendToSim({
+                        type: "SPAWN_ENTITY"
+                    });
+                });
+            })
+
+            tab.addBody(body => {
+                body.addBox(box => {
+                    box.add("h2", "Instructions");
+                    box.add("p", "Click on your own box colors to duplicate it.");
+                    box.add("p", "Click on boxes with another color to destroy them.")
+                })
+            });
+        })
     }
 
     onUnsubscribe() {
         this.clearShapes();
+
+        this.destroyController();
+    }
+
+    destroyController() {
+        this.drawerUI?.removeTab(PHYSICS_ENGINE_NAME);
     }
 
     clearShapes() {
@@ -246,7 +205,9 @@ export class PhysicsHandler extends ServiceEventHandler {
                 this.createShape(entity.id, entity.centroid, entity.points, entity.color);
                 break;
             case "ENTITY_DELETE":
-                this.removeShape(payload.id);
+                for (let id of payload.ids) {
+                    this.removeShape(id);
+                }
                 break;
             case "ENTITY_DUMP":
                 // console.log("RECV", JSON.stringify(payload));

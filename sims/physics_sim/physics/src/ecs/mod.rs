@@ -25,4 +25,8 @@ impl Id {
     pub fn random() -> Self {
         Self(Uuid::new_v4())
     }
+
+    pub fn nil() -> Self {
+        Self(Uuid::nil())
+    }
 }

@@ -7,6 +7,8 @@ import { Client } from "../../../concierge_api/mod";
 import { Payload } from "../../../concierge_api/payloads";
 import { SystemObject, SystemData, PlanetaryPayload } from "./payloads";
 import { Drawer } from "../../../overlay/mod";
+import React from "react";
+import ReactDOM from "react-dom";
 
 export const PLANET_SIM_NAME = "planetary_simulation";
 export const PLANET_SIM_GROUP = "planetary_simulation_out";
@@ -330,7 +332,6 @@ enum InfoPaneType {
 }
 
 class PlanetInfoHandler {
-
     /** Keeps track of the planet IDs that are hovered over. */
     private infoPaneType: InfoPaneType = InfoPaneType.None;
     private planetLock?: string;
@@ -480,3 +481,33 @@ class PlanetInfoHandler {
         }
     }
 }
+
+// class SystemInfoComponent extends React.Component<{data: SystemData}> {
+//     render() {
+//         function Entry(props: { name: string, value: any }) {
+//             return (
+//                 <div className="entry">
+//                     <div className="name">{props.name}</div>
+//                     <div className="value"><input value={props.value} /></div>
+//                 </div>
+//             );
+//         }
+
+//         return (
+//             <div>
+//                 <div className="name">
+//                     <div className="value">System</div>
+//                 </div>
+//                 <Entry name="Gravity Constant" value={this.props.data.gravityConstant}/>
+//                 <Entry name="Scale" value={this.props.data.scale} />
+//                 <Entry name="Time Scale" value={this.props.data.timeScale}/>
+//                 <Entry name="Body Scale" value={this.props.data.bodyScale}/>
+//                 <Entry name="Central Body Scale" value={this.props.data.centralBodyScale}/>
+//                 <Entry name="Elasticity" value={this.props.data.elasticity}/>
+//                 <Entry name="Central Body Name" value={this.props.data.centralBodyName}/>
+//                 <Entry name="Hand Mass" value={this.props.data.handMass}/>
+//                 <Entry name="Boundary" value={this.props.data.boundary}/>
+//             </div>
+//         );
+//     }
+// }

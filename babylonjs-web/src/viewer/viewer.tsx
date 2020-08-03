@@ -1,7 +1,7 @@
 import "./viewer.scss";
 
 import * as ConciergeAPI from "../concierge_api/mod";
-import { PhysicsHandler } from "./sims/physics_handler";
+import { PhysicsHandler } from "./sims/physics_sim/physics_handler";
 import { ChatHandler } from "./chat_handler";
 import { PlanetsHandler } from "./sims/planetary_sim/planets_handler";
 import { UsersHandler } from "./users_handler";
@@ -12,25 +12,25 @@ export namespace Viewer {
     let leftDrawerUI = new Drawer.UI(document.querySelector<HTMLElement>(".window#chat-window")!);
     let rightDrawerUI = new Drawer.UI(document.querySelector<HTMLElement>(".window#control-window")!);
 
-    rightDrawerUI.addTab("about", "About", (tab) => {
-        tab.addHeader((header) => {
+    rightDrawerUI.addTab("about", "About", tab => {
+        tab.addHeader(header => {
             header.add("h2", "ERT Concierge / BabylonJS Front-end");
             header.add("p", "SURF 2020 / OVRAS");
         });
-        tab.addBody((body) => {
-            body.addBox((box) => {
+        tab.addBody(body => {
+            body.addBox(box => {
                 box.add("h2", "An Tran");
                 box.add("p", "Intern");
             });
-            body.addBox((box) => {
+            body.addBox(box => {
                 box.add("h2", "Santiago Lombeyda");
                 box.add("p", "Mentor");
             });
-            body.addBox((box) => {
+            body.addBox(box => {
                 box.add("h2", "Front-end");
                 box.add("p", "Pug/SCSS/TypeScript + Webpack");
             });
-            body.addBox((box) => {
+            body.addBox(box => {
                 box.add("h2", "Back-end");
                 box.add("p", "Rust");
             });
@@ -38,50 +38,50 @@ export namespace Viewer {
     });
     rightDrawerUI.showTab("about");
 
-    rightDrawerUI.addTab("example", "Example", (tab) => {
-        tab.addHeader((header) => {
-            header.addBox((box) => {
+    rightDrawerUI.addTab("example", "Example", tab => {
+        tab.addHeader(header => {
+            header.addBox(box => {
                 box.add("p", "Some Subtitle");
             })
             header.add("h1", "Example Controls");
             header.add("p", "Some Subtitle");
 
-            header.addEntry((entry) => {
+            header.addEntry(entry => {
                 entry.name.text = "Example Input"
-                entry.value.addTextInput((value) => {
+                entry.value.addTextInput(value => {
                     alert(value);
                 });
             });
-            header.addEntry((entry) => {
+            header.addEntry(entry => {
                 entry.name.text = "Multi-input"
-                entry.value.addTextInput((value) => {
+                entry.value.addTextInput(value => {
                     alert(value);
                 });
-                entry.value.addTextInput((value) => {
+                entry.value.addTextInput(value => {
                     alert(value);
                 });
-                entry.value.addTextInput((value) => {
+                entry.value.addTextInput(value => {
                     alert(value);
                 });
             });
         });
-        tab.addBody((body) => {
-            body.addBox((box) => {
-                box.addEntry((entry) => {
+        tab.addBody(body => {
+            body.addBox(box => {
+                box.addEntry(entry => {
                     entry.name.text = "Example Input"
-                    entry.value.addTextInput((value) => {
+                    entry.value.addTextInput(value => {
                         alert(value);
                     });
                 });
-                box.addEntry((entry) => {
+                box.addEntry(entry => {
                     entry.name.text = "Multi-input"
-                    entry.value.addTextInput((value) => {
+                    entry.value.addTextInput(value => {
                         alert(value);
                     });
-                    entry.value.addTextInput((value) => {
+                    entry.value.addTextInput(value => {
                         alert(value);
                     });
-                    entry.value.addTextInput((value) => {
+                    entry.value.addTextInput(value => {
                         alert(value);
                     });
                 });
@@ -124,7 +124,7 @@ export namespace Viewer {
         // let rendererView2 = renderer.createView(canvas2);
     
         // simulations
-        let physicsHandler = new PhysicsHandler(client, rendererView);
+        let physicsHandler = new PhysicsHandler(client, rendererView, rightDrawerUI);
         client.handlers.push(physicsHandler);
     
         let planetHandler = new PlanetsHandler(client, rendererView, rightDrawerUI);
