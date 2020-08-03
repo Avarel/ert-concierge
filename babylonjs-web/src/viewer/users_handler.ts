@@ -4,13 +4,11 @@ import Client from "../concierge_api/mod";
 import Payload from "../concierge_api/payloads";
 
 export class UsersHandler extends EventHandler {
-    readonly ui: Sidebar.UI;
-    readonly client: Client;
-
-    constructor(client: Client, ui: Sidebar.UI) {
+    constructor(
+        readonly client: Client,
+        readonly ui: Sidebar.UI
+    ) {
         super();
-        this.client = client;
-        this.ui = ui;
     }
 
     onClose(event: CloseEvent) {

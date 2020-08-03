@@ -1,12 +1,11 @@
 import { createElement } from "./mod";
 
 export abstract class AbstractBody<E extends Node = HTMLElement, C extends AbstractBody<any, any> = any> {
-    bodyElement: E;
     children: C[] = [];
 
-    constructor(parent: AbstractBody | undefined, body: E) {
-        this.bodyElement = body;
-        parent?.bodyElement.appendChild(body);
+    constructor(parent: AbstractBody | undefined, public bodyElement: E) {
+        this.bodyElement = bodyElement;
+        parent?.bodyElement.appendChild(bodyElement);
     }
 
     protected addChild<T extends C>(child: T, callback?: (child: T) => void): T {

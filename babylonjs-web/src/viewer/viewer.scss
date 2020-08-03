@@ -4,7 +4,18 @@ body {
     overflow: hidden;
 }
 
-#renderCanvas {
+.views {
+    width: 100%;
+    height: 100%;
+    display: flex;
+
+    .view {
+        flex: 1 0 0;
+        height: 100%;
+    }
+}
+
+#renderCanvas, #renderCanvas2 {
     width: 100%;
     height: 100%;
     touch-action: none;

@@ -5,24 +5,16 @@ import { RawHandler } from "./handlers";
  * Central connector to the concierge.
  */
 export class Client {
-    readonly url: string;
-    readonly name: string;
-
     private socket?: WebSocket;
     private version?: string;
     private secret?: string;
     private seq: number = 0;
 
-    reconnect: boolean;
     reconnectInterval: number = 10000;
     uuid!: Uuid;
     handlers: RawHandler[] = [];
 
-    constructor(name: string, url: string, reconnect: boolean = false) {
-        this.url = url;
-        this.name = name;
-        this.reconnect = reconnect;
-    }
+    constructor(readonly name: string, readonly url: string, public reconnect: boolean = false) {}
 
     connect(version: string, secret?: string) {
         console.info("Trying to connect to ", this.url);

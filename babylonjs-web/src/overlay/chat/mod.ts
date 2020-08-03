@@ -14,13 +14,11 @@ export module Chat {
     }
 
     export class UI {
-        rootElement: HTMLElement;
         messagesElement!: HTMLDivElement;
         messages: Message[] = [];
         onEnter?: (text: string) => void;
 
-        constructor(rootElement: HTMLElement) {
-            this.rootElement = rootElement;
+        constructor(public rootElement: HTMLElement) {
             this.setup();
         }
 

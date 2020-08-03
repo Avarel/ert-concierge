@@ -56,17 +56,22 @@ export namespace Viewer {
             throw "Canvas is not found!";
         }
         canvas.focus();
-        let renderer = new Renderer(canvas);
+
+
+        let renderer = new Renderer();
     
         let client = new ConciergeAPI.Client(name, serverURL, true);
 
-        
+        let view = renderer.createView(canvas);
+        renderer.views.push(view);
+        // let secondView = renderer.createView(document.querySelector<HTMLCanvasElement>("canvas#renderCanvas2")!);
+        // renderer.views.push(secondView);
     
         // simulations
-        let physicsHandler = new PhysicsHandler(client, renderer);
+        let physicsHandler = new PhysicsHandler(client, view);
         client.handlers.push(physicsHandler);
     
-        let planetHandler = new PlanetsHandler(client, renderer, rightDrawerUI);
+        let planetHandler = new PlanetsHandler(client, view, rightDrawerUI);
         client.handlers.push(planetHandler);
     
         // chat

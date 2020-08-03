@@ -10,15 +10,11 @@ function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: s
 
 export module Sidebar {
     export class Icon {
-        id: string;
-        private element: HTMLElement;
-        private tooltip: Instance<Props>;
-
-        constructor(id: string, element: HTMLElement, tooltip: Instance<Props>) {
-            this.id = id;
-            this.element = element;
-            this.tooltip = tooltip;
-        }
+        constructor(
+            public id: string,
+            private element: HTMLElement,
+            private tooltip: Instance<Props>
+        ) { }
 
         /**
          * Destroys the icon element.

@@ -9,13 +9,12 @@ export function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, cla
 
 export module Drawer {
     export class Tab extends AbstractBody {
-        tag: string;
-        private headerTabElement: HTMLElement;
-
-        constructor(tag: string, headerElement: HTMLElement, bodyElement: HTMLElement) {
+        constructor(
+            public tag: string,
+            private headerTabElement: HTMLElement,
+            bodyElement: HTMLElement
+        ) {
             super(undefined, bodyElement);
-            this.tag = tag;
-            this.headerTabElement = headerElement;
         }
 
         addHeader(callback?: (header: Header) => void): Header {
@@ -44,13 +43,12 @@ export module Drawer {
     }
 
     export class UI {
-        rootElement: HTMLElement;
         headerElement: HTMLElement;
         drawerElement: HTMLElement;
         bodyElement: HTMLElement;
         tabs: Map<string, Tab> = new Map();
 
-        constructor(rootElement: HTMLElement) {
+        constructor(public rootElement: HTMLElement) {
             this.rootElement = rootElement;
             this.headerElement = rootElement.querySelector<HTMLElement>(".window-header")
                 || createElement("div", ["window-header"]);
@@ -110,7 +108,7 @@ export module Drawer {
                 this.show(true);
                 this.showTab(tag!);
             });
-            
+
             callback?.(tab);
 
             return tab;

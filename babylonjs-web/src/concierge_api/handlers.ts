@@ -55,14 +55,10 @@ export abstract class EventHandler implements RawHandler {
  * Utility class that automatically handles subscription to a specific group.
  */
 export abstract class ServiceEventHandler extends EventHandler {
-    readonly client: Client;
-    protected group: string;
     protected subscribed: boolean = false;
 
-    constructor(client: Client, group: string) {
+    constructor(readonly client: Client, protected group: string) {
         super();
-        this.client = client;
-        this.group = group;
     }
 
     onClose(_event: CloseEvent) {

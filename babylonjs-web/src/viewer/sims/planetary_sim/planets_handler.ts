@@ -1,7 +1,7 @@
 import "./style.scss";
 
 import { Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, StandardMaterial, ActionManager, MeshBuilder, Mesh, IAction, TrailMesh } from "babylonjs";
-import { Renderer } from "../../renderer";
+import { RendererView } from "../../renderer";
 import { ServiceEventHandler } from "../../../concierge_api/handlers";
 import { Client } from "../../../concierge_api/mod";
 import { Payload } from "../../../concierge_api/payloads";
@@ -23,20 +23,12 @@ function htmlToElement(html: string): HTMLElement {
 }
 
 class Planet {
-    id: string;
-    centroid: Vector3;
-    mesh: Mesh;
-    trailMesh?: TrailMesh;
     enterAction?: IAction;
     exitAction?: IAction;
     clickAction?: IAction;
     data?: SystemObject;
 
-    private constructor(id: string, centroid: Vector3, mesh: Mesh, trailMesh?: TrailMesh) {
-        this.id = id;
-        this.centroid = centroid;
-        this.mesh = mesh;
-        this.trailMesh = trailMesh;
+    private constructor(public id: string, public centroid: Vector3, public mesh: Mesh, public trailMesh?: TrailMesh) {
     }
 
     static create(id: string, centroid: Vector3, radius: number, scene: Scene, color: Color3, scale: number = 1): Planet {
@@ -124,25 +116,22 @@ class Planet {
 }
 
 export class PlanetsHandler extends ServiceEventHandler {
-    readonly renderer: Renderer;
-    readonly client: Client;
-
     /** Keeps latest batch of sys data */
     sysData!: SystemData;
     /** Map of planets */
     planets: Map<string, Planet>;
 
-    drawerUI: Drawer.UI | undefined;
     private readonly visualScale: number = 5;
     private controllerElement?: HTMLElement;
     infoHandler?: PlanetInfoHandler;
 
-    constructor(client: Client, renderer: Renderer, drawerUI?: Drawer.UI) {
+    constructor(
+        client: Client,
+        private readonly renderer: RendererView,
+        private drawerUI?: Drawer.UI
+    ) {
         super(client, PLANET_SIM_GROUP);
-        this.client = client;
-        this.renderer = renderer;
         this.planets = new Map();
-        this.drawerUI = drawerUI;
     }
 
     onRecvMessage(message: Payload.Message<PlanetaryPayload>) {
@@ -341,8 +330,6 @@ enum InfoPaneType {
 }
 
 class PlanetInfoHandler {
-    rootElement: HTMLElement;
-    handler: PlanetsHandler;
 
     /** Keeps track of the planet IDs that are hovered over. */
     private infoPaneType: InfoPaneType = InfoPaneType.None;
@@ -353,10 +340,7 @@ class PlanetInfoHandler {
     private unlockAction?: number;
     private lockedInputs: HTMLInputElement[] = [];
 
-    constructor(handler: PlanetsHandler, rootElement: HTMLElement) {
-        this.handler = handler;
-        this.rootElement = rootElement;
-    }
+    constructor(private handler: PlanetsHandler, private rootElement: HTMLElement) { }
 
     getLock(): string | undefined {
         return this.planetLock;
@@ -404,7 +388,7 @@ class PlanetInfoHandler {
             this.littedPlanet = undefined;
         }
     }
-    
+
     litPlanet(planet: Planet | undefined) {
         if (planet) {
             (planet.mesh.material as StandardMaterial).emissiveColor = Color3.Red();

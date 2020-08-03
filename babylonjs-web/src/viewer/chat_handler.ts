@@ -6,10 +6,7 @@ import { Payload } from '../concierge_api/payloads';
 const CHAT_GROUP = "chat";
 
 export class ChatHandler extends ServiceEventHandler {
-    readonly client: Client;
-    readonly ui: Chat.UI;
-
-    constructor(client: Client, ui: Chat.UI) {
+    constructor(readonly client: Client, readonly ui: Chat.UI) {
         super(client, CHAT_GROUP);
         this.client = client;
         this.ui = ui;

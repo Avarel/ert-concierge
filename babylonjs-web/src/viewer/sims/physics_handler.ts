@@ -1,6 +1,6 @@
 import * as ConciergeAPI from "../../concierge_api/mod";
 import { DeepImmutable, Vector2, DeepImmutableArray, Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, PolygonMeshBuilder, StandardMaterial, ActionManager, MeshBuilder, Mesh } from "babylonjs";
-import { Renderer } from "../renderer";
+import { RendererView } from "../renderer";
 import { ServiceEventHandler } from "../../concierge_api/handlers";
 import { Payload } from "../../concierge_api/payloads";
 
@@ -121,16 +121,14 @@ class PolygonShape {
 }
 
 export class PhysicsHandler extends ServiceEventHandler {
-    readonly renderer: Renderer;
-    readonly client: ConciergeAPI.Client;
-
     private shapes: Map<string, PolygonShape> = new Map();
     private readonly visualScale: number = 1 / 50;
 
-    constructor(client: ConciergeAPI.Client, renderer: Renderer) {
+    constructor(
+        client: ConciergeAPI.Client,
+        private readonly renderer: RendererView
+    ) {
         super(client, PHYSICS_ENGINE_GROUP);
-        this.client = client;
-        this.renderer = renderer;
     }
 
     sendToSim(data: PhysicsPayload) {
