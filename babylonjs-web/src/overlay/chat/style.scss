@@ -1,5 +1,5 @@
 
-#chat {
+.chat-container {
     background: #ccc;
     color: black;
     height: 100%;
@@ -7,7 +7,7 @@
     flex-direction: column;
     font-family: "Titillium Web", "Roboto", sans-serif;
 
-    .input {
+    .chat-input {
         position: relative;
         display: flex;
         width: 100%;
@@ -18,7 +18,7 @@
         padding-right: 10px;
         box-sizing: border-box;
 
-        input {
+        input.chat-input-field {
             background: #aaa;
             border: 0;
             padding: 5px;
@@ -31,7 +31,7 @@
             font-family: "Titillium Web", "Roboto", sans-serif;
         }
 
-        .button {
+        button.chat-submit-btn {
             line-height: 40px;
             text-align: center;
             line-height: 40px;
@@ -42,6 +42,7 @@
             background: white;
             user-select: none;
             cursor: pointer;
+            border: none;
 
             &:hover {
                 background: #eee;
@@ -49,7 +50,7 @@
         }
     }
 
-    .messages {
+    .chat-messages {
         padding: 15px;
         height: 100%;
         width: 100%;
@@ -73,7 +74,7 @@
             }
         }
 
-        .entry {
+        .chat-item {
             display: flex;
             max-width: 90%;
             flex-direction: column;

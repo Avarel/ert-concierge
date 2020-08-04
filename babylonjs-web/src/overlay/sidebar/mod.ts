@@ -1,35 +1,34 @@
 import "./style.scss";
-import tippy, { Props, Instance } from "tippy.js";
-import "tippy.js/dist/tippy.css";
-import { createElement } from "../mod";
+// import tippy, { Props, Instance } from "tippy.js";
+// import "tippy.js/dist/tippy.css";
+import { SidebarComponent } from "./react";
+import ReactDOM from "react-dom";
+import React from "react";
 
 export module Sidebar {
-    export class Icon {
-        constructor(
-            public id: string,
-            private element: HTMLElement,
-            private tooltip: Instance<Props>
-        ) { }
-
-        /**
-         * Destroys the icon element.
-         */
-        destroy() {
-            this.element.remove();
-            this.tooltip.destroy();
-        }
+    interface Icon<T extends string> {
+        type: T,
+        id: string,
+        name: string,
     }
+
+    interface ImageIcon extends Icon<"IMAGE"> {
+        imgSrc: string
+    }
+    
+    interface TextIcon extends Icon<"TEXT"> {
+        colorCss: string
+    }
+
+    type SidebarItem = TextIcon | ImageIcon;
 
     export class UI {
         rootElement: HTMLElement;
-        icons: Icon[] = [];
+        items: Map<string, SidebarItem> = new Map();
 
         constructor(rootElement: HTMLElement) {
             this.rootElement = rootElement;
-        }
-
-        private baseIcon(): HTMLDivElement {
-            return createElement("div", ["icon"]);
+            this.render();
         }
 
         static hashString(str: string): number {
@@ -42,39 +41,33 @@ export module Sidebar {
             return hash;
         }
 
+        render() {
+            ReactDOM.render(
+                React.createElement(SidebarComponent, { items: Array.from(this.items.values()) }),
+                this.rootElement
+            );
+        }
+
         /**
          * Clear all icons in the sidebar.
          */
         clear() {
-            for (let icon of this.icons) {
-                icon.destroy();
-            }
-            this.icons.length = 0;
+            this.items.clear();
         }
 
         /**
          * Add an image-based icon to the sidebar.
          * @param name The full name of the icon.
-         * @param link The source link of the image.
+         * @param imgSrc The source link of the image.
          */
-        addImageIcon(id: string, name: string, link: string) {
-            let iconDiv = this.baseIcon();
-
-            let tooltip = tippy(iconDiv, {
-                placement: "right",
-                content: name
+        addImageIcon(id: string, name: string, imgSrc: string) {
+            this.items.set(id, {
+                type: "IMAGE",
+                id,
+                name,
+                imgSrc
             });
-
-            let imgElement = createElement("img");
-            imgElement.setAttribute("src", link);
-            iconDiv.appendChild(imgElement);
-
-            // let tooltipElement = createElement("div", ["tooltip"]);
-            // tooltipElement.innerText = name;
-            // iconDiv.append(tooltipElement);
-
-            this.rootElement.appendChild(iconDiv);
-            this.icons.push(new Icon(id, iconDiv, tooltip));
+            this.render();
         }
 
         /**
@@ -83,26 +76,16 @@ export module Sidebar {
          * @param text The text of the icon.
          */
         addInitialIcon(id: string, name: string, text: string) {
-            let iconDiv = this.baseIcon();
-
-            let tooltip = tippy(iconDiv, {
-                placement: "right",
-                content: name
-            });
-
-            let pElement = createElement("p");
-            pElement.innerText = text.toUpperCase();
-            iconDiv.appendChild(pElement);
-
             let rand = UI.hashString(name) % 360;
-            pElement.style.backgroundColor = `hsl(${rand}, 100%, 25%)`;
+            let colorCss = `hsl(${rand}, 100%, 25%)`;
 
-            // let tooltipElement = createElement("div", ["tooltip"]);
-            // tooltipElement.innerText = name;
-            // iconDiv.append(tooltipElement);
-
-            this.rootElement.appendChild(iconDiv);
-            this.icons.push(new Icon(id, iconDiv, tooltip));
+            this.items.set(id, {
+                type: "TEXT",
+                id,
+                name,
+                colorCss
+            });
+            this.render();
         }
 
         /**
@@ -110,13 +93,8 @@ export module Sidebar {
          * @param name The name of the icon to remove.
          */
         removeIcon(id: string) {
-            for (let i = 0; i < this.icons.length; i++) {
-                let icon = this.icons[i];
-                if (icon.id == id) {
-                    icon.destroy();
-                    this.icons.splice(i, 1);
-                }
-            }
+            this.items.delete(id);
+            this.render();
         }
     }
 }

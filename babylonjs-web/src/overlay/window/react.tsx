@@ -43,7 +43,7 @@ export class Entry extends React.Component<EntryProps, EntryState> {
         this.state = { values: props.inputs.map(_ => undefined) };
     }
 
-    onKeyDown(event: React.KeyboardEvent<HTMLInputElement>, index: number) {
+    handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>, index: number) {
         if (event.keyCode === 13) {
             event.preventDefault();
             const tag = this.props.inputs[index].tag;
@@ -79,7 +79,7 @@ export class Entry extends React.Component<EntryProps, EntryState> {
                             readOnly={tag == undefined}
                             value={!this.state.values[index] ? value : this.state.values[index]}
                             onChange={event => this.handleChange(event, index)}
-                            onKeyDown={event => this.onKeyDown(event, index)}
+                            onKeyDown={event => this.handleKeyDown(event, index)}
                         />
                     )
                 }

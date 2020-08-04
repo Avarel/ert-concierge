@@ -123,8 +123,10 @@ class PlanetaryUploadComponent extends React.Component<PlanetaryComponentProps> 
     submitHandler(event: React.FormEvent<HTMLFormElement>): void {
         event.preventDefault()
         let formData = new FormData(event.currentTarget);
+        // TODO: this must point to the right location!
         let url = new URL(window.location.href);
         url.port = "64209";
+        url.protocol
         this.props.handler.upload(url, formData);
     }
 
@@ -159,11 +161,11 @@ class PlanetaryStateComponent extends React.Component<PlanetaryComponentProps> {
 
     render() {
         return <div className="icons">
-            <i className="fa fa-fast-backward" onClick={this.fb}></i>
-            <i className="fa fa-pause" onClick={this.pause}></i>
-            <i className="fa fa-play" onClick={this.play}></i>
-            <i className="fa fa-step-forward" onClick={this.sf}></i>
-            <i className="fa fa-fast-forward" onClick={this.ff}></i>
+            <i className="fa fa-fast-backward" onClick={this.fb}/>
+            <i className="fa fa-pause" onClick={this.pause}/>
+            <i className="fa fa-play" onClick={this.play}/>
+            <i className="fa fa-step-forward" onClick={this.sf}/>
+            <i className="fa fa-fast-forward" onClick={this.ff}/>
         </div>;
     }
 }

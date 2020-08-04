@@ -99,12 +99,13 @@ export module Drawer {
         }
 
         /** Add an empty tab. */
-        addTab(tag: string, label: string, callback?: (tab: Tab) => void): Tab {
+        addTab(tag: string, label: string, callback?: (tab: Tab) => void, styled: boolean = true): Tab {
             if (this.tabs.has(tag)) {
                 throw new Error("Tab " + tag + " already exists!");
             }
             
             const tabBody = createElement("div", ["window-tab"]);
+            if (styled) tabBody.classList.add("styled");
             let tab = this.addPopulatedTab(tag, label, tabBody);
 
             callback?.(tab);

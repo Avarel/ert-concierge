@@ -5,6 +5,7 @@
         "start": "webpack-dev-server --open --config webpack.dev.js --hot"
     },
     "dependencies": {
+        "@tippyjs/react": "^4.1.0",
         "react": "^16.13.1",
         "react-dom": "^16.13.1",
         "tippy.js": "^6.2.6"
