@@ -4,7 +4,7 @@ const HtmlWebpackPlugin = require("html-webpack-plugin");
 module.exports = {
     entry: {
         login: "./src/login/login.ts",
-        viewer: "./src/viewer/viewer.tsx"
+        viewer: "./src/viewer/viewer.ts"
     },
     output: {
         filename: "[name].bundle.js",
