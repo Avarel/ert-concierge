@@ -9,13 +9,12 @@ import { SystemObject, SystemData, PlanetaryPayload } from "./payloads";
 import { Drawer } from "../../../overlay/mod";
 import React from "react";
 import ReactDOM from "react-dom";
+import { SystemInfoComponent, PlanetaryStateController, PlanetInfoComponent } from "./controller";
 
 export const PLANET_SIM_NAME = "planetary_simulation";
 export const PLANET_SIM_GROUP = "planetary_simulation_out";
 
 let controls_template: (locals?: any) => string = require("./controls.pug");
-let system_info_template: (locals?: any) => string = require("./system_info.pug");
-let planet_info_template: (locals?: any) => string = require("./planet_info.pug");
 
 function htmlToElement(html: string): HTMLElement {
     var template = document.createElement('template');
@@ -167,35 +166,10 @@ export class PlanetsHandler extends ServiceEventHandler {
     }
 
     setupController(controllerElement: HTMLElement) {
-        controllerElement.querySelector(".planetary-pause")?.addEventListener("click", () => {
-            this.sendToSim({
-                type: "PAUSE"
-            })
-        });
-
-        controllerElement.querySelector(".planetary-play")?.addEventListener("click", () => {
-            this.sendToSim({
-                type: "PLAY"
-            })
-        });
-
-        controllerElement.querySelector(".planetary-sf")?.addEventListener("click", () => {
-            this.sendToSim({
-                type: "STEP_FORWARD"
-            })
-        });
-
-        controllerElement.querySelector(".planetary-ff")?.addEventListener("click", () => {
-            this.sendToSim({
-                type: "FAST_FORWARD"
-            })
-        });
-
-        controllerElement.querySelector(".planetary-fb")?.addEventListener("click", () => {
-            this.sendToSim({
-                type: "FAST_BACKWARD"
-            })
-        });
+        ReactDOM.render(
+            <PlanetaryStateController handler={this} />,
+            controllerElement.querySelector(".icons")
+        );
 
         let formElement = controllerElement.querySelector<HTMLFormElement>('.planetary-upload');
         formElement?.addEventListener('submit', (e) => {
@@ -243,7 +217,6 @@ export class PlanetsHandler extends ServiceEventHandler {
         for (let key of this.planets.keys()) {
             const planet = this.planets.get(key)!;
             if (planet) {
-                // this.renderer.shadowGenerator?.removeShadowCaster(planet.mesh);
                 planet.dispose();
                 this.planets.delete(key);
             }
@@ -267,7 +240,7 @@ export class PlanetsHandler extends ServiceEventHandler {
                 this.sendToSim({
                     type: "FETCH_SYSTEM_OBJS"
                 });
-                this.infoHandler!.update();
+                // this.infoHandler!.update();
                 break;
             case "SYSTEM_OBJS_DUMP":
                 if (this.sysData == undefined) {
@@ -336,10 +309,7 @@ class PlanetInfoHandler {
     private infoPaneType: InfoPaneType = InfoPaneType.None;
     private planetLock?: string;
     private hoveredPlanets: Set<string> = new Set();
-    private inputTarget?: string;
     private littedPlanet?: string;
-    private unlockAction?: number;
-    private lockedInputs: HTMLInputElement[] = [];
 
     constructor(private handler: PlanetsHandler, private rootElement: HTMLElement) { }
 
@@ -397,21 +367,28 @@ class PlanetInfoHandler {
         }
     }
 
+    handleUpdate(target: string, tag: string, value: string) {
+        this.handler.sendToSim({
+            type: "UPDATE_DATA",
+            target,
+            field: tag,
+            value
+        });
+    }
+
     private updateInfoPlanet(planet: Planet) {
         if (this.littedPlanet && this.littedPlanet != planet.id) {
             let planet = this.handler.planets.get(this.littedPlanet)!;
             this.unlitPlanet(planet)
         }
 
-        if (this.infoPaneType != InfoPaneType.Planet) {
-            this.rootElement.innerHTML = planet_info_template();
-            this.setupInputFields(planet.id);
-            this.infoPaneType = InfoPaneType.Planet;
-        } else if (this.inputTarget != planet.id) {
-            this.setupInputFields(planet.id);
-        }
-
-        this.updateInputFields(planet.data);
+        ReactDOM.render(
+            <PlanetInfoComponent
+                data={planet.data!}
+                onSubmit={this.handleUpdate.bind(this, planet.id)}
+            />,
+            this.rootElement
+        );
 
         this.litPlanet(planet)
     }
@@ -424,90 +401,15 @@ class PlanetInfoHandler {
         }
 
         if (this.infoPaneType != InfoPaneType.System) {
-            this.rootElement.innerHTML = system_info_template();
-            this.setupInputFields("system");
             this.infoPaneType = InfoPaneType.System;
         }
 
-        this.updateInputFields(sysData);
-    }
-
-    private setupInputFields(id: string) {
-        for (const input of this.rootElement.querySelectorAll("input")) {
-            let attr = input.getAttribute("var");
-            if (attr) {
-                input.onkeydown = (event) => {
-                    if (event.keyCode === 13) {
-                        event.preventDefault();
-                        // alert("Updating [" + id + "] " + attr + ": " + input.value);
-                        this.handler.sendToSim({
-                            type: "UPDATE_DATA",
-                            target: id,
-                            field: attr!,
-                            value: input.value
-                        })
-                    }
-                };
-            }
-        }
-        this.inputTarget = id;
-    }
-
-    private updateInputFields(obj: any | undefined) {
-        if (obj) {
-            clearTimeout(this.unlockAction);
-            for (const elem of this.rootElement.querySelectorAll<HTMLElement>("input,[var]")) {
-                let attr = elem.getAttribute("var");
-                if (attr) {
-                    if (elem.nodeName == "INPUT") {
-                        let input = elem as HTMLInputElement;
-                        input.value = eval(`obj.${attr}`);
-
-                        if (elem.getAttribute("readonly") != "always") {
-                            input.readOnly = true;
-                            this.lockedInputs.push(input);
-                        }
-                    } else {
-                        elem.textContent = eval(`obj.${attr}`);
-                    }
-                }
-            }
-            this.unlockAction = window.setTimeout(() => {
-                for (const input of this.lockedInputs) {
-                    input.readOnly = false;
-                }
-                this.lockedInputs.length = 0;
-            }, 200);
-        }
+        ReactDOM.render(
+            <SystemInfoComponent
+                data={sysData}
+                onSubmit={this.handleUpdate.bind(this, "system")}
+            />,
+            this.rootElement
+        );
     }
 }
-
-// class SystemInfoComponent extends React.Component<{data: SystemData}> {
-//     render() {
-//         function Entry(props: { name: string, value: any }) {
-//             return (
-//                 <div className="entry">
-//                     <div className="name">{props.name}</div>
-//                     <div className="value"><input value={props.value} /></div>
-//                 </div>
-//             );
-//         }
-
-//         return (
-//             <div>
-//                 <div className="name">
-//                     <div className="value">System</div>
-//                 </div>
-//                 <Entry name="Gravity Constant" value={this.props.data.gravityConstant}/>
-//                 <Entry name="Scale" value={this.props.data.scale} />
-//                 <Entry name="Time Scale" value={this.props.data.timeScale}/>
-//                 <Entry name="Body Scale" value={this.props.data.bodyScale}/>
-//                 <Entry name="Central Body Scale" value={this.props.data.centralBodyScale}/>
-//                 <Entry name="Elasticity" value={this.props.data.elasticity}/>
-//                 <Entry name="Central Body Name" value={this.props.data.centralBodyName}/>
-//                 <Entry name="Hand Mass" value={this.props.data.handMass}/>
-//                 <Entry name="Boundary" value={this.props.data.boundary}/>
-//             </div>
-//         );
-//     }
-// }
