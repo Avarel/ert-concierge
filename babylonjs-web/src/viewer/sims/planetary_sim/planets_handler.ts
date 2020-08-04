@@ -7,9 +7,7 @@ import { Client } from "../../../concierge_api/mod";
 import { Payload } from "../../../concierge_api/payloads";
 import { SystemObject, SystemData, PlanetaryPayload } from "./payloads";
 import { Drawer } from "../../../overlay/mod";
-import React from "react";
-import ReactDOM from "react-dom";
-import { PlanetaryComponent, renderController } from "./controller";
+import { renderController } from "./controller";
 
 export const PLANET_SIM_NAME = "planetary_simulation";
 export const PLANET_SIM_GROUP = "planetary_simulation_out";
@@ -50,14 +48,14 @@ class Planet {
                 BABYLON.ActionManager.OnPointerOverTrigger,
                 () => {
                     handler.hoveredPlanets.add(this.id);
-                    handler.renderController();
+                    handler.renderInformation();
                 }
             );
             this.exitAction = new ExecuteCodeAction(
                 BABYLON.ActionManager.OnPointerOutTrigger,
                 () => {
                     handler.hoveredPlanets.delete(this.id);
-                    handler.renderController();
+                    handler.renderInformation();
                 }
             );
             this.clickAction = new ExecuteCodeAction(
@@ -68,7 +66,7 @@ class Planet {
                     } else {
                         handler.planetLock = this.id;
                     }
-                    handler.renderController();
+                    handler.renderInformation();
                 }
             );
             this.mesh.actionManager.registerAction(this.enterAction);
@@ -130,7 +128,7 @@ export class PlanetsHandler extends ServiceEventHandler {
 
     constructor(
         client: Client,
-        private readonly renderer: RendererView,
+        readonly view: RendererView,
         private drawerUI?: Drawer.UI
     ) {
         super(client, PLANET_SIM_GROUP);
@@ -164,7 +162,7 @@ export class PlanetsHandler extends ServiceEventHandler {
         });
     }
 
-    renderController() {
+    renderInformation(force: boolean = false) {
         if (!this.planetLock && this.hoveredPlanets.size == 0) {
             for (const planet of this.planets.values()) {
                 planet.unlit();
@@ -188,7 +186,9 @@ export class PlanetsHandler extends ServiceEventHandler {
             }
         }
 
-        renderController(this, this.controllerTab!.bodyElement!)
+        if (this.controllerTab?.isShown || force) {
+            renderController(this, this.controllerTab!.bodyElement)
+        }
     }
 
     async upload(baseURL: URL, formData: FormData) {
@@ -240,6 +240,7 @@ export class PlanetsHandler extends ServiceEventHandler {
                         this.planets.delete(id);
                     }
                 }
+                this.renderInformation();
                 break;
             case "SYSTEM_DATA_DUMP":
                 this.sysData = payload.data;
@@ -247,7 +248,7 @@ export class PlanetsHandler extends ServiceEventHandler {
                 this.sendToSim({
                     type: "FETCH_SYSTEM_OBJS"
                 });
-                // this.infoHandler!.update();
+                this.renderInformation(true);
                 break;
             case "SYSTEM_OBJS_DUMP":
                 if (this.sysData == undefined) {
@@ -263,7 +264,7 @@ export class PlanetsHandler extends ServiceEventHandler {
                         planet.moveTo(location);
                         planet.data = obj;
                     } else {
-                        if (this.renderer.scene) {
+                        if (this.view.scene) {
                             let radius = obj.radius / this.sysData.scale * this.sysData.bodyScale * this.visualScale;
 
                             let color = Color3.FromArray(obj.color);
@@ -277,7 +278,7 @@ export class PlanetsHandler extends ServiceEventHandler {
                                 obj.name,
                                 location,
                                 radius,
-                                this.renderer.scene,
+                                this.view.scene,
                                 color
                             );
                             planet.hookHover(this);
@@ -289,11 +290,11 @@ export class PlanetsHandler extends ServiceEventHandler {
                         }
                     }
                 }
-                this.renderController();
+                this.renderInformation();
                 break;
             case "SYSTEM_CLEAR":
                 console.log("Clearing shapes");
-                this.renderController();
+                this.renderInformation();
                 this.clearShapes();
                 break;
         }

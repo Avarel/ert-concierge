@@ -6,6 +6,7 @@ export { createElement };
 export module Drawer {
     export class Tab extends AbstractBody {
         readonly type = "TAB";
+        isShown = false;
 
         constructor(
             public tag: string,
@@ -31,12 +32,14 @@ export module Drawer {
                 this.headerTabElement.classList.remove("active");
                 this.bodyElement.classList.remove("active");
             }
+            this.isShown = flag;
         }
 
         remove() {
             this.headerTabElement.remove();
             this.bodyElement.remove();
             super.remove();
+            this.isShown = false;
         }
     }
 

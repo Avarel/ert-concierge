@@ -5,10 +5,10 @@ export class RendererView {
     isFocused: boolean = false;
 
     constructor(
-        protected renderer: Renderer,
-        public canvas: HTMLCanvasElement,
-        public scene: BABYLON.Scene,
-        public camera: BABYLON.Camera
+        readonly renderer: Renderer,
+        readonly canvas: HTMLCanvasElement,
+        readonly scene: BABYLON.Scene,
+        readonly camera: BABYLON.Camera
     ) {
         renderer.engine.registerView(canvas, camera);
         canvas.addEventListener("click", () => {

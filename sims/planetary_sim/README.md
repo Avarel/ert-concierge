@@ -16,5 +16,5 @@ python3 -m pip install websockets asyncio requests
 
 ## Running the Concierge Bot
 ```bash
-python3 concierge_bot.py
+python3 concierge_bot.py [optional server address]
 ```

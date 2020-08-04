@@ -7,15 +7,57 @@ import ReactDOM from "react-dom";
 
 export function renderController(handler: PlanetsHandler, element: HTMLElement) {
     ReactDOM.render(
-        <PlanetaryComponent handler={handler}/>,
+        <PlanetaryComponent handler={handler} />,
         element
     );
 }
 
-export interface PlanetaryComponentProps {
+interface RenderingInfoState {
+    fps: number | string,
+    fdelta: number | string,
+    pmeshes: number | string,
+}
+class RenderingInfo extends React.Component<PlanetaryComponentProps, RenderingInfoState> {
+    loop?: number;
+
+    constructor(props: PlanetaryComponentProps) {
+        super(props);
+        this.state = {
+            fps: 0,
+            fdelta: 0,
+            pmeshes: 0
+        };
+    }
+
+    componentDidMount() {
+        this.loop = window.setInterval(() => {
+            this.setState(() => ({
+                fps: this.props.handler.view.renderer.engine.getFps().toFixed(2),
+                fdelta: this.props.handler.view.renderer.engine.getDeltaTime().toFixed(2),
+                pmeshes: this.props.handler.planets.size,
+            }));
+        }, 1000);
+    }
+
+    componentWillUnmount() {
+        window.clearInterval(this.loop);
+    }
+
+    render() {
+        const handler = this.props.handler;
+        return <TabBox>
+            <h2>Rendering Statistics</h2>
+            <Entry name="FPS" inputs={[{ value: this.state.fps }]} />
+            <Entry name="Frame Delta" inputs={[{ value: `${this.state.fdelta}ms` }]} />
+            <Entry name="Planet Meshes" inputs={[{ value: this.state.pmeshes }]} />
+        </TabBox>;
+    }
+}
+
+interface PlanetaryComponentProps {
     handler: PlanetsHandler
 }
-export class PlanetaryComponent extends React.Component<PlanetaryComponentProps> {
+class PlanetaryComponent extends React.Component<PlanetaryComponentProps> {
     render() {
         return <div className="planetary-controls">
             <TabHeader>
@@ -24,6 +66,7 @@ export class PlanetaryComponent extends React.Component<PlanetaryComponentProps>
             </TabHeader>
             <TabBody>
                 <PlanetaryUploadComponent handler={this.props.handler} />
+                <RenderingInfo handler={this.props.handler} />
                 <TabBox>
                     <h2>Planetary Simulation</h2>
                     <p>Python Simulation by Alison Noyes</p>
@@ -47,17 +90,19 @@ class PlanetaryInfoComponent extends React.Component<PlanetaryComponentProps> {
     conditional() {
         let handler = this.props.handler;
         if (handler.planetLock) {
-            let planet = handler.planets.get(handler.planetLock)!;
+            let planet = handler.planets.get(handler.planetLock);
+            if (!planet) return null;
             return <PlanetInfoComponent
                 data={planet.data}
-                onSubmit={(tag, value) => this.handleFieldUpdate(planet.id, tag, value)}
+                onSubmit={(tag, value) => this.handleFieldUpdate(planet!.id, tag, value)}
             />
         } else if (handler.hoveredPlanets.size != 0) {
-            let first = handler.hoveredPlanets.values().next()!;
-            let planet = handler.planets.get(first.value)!;
+            let first = handler.hoveredPlanets.values().next();
+            let planet = handler.planets.get(first.value);
+            if (!planet) return null;
             return <PlanetInfoComponent
                 data={planet.data}
-                onSubmit={(tag, value) => this.handleFieldUpdate(planet.id, tag, value)}
+                onSubmit={(tag, value) => this.handleFieldUpdate(planet!.id, tag, value)}
             />
         } else {
             return <SystemInfoComponent
@@ -95,7 +140,7 @@ class PlanetaryUploadComponent extends React.Component<PlanetaryComponentProps> 
     }
 }
 
-export class PlanetaryStateComponent extends React.Component<PlanetaryComponentProps> {
+class PlanetaryStateComponent extends React.Component<PlanetaryComponentProps> {
     constructor(props: PlanetaryComponentProps) {
         super(props);
     }
@@ -127,7 +172,7 @@ interface SystemInfoComponentProps {
     data: SystemData,
     onSubmit?: (tag: string, value: string) => void,
 }
-export class SystemInfoComponent extends React.Component<SystemInfoComponentProps> {
+class SystemInfoComponent extends React.Component<SystemInfoComponentProps> {
     render() {
         return <div>
             <h1>SYSTEM</h1>
@@ -166,7 +211,7 @@ interface PlanetInfoComponentProps {
     data: SystemObject,
     onSubmit?: (tag: string, value: string) => void,
 }
-export class PlanetInfoComponent extends React.Component<PlanetInfoComponentProps> {
+class PlanetInfoComponent extends React.Component<PlanetInfoComponentProps> {
     render() {
         return <div>
             <h1>{this.props.data.name.toUpperCase()}</h1>
