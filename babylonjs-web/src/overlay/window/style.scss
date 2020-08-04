@@ -88,10 +88,13 @@ $tall-height: $normal-height + 300px;
             background: transparent;
         }
         &::-webkit-scrollbar-thumb {
-            background: #aaa;
+            background: #666;
             border-radius: 5px;
             &:hover {
-                background: #bbb;
+                background: #777;
+            }
+            &:active {
+                background: #888;
             }
         }
 
@@ -236,7 +239,7 @@ $tall-height: $normal-height + 300px;
                 }
             }
 
-            > .window-tab-header {
+            .window-tab-header {
                 background: #ddd;
                 padding: 10px;
 
@@ -258,7 +261,7 @@ $tall-height: $normal-height + 300px;
                 }
             }
 
-            > .window-tab-body {
+            .window-tab-body {
                 padding: 10px;
                 
                 .window-tab-box {

@@ -9,25 +9,16 @@ import { SystemObject, SystemData, PlanetaryPayload } from "./payloads";
 import { Drawer } from "../../../overlay/mod";
 import React from "react";
 import ReactDOM from "react-dom";
-import { SystemInfoComponent, PlanetaryStateController, PlanetInfoComponent } from "./controller";
+import { PlanetaryComponent, renderController } from "./controller";
 
 export const PLANET_SIM_NAME = "planetary_simulation";
 export const PLANET_SIM_GROUP = "planetary_simulation_out";
-
-let controls_template: (locals?: any) => string = require("./controls.pug");
-
-function htmlToElement(html: string): HTMLElement {
-    var template = document.createElement('template');
-    html = html.trim();
-    template.innerHTML = html;
-    return template.content.firstChild as HTMLElement;
-}
 
 class Planet {
     enterAction?: IAction;
     exitAction?: IAction;
     clickAction?: IAction;
-    data?: SystemObject;
+    data!: SystemObject;
 
     private constructor(public id: string, public centroid: Vector3, public mesh: Mesh, public trailMesh?: TrailMesh) {
     }
@@ -53,38 +44,46 @@ class Planet {
         this.mesh.dispose();
     }
 
-    hookHover(handler: PlanetInfoHandler) {
+    hookHover(handler: PlanetsHandler) {
         if (this.mesh.actionManager) {
             this.enterAction = new ExecuteCodeAction(
                 BABYLON.ActionManager.OnPointerOverTrigger,
                 () => {
-                    handler.hover(this.id);
-                    handler.update();
-
+                    handler.hoveredPlanets.add(this.id);
+                    handler.renderController();
                 }
             );
             this.exitAction = new ExecuteCodeAction(
                 BABYLON.ActionManager.OnPointerOutTrigger,
                 () => {
-                    handler.unhover(this.id);
-                    handler.update();
+                    handler.hoveredPlanets.delete(this.id);
+                    handler.renderController();
                 }
             );
             this.clickAction = new ExecuteCodeAction(
                 BABYLON.ActionManager.OnPickTrigger,
                 () => {
-                    if (handler.getLock() == this.id) {
-                        handler.unlock();
+                    if (handler.planetLock == this.id) {
+                        handler.planetLock = undefined;
                     } else {
-                        handler.lock(this.id);
+                        handler.planetLock = this.id;
                     }
-                    handler.update();
+                    handler.renderController();
                 }
             );
             this.mesh.actionManager.registerAction(this.enterAction);
             this.mesh.actionManager.registerAction(this.exitAction);
             this.mesh.actionManager.registerAction(this.clickAction);
         }
+    }
+
+    unlit() {
+        (this.mesh.material as StandardMaterial).emissiveColor = Color3.Black();
+        
+    }
+
+    lit() {
+        (this.mesh.material as StandardMaterial).emissiveColor = Color3.Red();
     }
 
     unhookHover() {
@@ -123,8 +122,11 @@ export class PlanetsHandler extends ServiceEventHandler {
     planets: Map<string, Planet>;
 
     private readonly visualScale: number = 5;
-    private controllerElement?: HTMLElement;
-    infoHandler?: PlanetInfoHandler;
+    private controllerTab?: Drawer.Tab;
+    
+    planetLock?: string;
+    hoveredPlanets: Set<string> = new Set();
+    litPlanet?: string;
 
     constructor(
         client: Client,
@@ -154,10 +156,7 @@ export class PlanetsHandler extends ServiceEventHandler {
     }
 
     onSubscribe() {
-        this.controllerElement = htmlToElement(controls_template());
-        this.infoHandler = new PlanetInfoHandler(this, this.controllerElement.querySelector<HTMLElement>(".planetary-controls .info")!);
-        this.setupController(this.controllerElement);
-        this.drawerUI?.addPopulatedTab(PLANET_SIM_NAME, "Planetary Controls", this.controllerElement);
+        this.controllerTab = this.drawerUI?.addTab(PLANET_SIM_NAME, "Planetary Controls");
         console.log("Planet simulator client is ready to go!");
 
         this.sendToSim({
@@ -165,20 +164,31 @@ export class PlanetsHandler extends ServiceEventHandler {
         });
     }
 
-    setupController(controllerElement: HTMLElement) {
-        ReactDOM.render(
-            <PlanetaryStateController handler={this} />,
-            controllerElement.querySelector(".icons")
-        );
+    renderController() {
+        if (!this.planetLock && this.hoveredPlanets.size == 0) {
+            for (const planet of this.planets.values()) {
+                planet.unlit();
+            }
+            this.litPlanet = undefined;
+        } else {
+            let planet: Planet | undefined;
+            if (this.planetLock) {
+                planet = this.planets.get(this.planetLock);
+            } else {
+                planet = this.planets.get(this.hoveredPlanets.values().next().value);
+            }
+            if (planet && planet.id != this.litPlanet) {
+                if (this.litPlanet) {
+                    let prevLitPlanet = this.planets.get(this.litPlanet);
+                    prevLitPlanet?.unlit();
+                }
 
-        let formElement = controllerElement.querySelector<HTMLFormElement>('.planetary-upload');
-        formElement?.addEventListener('submit', (e) => {
-            e.preventDefault()
-            let formData = new FormData(formElement!);
-            let url = new URL(window.location.href);
-            url.port = "64209";
-            this.upload(url, formData);
-        });
+                planet.lit();
+                this.litPlanet = planet.id;
+            }
+        }
+
+        renderController(this, this.controllerTab!.bodyElement!)
     }
 
     async upload(baseURL: URL, formData: FormData) {
@@ -206,14 +216,11 @@ export class PlanetsHandler extends ServiceEventHandler {
 
     onUnsubscribe() {
         this.drawerUI?.removeTab(PLANET_SIM_NAME);
-        this.controllerElement?.remove();
         this.clearShapes();
-        this.infoHandler?.clear();
-        this.infoHandler = undefined;
         console.log("Planet simulator client has disconnected!");
     }
 
-    clearShapes() {
+    private clearShapes() {
         for (let key of this.planets.keys()) {
             const planet = this.planets.get(key)!;
             if (planet) {
@@ -266,8 +273,6 @@ export class PlanetsHandler extends ServiceEventHandler {
                                 location.scaleInPlace(this.sysData.centralBodyScale);
                             }
 
-                            // console.log(`Creating object (radius = ${radius}, location = ${location.toString()})`)
-
                             let planet = Planet.create(
                                 obj.name,
                                 location,
@@ -275,141 +280,22 @@ export class PlanetsHandler extends ServiceEventHandler {
                                 this.renderer.scene,
                                 color
                             );
-                            if (this.infoHandler) {
-                                planet.hookHover(this.infoHandler);
-                            }
+                            planet.hookHover(this);
                             planet.data = obj;
 
                             this.planets.set(obj.name, planet);
-                            // this.renderer.shadowGenerator?.addShadowCaster(planet.mesh);
                         } else {
                             throw new Error("Scene not initialized!")
                         }
                     }
                 }
-                this.infoHandler!.update();
+                this.renderController();
                 break;
             case "SYSTEM_CLEAR":
                 console.log("Clearing shapes");
-                this.infoHandler!.clear();
+                this.renderController();
                 this.clearShapes();
                 break;
         }
-    }
-}
-
-enum InfoPaneType {
-    None,
-    System,
-    Planet
-}
-
-class PlanetInfoHandler {
-    /** Keeps track of the planet IDs that are hovered over. */
-    private infoPaneType: InfoPaneType = InfoPaneType.None;
-    private planetLock?: string;
-    private hoveredPlanets: Set<string> = new Set();
-    private littedPlanet?: string;
-
-    constructor(private handler: PlanetsHandler, private rootElement: HTMLElement) { }
-
-    getLock(): string | undefined {
-        return this.planetLock;
-    }
-
-    lock(id: string) {
-        this.planetLock = id;
-    }
-
-    unlock() {
-        this.planetLock = undefined;
-    }
-
-    hover(id: string) {
-        this.hoveredPlanets.add(id);
-    }
-
-    unhover(id: string) {
-        this.hoveredPlanets.delete(id);
-    }
-
-    clear() {
-        this.hoveredPlanets.clear();
-        this.planetLock = undefined;
-        this.rootElement.innerHTML = "";
-        this.infoPaneType = InfoPaneType.None;
-    }
-
-    update() {
-        if (this.planetLock) {
-            let planet = this.handler.planets.get(this.planetLock)!;
-            this.updateInfoPlanet(planet);
-        } else if (this.hoveredPlanets.size != 0) {
-            let first = this.hoveredPlanets.values().next()!;
-            let planet = this.handler.planets.get(first.value)!;
-            this.updateInfoPlanet(planet);
-        } else {
-            this.updateInfoSystem(this.handler.sysData);
-        }
-    }
-
-    unlitPlanet(planet: Planet | undefined) {
-        if (planet) {
-            (planet.mesh.material as StandardMaterial).emissiveColor = Color3.Black();
-            this.littedPlanet = undefined;
-        }
-    }
-
-    litPlanet(planet: Planet | undefined) {
-        if (planet) {
-            (planet.mesh.material as StandardMaterial).emissiveColor = Color3.Red();
-            this.littedPlanet = planet.id;
-        }
-    }
-
-    handleUpdate(target: string, tag: string, value: string) {
-        this.handler.sendToSim({
-            type: "UPDATE_DATA",
-            target,
-            field: tag,
-            value
-        });
-    }
-
-    private updateInfoPlanet(planet: Planet) {
-        if (this.littedPlanet && this.littedPlanet != planet.id) {
-            let planet = this.handler.planets.get(this.littedPlanet)!;
-            this.unlitPlanet(planet)
-        }
-
-        ReactDOM.render(
-            <PlanetInfoComponent
-                data={planet.data!}
-                onSubmit={this.handleUpdate.bind(this, planet.id)}
-            />,
-            this.rootElement
-        );
-
-        this.litPlanet(planet)
-    }
-
-    private updateInfoSystem(sysData: SystemData) {
-        if (this.littedPlanet) {
-            let planet = this.handler.planets.get(this.littedPlanet)!;
-            (planet.mesh.material as StandardMaterial).emissiveColor = Color3.Black();
-            this.littedPlanet = undefined;
-        }
-
-        if (this.infoPaneType != InfoPaneType.System) {
-            this.infoPaneType = InfoPaneType.System;
-        }
-
-        ReactDOM.render(
-            <SystemInfoComponent
-                data={sysData}
-                onSubmit={this.handleUpdate.bind(this, "system")}
-            />,
-            this.rootElement
-        );
     }
 }

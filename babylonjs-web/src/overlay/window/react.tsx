@@ -24,9 +24,13 @@ export class TabBox extends React.PureComponent {
     }
 }
 
+interface EntryInput {
+    tag?: string,
+    value: any
+}
 interface EntryProps {
     name: string,
-    values: { tag?: string, value: any }[],
+    inputs: EntryInput[],
     readOnly?: true,
     onSubmit?: (tag: string, value: string) => void,
 }
@@ -36,25 +40,26 @@ interface EntryState {
 export class Entry extends React.Component<EntryProps, EntryState> {
     constructor(props: EntryProps) {
         super(props);
-        this.state = { values: props.values.map(v => undefined) };
+        this.state = { values: props.inputs.map(_ => undefined) };
     }
 
     onKeyDown(event: React.KeyboardEvent<HTMLInputElement>, index: number) {
         if (event.keyCode === 13) {
             event.preventDefault();
-            const tag = this.props.values[index].tag;
+            const tag = this.props.inputs[index].tag;
             if (!tag) return;
-            const originalValue = this.props.values[index].value;
+            const originalValue = this.props.inputs[index].value;
             const value = this.state.values[index];
             if (value && value != originalValue) {
                 this.props.onSubmit?.(tag, value);
+                this.state.values[index] = undefined;
             }
         }
     }
 
     handleChange(event: React.ChangeEvent<HTMLInputElement>, index: number) {
         const value = event.currentTarget.value;
-        const originalValue = this.props.values[index].value;
+        const originalValue = this.props.inputs[index].value;
         if (value == originalValue) {
             value == undefined;
         }
@@ -69,7 +74,7 @@ export class Entry extends React.Component<EntryProps, EntryState> {
             <div className="name">{this.props.name}</div>
             <div className="value">
                 {
-                    this.props.values.map(({ tag, value }, index) =>
+                    this.props.inputs.map(({ tag, value }, index) =>
                         <input
                             readOnly={tag == undefined}
                             value={!this.state.values[index] ? value : this.state.values[index]}

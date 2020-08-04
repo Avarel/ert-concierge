@@ -1,5 +1,5 @@
 import "./style.scss";
-import { AbstractBody, Header, Body } from "./manager";
+import { AbstractBody, Header, Body } from "./dsl";
 import { createElement } from "../mod";
 export { createElement };
 
@@ -96,7 +96,7 @@ export module Drawer {
         }
 
         /** Add an empty tab. */
-        addTab(tag: string, label: string, callback: (tab: Tab) => void): Tab {
+        addTab(tag: string, label: string, callback?: (tab: Tab) => void): Tab {
             if (this.tabs.has(tag)) {
                 throw new Error("Tab " + tag + " already exists!");
             }
