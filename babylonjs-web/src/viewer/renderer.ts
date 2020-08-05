@@ -22,10 +22,6 @@ export class RendererView {
             this.detachControl();
             this.isFocused = false;
         });
-
-        if (this.renderer.engine.inputElement == null) {
-            canvas.click();
-        }
     }
 
     attachControl() {

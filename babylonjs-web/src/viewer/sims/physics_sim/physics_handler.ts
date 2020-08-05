@@ -3,9 +3,10 @@ import { DeepImmutable, Vector2, DeepImmutableArray, Color3, ExecuteCodeAction, 
 import { RendererView } from "../../renderer";
 import { ServiceEventHandler } from "../../../concierge_api/handlers";
 import { Payload } from "../../../concierge_api/payloads";
-import { Drawer } from "../../../overlay/mod";
 import { Vec2f, RgbColor, PhysicsPayload } from "./payloads";
-import { renderController } from "./controller";
+import Tabbed from "../../../overlay/tabbed/react";
+import { PhysicsComponent } from "./controller";
+import React from "react";
 
 export const PHYSICS_ENGINE_NAME = "physics_engine";
 export const PHYSICS_ENGINE_GROUP = "physics_engine_out";
@@ -69,7 +70,7 @@ export class PhysicsHandler extends ServiceEventHandler {
     constructor(
         client: ConciergeAPI.Client,
         private readonly renderer: RendererView,
-        private drawerUI?: Drawer.UI
+        private tabbedComponent?: Tabbed.Component
     ) {
         super(client, PHYSICS_ENGINE_GROUP);
     }
@@ -105,9 +106,10 @@ export class PhysicsHandler extends ServiceEventHandler {
     }
 
     setupController() {
-        this.drawerUI?.addTab(PHYSICS_ENGINE_NAME, "Rust Physics", tab => {
-            renderController(this, tab.bodyElement);
-        })
+        const tab = this.tabbedComponent?.addTab(PHYSICS_ENGINE_NAME, "Rust Physics");
+        if (tab) {
+            tab.reactContent = React.createElement(PhysicsComponent, { handler: this });
+        }
     }
 
     onUnsubscribe() {
@@ -117,7 +119,7 @@ export class PhysicsHandler extends ServiceEventHandler {
     }
 
     destroyController() {
-        this.drawerUI?.removeTab(PHYSICS_ENGINE_NAME);
+        this.tabbedComponent?.removeTab(PHYSICS_ENGINE_NAME);
     }
 
     clearShapes() {

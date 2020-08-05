@@ -5,13 +5,6 @@ import Rs from "../../../overlay/rstyle/react";
 import React from "react";
 import ReactDOM from "react-dom";
 
-export function renderController(handler: PlanetsHandler, element: HTMLElement) {
-    ReactDOM.render(
-        <PlanetaryComponent handler={handler} />,
-        element
-    );
-}
-
 interface RenderingInfoState {
     fps: number | string,
     fdelta: number | string,
@@ -57,9 +50,9 @@ class RenderingInfo extends React.Component<PlanetaryComponentProps, RenderingIn
 interface PlanetaryComponentProps {
     handler: PlanetsHandler
 }
-class PlanetaryComponent extends React.Component<PlanetaryComponentProps> {
+export class PlanetaryComponent extends React.Component<PlanetaryComponentProps> {
     render() {
-        return <div className="planetary-controls">
+        return <div className="planetary-controls rstyled full">
             <Rs.Pad light>
                 <PlanetaryStateComponent handler={this.props.handler} />
                 <PlanetaryInfoComponent handler={this.props.handler} />

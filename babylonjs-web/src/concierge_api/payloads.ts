@@ -36,7 +36,7 @@ export interface Origin extends ClientPayload {
 
 export module Targets {
     export interface BaseTarget<T extends string> {
-        type: T
+        readonly type: T
     }
     export interface TargetName extends BaseTarget<"NAME"> {
         name: string
@@ -101,7 +101,7 @@ export module Payload {
     export module StatusPayload {
         /** These statuses may be sequenced. */ 
         export interface BaseStatus<T extends string> extends BasePayload<"STATUS"> {
-            code: T
+            readonly code: T
             seq?: number,
         }
         /** These statuses are always sequenced. */ 

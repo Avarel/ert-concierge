@@ -1,6 +1,11 @@
 import "./style.scss";
-import { createElement } from "../mod";
 import Split from "split.js";
+
+export function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: string[] = []): HTMLElementTagNameMap[K] {
+    let div = document.createElement(tag);
+    div.classList.add(...classes);
+    return div;
+}
 
 export namespace Views {
     export interface View {

@@ -1,22 +1,19 @@
-import { Chat } from '../overlay/mod';
 import { ServiceEventHandler } from "../concierge_api/handlers";
 import { Client } from '../concierge_api/mod';
 import { Payload } from '../concierge_api/payloads';
+import React from 'react';
+import { Chat } from "../overlay/mod";
 
 const CHAT_GROUP = "chat";
 
 export class ChatHandler extends ServiceEventHandler {
-    constructor(readonly client: Client, readonly ui: Chat.UI) {
+    constructor(client: Client, readonly ui: Chat.Component) {
         super(client, CHAT_GROUP);
-        this.client = client;
-        this.ui = ui;
-        ui.onEnter = (text) => {
-            this.onEnter(text);
-        };
+        this.ui.onSubmit = this.onEnter.bind(this);
     }
 
     onSubscribe() {
-        this.ui.addStatus("Connected to the chat system.")
+        this.ui.addStatus("Connected to the chat system.");
     }
 
     /**
@@ -47,6 +44,6 @@ export class ChatHandler extends ServiceEventHandler {
     }
 
     onUnsubscribe() {
-        this.ui.addStatus("Disconnected from the chat system.")
+        this.ui.addStatus("Disconnected from the chat system.");
     }
 }

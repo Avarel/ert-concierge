@@ -7,32 +7,17 @@ $tall-height: $normal-height + 300px;
         @content;
     }
 }
-
-.window {
+.float-window {
     z-index: 100;
     position: fixed;
     display: flex;
     bottom: 0;
     width: 400px;
-    height: 500px;
     max-height: 100%;
     box-sizing: border-box;
     transition: margin-left 0.5s, margin-bottom 0.5s;
     flex-direction: column;
     font-family: "Titillium Web", "Roboto", sans-serif;
-
-    &.tall {
-        height: $tall-height;
-
-        &.hidden {
-            margin-bottom: calc(
-                max(
-                    -#{$tall-height - $drawer-height},
-                    -100vh + #{$drawer-height}
-                )
-            );
-        }
-    }
 
     &.left {
         left: 50px;
@@ -51,101 +36,5 @@ $tall-height: $normal-height + 300px;
         bottom: 0;
         height: 50vh;
         width: 100vw;
-    }
-
-    &.hidden {
-        margin-bottom: calc(
-            max(
-                -#{$normal-height - $drawer-height},
-                -100vh + #{$drawer-height}
-            )
-        );
-
-        @include small-screen {
-            bottom: 0;
-            margin-left: 0;
-            margin-bottom: calc(-50vh + $drawer-height);
-        }
-    }
-
-    > .window-header {
-        min-height: $drawer-height;
-        height: $drawer-height;
-        max-height: $drawer-height;
-        margin-left: 5px;
-        margin-right: 5px;
-        display: flex;
-        flex-direction: row;
-        overflow-x: auto;
-        overflow-y: hidden;
-        width: auto;
-
-        &::-webkit-scrollbar {
-            width: 5px;
-            height: 5px;
-        }
-        &::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        &::-webkit-scrollbar-thumb {
-            background: #666;
-            border-radius: 5px;
-            &:hover {
-                background: #777;
-            }
-            &:active {
-                background: #888;
-            }
-        }
-
-        > .window-header-tab {
-            display: inline;
-            max-height: $drawer-height;
-            line-height: $drawer-height;
-            background: transparent;
-            // border-radius: 5px 5px 0 0;
-            text-align: center;
-            padding: 0px 10px 0px;
-            color: #ccc;
-            cursor: pointer;
-            transition: background-color 0.2s, color 0.2s;
-            white-space: nowrap;
-            &:hover {
-                color: white;
-            }
-            &.active {
-                @extend :hover;
-                font-weight: bold;
-            }
-        }
-
-        > .window-drawer {
-            @extend .window-header-tab;
-            margin-top: 0;
-            background: none;
-            color: white;
-            min-width: $drawer-height;
-            width: $drawer-height;
-            padding: 0;
-        }
-    }
-
-    > .window-body {
-        background: #bbb;
-        height: 100%;
-        width: 100%;
-        border-radius: 5px 5px 0 0;
-        overflow: hidden;
-        color: black;
-        display: flex;
-
-        > .window-tab {
-            height: 100%;
-            width: 100%;
-            display: none;
-            &.active {
-                display: inherit;
-            }
-        }
     }
 }

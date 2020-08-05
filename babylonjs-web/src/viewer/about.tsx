@@ -29,7 +29,7 @@ import React from "react";
 import Rs from "../overlay/rstyle/react";
 
 export function About() {
-    return <React.Fragment>
+    return <div className="rstyled full">
         <Rs.Pad light>
             <h1>ERT Concierge</h1>
             <h2>BabylonJS Client</h2>
@@ -56,5 +56,5 @@ export function About() {
         <Rs.Pad light>
             <p>SURF 2020 / OVRAS</p>
         </Rs.Pad>
-    </React.Fragment>
+    </div>
 }

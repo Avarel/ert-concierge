@@ -6,8 +6,9 @@ import { ServiceEventHandler } from "../../../concierge_api/handlers";
 import { Client } from "../../../concierge_api/mod";
 import { Payload } from "../../../concierge_api/payloads";
 import { SystemObject, SystemData, PlanetaryPayload } from "./payloads";
-import { Drawer } from "../../../overlay/mod";
-import { renderController } from "./controller";
+import Tabbed from "../../../overlay/tabbed/react";
+import React from "react";
+import { PlanetaryComponent } from "./controller";
 
 export const PLANET_SIM_NAME = "planetary_simulation";
 export const PLANET_SIM_GROUP = "planetary_simulation_out";
@@ -120,7 +121,7 @@ export class PlanetsHandler extends ServiceEventHandler {
     planets: Map<string, Planet>;
 
     private readonly visualScale: number = 5;
-    private controllerTab?: Drawer.Tab;
+    private controllerTab?: Tabbed.Item;
     
     planetLock?: string;
     hoveredPlanets: Set<string> = new Set();
@@ -129,7 +130,7 @@ export class PlanetsHandler extends ServiceEventHandler {
     constructor(
         client: Client,
         readonly view: RendererView,
-        private drawerUI?: Drawer.UI
+        private tabbedComponent?: Tabbed.Component
     ) {
         super(client, PLANET_SIM_GROUP);
         this.planets = new Map();
@@ -154,7 +155,7 @@ export class PlanetsHandler extends ServiceEventHandler {
     }
 
     onSubscribe() {
-        this.controllerTab = this.drawerUI?.addTab(PLANET_SIM_NAME, "Planetary Controls");
+        this.controllerTab = this.tabbedComponent?.addTab(PLANET_SIM_NAME, "Planetary Controls");
         console.log("Planet simulator client is ready to go!");
 
         this.sendToSim({
@@ -186,8 +187,8 @@ export class PlanetsHandler extends ServiceEventHandler {
             }
         }
 
-        if (this.controllerTab?.isShown || force) {
-            renderController(this, this.controllerTab!.bodyElement)
+        if (this.controllerTab && (this.controllerTab.isActive || force)) {
+            this.controllerTab!.reactContent = React.createElement(PlanetaryComponent, { handler: this });
         }
     }
 
@@ -200,7 +201,7 @@ export class PlanetsHandler extends ServiceEventHandler {
             headers,
             body: formData,
         });
-        
+
 
         switch (response.status) {
             case 200:
@@ -216,7 +217,7 @@ export class PlanetsHandler extends ServiceEventHandler {
     }
 
     onUnsubscribe() {
-        this.drawerUI?.removeTab(PLANET_SIM_NAME);
+        this.tabbedComponent?.removeTab(PLANET_SIM_NAME);
         this.clearShapes();
         console.log("Planet simulator client has disconnected!");
     }

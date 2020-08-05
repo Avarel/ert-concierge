@@ -6,7 +6,7 @@ import Payload from "../concierge_api/payloads";
 export class UsersHandler extends EventHandler {
     constructor(
         readonly client: Client,
-        readonly ui: Sidebar.UI
+        readonly ui: Sidebar.Component
     ) {
         super();
     }
