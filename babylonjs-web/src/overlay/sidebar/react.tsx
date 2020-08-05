@@ -17,7 +17,7 @@ interface TextIconProp {
 interface SidebarComponentProps {
     items: (ImageIconProp | TextIconProp)[]
 }
-export class SidebarComponent extends React.Component<SidebarComponentProps> {
+export class SidebarComponent extends React.PureComponent<SidebarComponentProps> {
     render() {
         return <React.Fragment>
             {this.props.items.map(prop => <SidebarItem {...prop}/>)}
@@ -44,4 +44,3 @@ class SidebarItem extends React.PureComponent<ImageIconProp | TextIconProp> {
         </Tippy>
     }
 }
-

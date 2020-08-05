@@ -137,6 +137,7 @@ $tall-height: $normal-height + 300px;
         border-radius: 5px 5px 0 0;
         overflow: hidden;
         color: black;
+        display: flex;
 
         > .window-tab {
             height: 100%;
@@ -144,131 +145,6 @@ $tall-height: $normal-height + 300px;
             display: none;
             &.active {
                 display: inherit;
-            }
-
-            &.styled {
-                position: relative;
-                font-family: "Titillium Web", "Roboto", sans-serif;
-                box-sizing: border-box;
-                overflow: auto;
-
-                h1 {
-                    font-size: 30px;
-                    margin-bottom: 5px;
-                    font-weight: bold;
-                }
-    
-                h2 {
-                    font-size: 20px;
-                    margin-bottom: 5px;
-                    font-weight: bold;
-                }
-    
-                p {
-                    margin-bottom: 5px;
-                    &:last-child {
-                        margin-bottom: 0;
-                    }
-                }
-    
-                button {
-                    background: #FF6C0C;
-                    font-family: inherit;
-                    font-size: 15px;
-                    padding: 10px;
-                    border: none;
-                    border-radius: 5px;
-    
-                    &:focus {
-                        outline: none;
-                    }
-                    &:hover {
-                        background: rgb(255, 145, 82);
-                    }
-                    &:active {
-                        background: rgb(255, 203, 172);
-                    }
-                }
-    
-                .entry {
-                    display: flex;
-                    margin-bottom: 5px;
-        
-                    > .name {
-                        width: 40%;
-                        text-align: right;
-                        padding-right: 10px;
-                        box-sizing: border-box;
-                        align-self: center;
-                    }
-        
-                    > .value {
-                        flex: 1 0 auto;
-                        display: flex;
-                        flex-direction: column;
-        
-                        input {
-                            font-family: inherit;
-                            width: 100%;
-                            padding: 5px;
-                            box-sizing: border-box;
-                            border: none;
-                            background: white;
-                            text-align: right;
-                            transition: background-color 0.2s;
-        
-                            &:read-only {
-                                background: #eee;
-                                outline: none;
-                            }
-                            &:first-child {
-                                border-radius: 5px 5px 0 0;
-                            }
-                            &:not(:first-child):not(:last-child) {
-                                border-radius: 0;
-                            }
-                            &:not(:last-child) {
-                                margin-bottom: 1px;
-                            }
-                            &:last-child {
-                                border-radius: 0 0 5px 5px;
-                            }
-                            &:first-child:last-child {
-                                border-radius: 5px;
-                            }
-                        }
-                    }
-                }
-    
-                .window-tab-header {
-                    background: #ddd;
-                    padding: 10px;
-    
-                    > .window-tab-box {
-                        background: #eee;
-                    }
-                }
-    
-                .window-tab-box {
-                    width: 100%;
-                    padding: 10px;
-                    border-radius: 5px;
-                    box-sizing: border-box;
-                    word-break: break-word;
-                    margin-bottom: 10px;
-            
-                    &:last-child {
-                        margin-bottom: 0;
-                    }
-                }
-    
-                .window-tab-body {
-                    padding: 10px;
-                    
-                    .window-tab-box {
-                        background: #ccc;
-                    }
-                }
             }
         }
     }

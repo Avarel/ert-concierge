@@ -1,89 +1,27 @@
 import React from "react";
 
-export class TabHeader extends React.PureComponent {
-    render() {
-        return <div className="window-tab-header">
-            {this.props.children}
-        </div>;
-    }
+interface WindowTab {
+    readonly tag: string,
+    readonly ref: React.RefObject<HTMLDivElement>
 }
 
-export class TabBody extends React.PureComponent {
-    render() {
-        return <div className="window-tab-body">
-            {this.props.children}
-        </div>;
-    }
+interface WindowComponentState {
+    tabs: Map<string, WindowTab>
 }
-
-export class TabBox extends React.PureComponent {
-    render() {
-        return <div className="window-tab-box">
-            {this.props.children}
-        </div>;
-    }
-}
-
-interface EntryInput {
-    tag?: string,
-    value: any
-}
-interface EntryProps {
-    name: string,
-    inputs: EntryInput[],
-    readOnly?: true,
-    onSubmit?: (tag: string, value: string) => void,
-}
-interface EntryState {
-    values: any[]
-}
-export class Entry extends React.Component<EntryProps, EntryState> {
-    constructor(props: EntryProps) {
-        super(props);
-        this.state = { values: props.inputs.map(_ => undefined) };
-    }
-
-    handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>, index: number) {
-        if (event.keyCode === 13) {
-            event.preventDefault();
-            const tag = this.props.inputs[index].tag;
-            if (!tag) return;
-            const originalValue = this.props.inputs[index].value;
-            const value = this.state.values[index];
-            if (value && value != originalValue) {
-                this.props.onSubmit?.(tag, value);
-                this.state.values[index] = undefined;
-            }
-        }
-    }
-
-    handleChange(event: React.ChangeEvent<HTMLInputElement>, index: number) {
-        const value = event.currentTarget.value;
-        const originalValue = this.props.inputs[index].value;
-        if (value == originalValue) {
-            value == undefined;
-        }
+export class WindowComponent extends React.Component<{}, WindowComponentState> {
+    addTab(tag: string) {
+        let ref = React.createRef<HTMLDivElement>();
         this.setState(state => {
-            state.values[index] = value;
-            return state
+            let tabs = new Map(state.tabs);
+            tabs.set(tag, { tag, ref });
+            return { tabs };
         });
+        return ref;
     }
 
     render() {
-        return <div className="entry">
-            <div className="name">{this.props.name}</div>
-            <div className="value">
-                {
-                    this.props.inputs.map(({ tag, value }, index) =>
-                        <input
-                            readOnly={tag == undefined}
-                            value={!this.state.values[index] ? value : this.state.values[index]}
-                            onChange={event => this.handleChange(event, index)}
-                            onKeyDown={event => this.handleKeyDown(event, index)}
-                        />
-                    )
-                }
-            </div>
-        </div>;
+        return <React.Fragment>
+            {Array.from(this.state.tabs.values(), tab => <div ref={tab.ref}></div>)}
+        </React.Fragment>;
     }
 }

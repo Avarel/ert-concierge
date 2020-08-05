@@ -5,6 +5,7 @@ import { ServiceEventHandler } from "../../../concierge_api/handlers";
 import { Payload } from "../../../concierge_api/payloads";
 import { Drawer } from "../../../overlay/mod";
 import { Vec2f, RgbColor, PhysicsPayload } from "./payloads";
+import { renderController } from "./controller";
 
 export const PHYSICS_ENGINE_NAME = "physics_engine";
 export const PHYSICS_ENGINE_GROUP = "physics_engine_out";
@@ -105,23 +106,7 @@ export class PhysicsHandler extends ServiceEventHandler {
 
     setupController() {
         this.drawerUI?.addTab(PHYSICS_ENGINE_NAME, "Rust Physics", tab => {
-            tab.addHeader(header => {
-                header.add("h1", "Rust Physics");
-                header.add("p", "SURF 2020 / OVRAS");
-                header.addButton("Respawn", () => {
-                    this.sendToSim({
-                        type: "SPAWN_ENTITY"
-                    });
-                });
-            })
-
-            tab.addBody(body => {
-                body.addBox(box => {
-                    box.add("h2", "Instructions");
-                    box.add("p", "Click on your own box colors to duplicate it.");
-                    box.add("p", "Click on boxes with another color to destroy them.")
-                })
-            });
+            renderController(this, tab.bodyElement);
         })
     }
 
@@ -139,7 +124,6 @@ export class PhysicsHandler extends ServiceEventHandler {
         for (let key of this.shapes.keys()) {
             if (this.shapes.has(key)) {
                 let shape = this.shapes.get(key)!;
-                // this.renderer.shadowGenerator?.removeShadowCaster(shape.mesh);
                 shape.dispose();
                 this.shapes.delete(key);
             }
@@ -150,7 +134,6 @@ export class PhysicsHandler extends ServiceEventHandler {
         if (this.renderer.scene) {
             let shape = PolygonShape.createPolygon(new Vector3(centroid.x, 0, centroid.y), points, this.renderer.scene, color, this.visualScale);
             this.shapes.set(id, shape);
-            // this.renderer.shadowGenerator?.addShadowCaster(shape.mesh);
             return shape;
         }
         throw new Error("Scene not initialized!")

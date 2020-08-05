@@ -55,7 +55,7 @@ interface ChatInputProp {
 interface ChatInputState {
     text: string
 }
-class ChatInput extends React.Component<ChatInputProp, ChatInputState> {
+class ChatInput extends React.PureComponent<ChatInputProp, ChatInputState> {
     constructor(props: ChatInputProp) {
         super(props);
         this.state = { text: "" };

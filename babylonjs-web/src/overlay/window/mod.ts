@@ -1,27 +1,17 @@
 import "./style.scss";
-import { AbstractBody, Header, Body } from "./dsl";
 import { createElement } from "../mod";
 export { createElement };
 
 export module Drawer {
-    export class Tab extends AbstractBody {
-        readonly type = "TAB";
-        isShown = false;
+    export class Tab {
+        isShown: boolean;
 
         constructor(
             public tag: string,
             private headerTabElement: HTMLElement,
-            bodyElement: HTMLElement
+            public bodyElement: HTMLElement
         ) {
-            super(undefined, bodyElement);
-        }
-
-        addHeader(callback?: (header: Header) => void): Header {
-            return this.addChild(new Header(this), callback);
-        }
-
-        addBody(callback?: (header: Body) => void): Body {
-            return this.addChild(new Body(this), callback);
+            this.isShown = false;
         }
 
         show(flag: boolean = true) {
@@ -38,7 +28,6 @@ export module Drawer {
         remove() {
             this.headerTabElement.remove();
             this.bodyElement.remove();
-            super.remove();
             this.isShown = false;
         }
     }
@@ -105,7 +94,7 @@ export module Drawer {
             }
             
             const tabBody = createElement("div", ["window-tab"]);
-            if (styled) tabBody.classList.add("styled");
+            if (styled) tabBody.classList.add("rstyled");
             let tab = this.addPopulatedTab(tag, label, tabBody);
 
             callback?.(tab);

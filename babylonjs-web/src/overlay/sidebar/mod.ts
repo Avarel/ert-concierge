@@ -1,6 +1,4 @@
 import "./style.scss";
-// import tippy, { Props, Instance } from "tippy.js";
-// import "tippy.js/dist/tippy.css";
 import { SidebarComponent } from "./react";
 import ReactDOM from "react-dom";
 import React from "react";
