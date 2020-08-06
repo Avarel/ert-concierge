@@ -156,7 +156,7 @@ pub async fn recv_loop<T>(
                     handle_message(data, client, &world, &tx).await;
                 }
                 Ok(Payload::Status {
-                    data: StatusPayload::ClientLeft { data: client },
+                    data: StatusPayload::ClientLeft { client },
                     ..
                 }) => {
                     let mut world = world.write().await;

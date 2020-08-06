@@ -3,7 +3,7 @@
 use super::Concierge;
 pub use error::FsError;
 use log::debug;
-use std::{ffi::OsStr, path::PathBuf};
+use std::{ffi::OsStr, path::PathBuf, sync::Arc};
 use tokio::{
     fs::{File, OpenOptions},
     io::AsyncWriteExt,
@@ -89,172 +89,182 @@ impl warp::Reply for FsFileReply {
     }
 }
 
-pub async fn handle_file_get(
-    concierge: &Concierge,
-    name: String,
-    auth: Uuid,
-    tail: &str,
-) -> Result<FsFileReply, FsError> {
-    debug!(
-        "Received GET request (name: {}, auth: {}, path: {})",
-        name, auth, tail
-    );
-    let tail = sanitize_filename::sanitize(tail);
-
-    // Check that the key is registered with the concierge.
-    if !concierge.clients.read().await.contains_key(&auth) {
-        return Err(FsError::BadAuthorization);
-    }
-
-    // Construct the file path.
-    let file_path = base_path(&name).join(tail);
-
-    // Check that the file path is legal.
-    let file_name = file_path
-        .file_name()
-        .and_then(OsStr::to_str)
-        .ok_or_else(|| FsError::Encoding)?;
-
-    // Check that the file at the path is a file.
-    if !file_path.is_file() {
-        return Err(FsError::NotAFile);
-    }
-
-    // Make sure file exists.
-    let file = File::open(&file_path).await?;
-
-    Ok(FsFileReply::new(file_name.to_owned(), file))
+pub struct FsConnection {
+    concierge: Arc<Concierge>
 }
 
-pub async fn handle_file_delete(
-    concierge: &Concierge,
-    name: String,
-    auth: Uuid,
-    tail: &str,
-) -> Result<impl Reply, FsError> {
-    debug!(
-        "Received DELETE request (name: {}, auth: {}, path: {})",
-        name, auth, tail
-    );
-    let tail = sanitize_filename::sanitize(tail);
-
-    // Check that a client with the auth UUID exists in the concierge.
-    let clients = concierge.clients.read().await;
-    let client = clients
-        .get(&auth)
-        .ok_or_else(|| FsError::BadAuthorization)?;
-
-    if client.name() != name {
-        return Err(FsError::Forbidden);
+impl FsConnection {
+    pub fn new(concierge: Arc<Concierge>) -> Self {
+        Self { concierge }
     }
 
-    // Construct the path and remove the file.
-    let file_path = base_path(&name).join(tail);
-    tokio::fs::remove_file(file_path).await?;
+    pub async fn handle_file_get(
+        &self,
+        name: String,
+        auth: Uuid,
+        tail: &str,
+    ) -> Result<FsFileReply, FsError> {
+        debug!(
+            "Received GET request (name: {}, auth: {}, path: {})",
+            name, auth, tail
+        );
+        let tail = sanitize_filename::sanitize(tail);
 
-    Ok(StatusCode::OK)
-}
+        // Check that the key is registered with the concierge.
+        if !self.concierge.clients.read().await.contains_key(&auth) {
+            return Err(FsError::BadAuthorization);
+        }
 
-pub async fn handle_file_put(
-    concierge: &Concierge,
-    name: String,
-    auth: Uuid,
-    tail: &str,
-    mut body: impl Buf,
-) -> Result<impl Reply, FsError> {
-    debug!(
-        "Received upload request (name: {}, auth: {}, path: {})",
-        name, auth, tail
-    );
-    let tail = sanitize_filename::sanitize(tail);
+        // Construct the file path.
+        let file_path = base_path(&name).join(tail);
 
-    // Check that a client with the auth UUID exists in the concierge.
-    let clients = concierge.clients.read().await;
-    let client = clients
-        .get(&auth)
-        .ok_or_else(|| FsError::BadAuthorization)?;
+        // Check that the file path is legal.
+        let file_name = file_path
+            .file_name()
+            .and_then(OsStr::to_str)
+            .ok_or_else(|| FsError::Encoding)?;
 
-    if client.name() != name {
-        return Err(FsError::Forbidden);
+        // Check that the file at the path is a file.
+        if !file_path.is_file() {
+            return Err(FsError::NotAFile);
+        }
+
+        // Make sure file exists.
+        let file = File::open(&file_path).await?;
+
+        Ok(FsFileReply::new(file_name.to_owned(), file))
     }
 
-    // Construct the path and create the directories recursively.
-    let file_path = base_path(&name).join(tail);
-    tokio::fs::create_dir_all(file_path.parent().unwrap()).await?;
+    pub async fn handle_file_delete(
+        &self,
+        name: String,
+        auth: Uuid,
+        tail: &str,
+    ) -> Result<impl Reply, FsError> {
+        debug!(
+            "Received DELETE request (name: {}, auth: {}, path: {})",
+            name, auth, tail
+        );
+        let tail = sanitize_filename::sanitize(tail);
 
-    // Open the file.
-    let mut file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(file_path)
-        .await?;
-    file.set_len(0).await?;
+        // Check that a client with the auth UUID exists in the concierge.
+        let clients = self.concierge.clients.read().await;
+        let client = clients
+            .get(&auth)
+            .ok_or_else(|| FsError::BadAuthorization)?;
 
-    // Write the file as long as the body streams bytes.
-    while body.has_remaining() {
-        let bytes = body.bytes();
-        file.write_all(bytes).await?;
-        let n = bytes.len();
-        body.advance(n);
+        if client.name() != name {
+            return Err(FsError::Forbidden);
+        }
+
+        // Construct the path and remove the file.
+        let file_path = base_path(&name).join(tail);
+        tokio::fs::remove_file(file_path).await?;
+
+        Ok(StatusCode::OK)
     }
 
-    Ok(StatusCode::CREATED)
-}
+    pub async fn handle_file_put(
+        &self,
+        name: String,
+        auth: Uuid,
+        tail: &str,
+        mut body: impl Buf,
+    ) -> Result<impl Reply, FsError> {
+        debug!(
+            "Received upload request (name: {}, auth: {}, path: {})",
+            name, auth, tail
+        );
+        let tail = sanitize_filename::sanitize(tail);
 
-pub async fn handle_file_put_multipart(
-    concierge: &Concierge,
-    name: String,
-    auth: Uuid,
-    tail: &str,
-    mut data: FormData,
-) -> Result<impl Reply, FsError> {
-    debug!(
-        "Received upload[multipart] request (name: {}, auth: {})",
-        name, auth
-    );
-    let tail = sanitize_filename::sanitize(tail);
+        // Check that a client with the auth UUID exists in the concierge.
+        let clients = self.concierge.clients.read().await;
+        let client = clients
+            .get(&auth)
+            .ok_or_else(|| FsError::BadAuthorization)?;
 
-    // Check that a client with the auth UUID exists in the concierge.
-    let clients = concierge.clients.read().await;
-    let client = clients
-        .get(&auth)
-        .ok_or_else(|| FsError::BadAuthorization)?;
+        if client.name() != name {
+            return Err(FsError::Forbidden);
+        }
 
-    if client.name() != name {
-        return Err(FsError::Forbidden);
+        // Construct the path and create the directories recursively.
+        let file_path = base_path(&name).join(tail);
+        tokio::fs::create_dir_all(file_path.parent().unwrap()).await?;
+
+        // Open the file.
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(file_path)
+            .await?;
+        file.set_len(0).await?;
+
+        // Write the file as long as the body streams bytes.
+        while body.has_remaining() {
+            let bytes = body.bytes();
+            file.write_all(bytes).await?;
+            let n = bytes.len();
+            body.advance(n);
+        }
+
+        Ok(StatusCode::CREATED)
     }
 
+    pub async fn handle_file_put_multipart(
+        &self,
+        name: String,
+        auth: Uuid,
+        tail: &str,
+        mut data: FormData,
+    ) -> Result<impl Reply, FsError> {
+        debug!(
+            "Received upload[multipart] request (name: {}, auth: {})",
+            name, auth
+        );
+        let tail = sanitize_filename::sanitize(tail);
 
-    // Construct the path and create the directories recursively.
-    let file_path = base_path(&name).join(tail);
-    tokio::fs::create_dir_all(file_path.parent().unwrap()).await?;
+        // Check that a client with the auth UUID exists in the concierge.
+        let clients = self.concierge.clients.read().await;
+        let client = clients
+            .get(&auth)
+            .ok_or_else(|| FsError::BadAuthorization)?;
 
-    // Open the file.
-    let mut file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(file_path)
-        .await?;
-    file.set_len(0).await?;
+        if client.name() != name {
+            return Err(FsError::Forbidden);
+        }
 
-    let mut flag = true;
-    let mut file_name = None;
-    while let Some(Ok(mut part)) = data.next().await {
-        if flag {
-            if let Some(name) = part.filename() {
-                file_name = Some(name.to_owned());
+
+        // Construct the path and create the directories recursively.
+        let file_path = base_path(&name).join(tail);
+        tokio::fs::create_dir_all(file_path.parent().unwrap()).await?;
+
+        // Open the file.
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(file_path)
+            .await?;
+        file.set_len(0).await?;
+
+        let mut flag = true;
+        let mut file_name = None;
+        while let Some(Ok(mut part)) = data.next().await {
+            if flag {
+                if let Some(name) = part.filename() {
+                    file_name = Some(name.to_owned());
+                }
+                flag = false;
+            } else if part.filename() != file_name.as_deref() {
+                // check that all parts uploaded are consistent with the first part
+                // can probably be done better, but this will suffice for now.
+                continue;
             }
-            flag = false;
-        } else if part.filename() != file_name.as_deref() {
-            // check that all parts uploaded are consistent with the first part
-            // can probably be done better, but this will suffice for now.
-            continue;
+
+            if let Some(Ok(buf)) = part.data().await {
+                file.write_all(buf.bytes()).await.unwrap();
+            }
         }
 
-        if let Some(Ok(buf)) = part.data().await {
-            file.write_all(buf.bytes()).await.unwrap();
-        }
+        Ok(StatusCode::CREATED)
     }
-
-    Ok(StatusCode::CREATED)
 }

@@ -1,5 +1,5 @@
 use crate::concierge::{Concierge, WsError};
-use concierge_api_rs::payload::ClientPayload;
+use concierge_api_rs::payload::{ClientPayload, GroupPayload};
 use serde::Serialize;
 use std::{borrow::Cow, collections::HashSet};
 use tokio::sync::{
@@ -64,7 +64,12 @@ impl Client {
 
     /// Utility method to construct an origin receipt on certain payloads.
     pub fn make_payload(&self) -> ClientPayload<'_> {
-        let tags = self.tags.iter().map(|t| t.as_str()).collect();
+        let tags = self
+            .tags
+            .iter()
+            .map(String::as_str)
+            .map(Cow::Borrowed)
+            .collect();
 
         ClientPayload {
             uuid: self.uuid,
@@ -85,26 +90,33 @@ impl Client {
     }
 
     /// Attempt to subscribe to a group.
-    pub async fn subscribe(&self, concierge: &Concierge, group_name: &str) -> bool {
+    pub async fn subscribe(
+        &self,
+        concierge: &Concierge,
+        group_name: &str,
+    ) -> Option<GroupPayload<'_>> {
         let mut groups = concierge.groups.write().await;
         if let Some(group) = groups.get_mut(group_name) {
             group.add_subscriber(concierge, self.uuid);
-            self.subscriptions.write().await.insert(group.name.to_owned());
-            true
+            self.subscriptions
+                .write()
+                .await
+                .insert(group.name.to_owned());
+            Some(group.make_payload().owned())
         } else {
-            false
+            None
         }
     }
 
     /// Attempt to unsubscribe from a group.
-    pub async fn unsubscribe(&self, concierge: &Concierge, group_name: &str) -> bool {
+    pub async fn unsubscribe(&self, concierge: &Concierge, group_name: &str) -> Option<GroupPayload<'_>> {
         let mut groups = concierge.groups.write().await;
         if let Some(group) = groups.get_mut(group_name) {
             group.remove_subscriber(concierge, &self.uuid);
             self.subscriptions.write().await.remove(group_name);
-            true
+            Some(group.make_payload().owned())
         } else {
-            false
+            None
         }
     }
 }

@@ -15,7 +15,18 @@ pub struct ClientPayload<'a> {
     /// Uuid of the client.
     pub uuid: Uuid,
     /// Tags of the client.
-    pub tags: Vec<&'a str>,
+    pub tags: Vec<Cow<'a, str>>,
+}
+
+impl ClientPayload<'_> {
+    pub fn owned(&self) -> ClientPayload<'static> {
+        ClientPayload {
+            name: Cow::Owned(self.name.to_string()),
+            nickname: self.nickname.as_deref().map(str::to_string).map(Cow::Owned),
+            uuid: self.uuid,
+            tags: self.tags.iter().map(|s| s.to_string()).map(Cow::Owned).collect()
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -30,6 +41,17 @@ pub struct GroupPayload<'a> {
     pub owner_uuid: Uuid,
     /// Subscribers
     pub subscribers: Vec<Uuid>,
+}
+
+impl GroupPayload<'_> {
+    pub fn owned(&self) -> GroupPayload<'static> {
+        GroupPayload {
+            name: Cow::Owned(self.name.to_string()),
+            nickname: self.nickname.as_deref().map(str::to_string).map(Cow::Owned),
+            owner_uuid: self.owner_uuid,
+            subscribers: self.subscribers.clone()
+        }
+    }
 }
 
 impl<'a> ClientPayload<'a> {
@@ -207,12 +229,28 @@ pub enum Payload<'a, T> {
     /// Status payload sent by the concierge. May happen for various reasons
     /// such as error response.
     Status {
-        /// Sequence number. This may not always be applicable since status
-        /// events are sometimes fired automatically and not in response to
-        /// an input from the socket.
-        seq: Option<usize>,
         /// Data of the status.
         #[serde(flatten)]
         data: StatusPayload<'a>,
     },
+}
+
+impl<'a, T> Payload<'a, T> {
+    pub fn seq(self, seq: usize) -> SequencedPayload<'a, T> {
+        return SequencedPayload {
+            seq,
+            payload: self
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SequencedPayload<'a, T> {
+    /// Sequence number. This may not always be applicable since status
+    /// events are sometimes fired automatically and not in response to
+    /// an input from the socket.
+    seq: usize,
+    /// The actual payload object.
+    #[serde(flatten, borrow="'a")]
+    payload: Payload<'a, T>
 }

@@ -12,7 +12,7 @@ use futures::{future, pin_mut, SinkExt, Stream, StreamExt};
 use log::{debug, info, warn};
 use semver::Version;
 use serde::Serialize;
-use std::{borrow::Cow, net::SocketAddr, path::Path, time::Duration, sync::Arc};
+use std::{net::SocketAddr, path::Path, sync::Arc, time::Duration};
 use tokio::{sync::mpsc::UnboundedReceiver, time::timeout};
 use uuid::Uuid;
 use warp::ws::{Message, WebSocket};
@@ -92,7 +92,7 @@ struct IdentifyPackage {
 }
 
 pub struct SocketConnection {
-    concierge: Arc<Concierge>
+    concierge: Arc<Concierge>,
 }
 
 impl SocketConnection {
@@ -134,9 +134,7 @@ impl SocketConnection {
     }
 
     /// Handle the first 5 seconds of identification.
-    async fn obtain_id(
-        socket: &mut WebSocket,
-    ) -> Result<IdentifyPackage, CloseReason<'static>> {
+    async fn obtain_id(socket: &mut WebSocket) -> Result<IdentifyPackage, CloseReason<'static>> {
         // Protocol: Expect a payload that identifies the client within 5 seconds.
         if let Ok(Some(Ok(msg))) = timeout(Duration::from_secs(5), socket.next()).await {
             if let Ok(string) = msg.to_str() {
@@ -209,15 +207,14 @@ impl SocketConnection {
         namespace.insert(id.name.clone(), uuid);
         drop(namespace);
         // Create the client struct
-        let mut client= Client::new(uuid, id.name, id.nickname, id.tags);
+        let mut client = Client::new(uuid, id.name, id.nickname, id.tags);
         let rx = client.take_rx().unwrap();
 
         broadcast_all(
             &self.concierge,
             &JsonPayload::Status {
-                seq: None,
                 data: StatusPayload::ClientJoined {
-                    data: client.make_payload(),
+                    client: client.make_payload(),
                 },
             },
         )
@@ -276,9 +273,8 @@ impl SocketConnection {
         broadcast_all(
             &self.concierge,
             &JsonPayload::Status {
-                seq: None,
                 data: StatusPayload::ClientLeft {
-                    data: client.make_payload(),
+                    client: client.make_payload(),
                 },
             },
         )
@@ -322,7 +318,7 @@ impl SocketConnection {
                         let clients = self.concierge.clients.read().await;
                         let client = clients.get(&uuid).unwrap();
                         // Ignore, don't panic and die
-                        client.send(&err::internal(seq, &err.to_string())).ok();
+                        client.send(&err::internal(&err.to_string()).seq(seq)).ok();
                     }
                 } else {
                     match serde_json::from_str::<JsonPayload>(string) {
@@ -331,14 +327,14 @@ impl SocketConnection {
                                 let clients = self.concierge.clients.read().await;
                                 let client = clients.get(&uuid).unwrap();
                                 // Ignore, don't panic and die
-                                client.send(&err::internal(seq, &err.to_string())).ok();
+                                client.send(&err::internal(&err.to_string()).seq(seq)).ok();
                             }
                         }
                         Err(err) => {
                             let clients = self.concierge.clients.read().await;
                             let client = clients.get(&uuid).unwrap();
                             // Ignore, don't panic and die
-                            client.send(&err::protocol(seq, &err.to_string())).ok();
+                            client.send(&err::protocol(&err.to_string()).seq(seq)).ok();
                         }
                     }
                 }
@@ -373,40 +369,53 @@ impl SocketConnection {
                     .await?
             }
             Payload::SelfSubscribe { name } => {
-                if client.subscribe(&self.concierge, name).await {
-                    client.send(&ok::subscribed(seq, name))?;
+                if let Some(group_payload) = client.subscribe(&self.concierge, name).await {
+                    client.send(&ok::subscribed(group_payload).seq(seq))?;
                 } else {
-                    client.send(&err::no_such_group(seq, name))?;
+                    client.send(&err::no_such_group(name).seq(seq))?;
                 }
             }
             Payload::SelfUnsubscribe { name } => {
-                if client.unsubscribe(&self.concierge, name).await {
-                    client.send(&ok::unsubscribed(Some(seq), name))?;
+                if let Some(group_payload) = client.unsubscribe(&self.concierge, name).await {
+                    client.send(&ok::unsubscribed(group_payload).seq(seq))?;
                 } else {
-                    client.send(&err::no_such_group(seq, name))?;
+                    client.send(&err::no_such_group(name).seq(seq))?;
                 }
             }
             Payload::GroupCreate { name, nickname } => {
-                if self.concierge.create_group(name, nickname, client_uuid).await? {
-                    client.send(&ok::created_group(Some(seq), name))?;
-                } else {
-                    client.send(&err::group_already_created(seq, name))?;
+                match self
+                    .concierge
+                    .create_group(name, nickname, client_uuid)
+                    .await?
+                {
+                    Ok(group) => {
+                        let created_result = ok::created_group(group);
+                        self.concierge.broadcast_all_except(&created_result, client_uuid)
+                            .await?;
+                        client.send(&created_result.seq(seq))?;
+                    }
+                    Err(group) => {
+                        client.send(&err::group_already_created(group).seq(seq))?;
+                    }
                 }
             }
             Payload::GroupDelete { name } => {
-                if self.concierge.remove_group(name, client.uuid()).await? {
-                    client.send(&ok::deleted_group(Some(seq), name))?;
+                if let Some(group) = self.concierge.remove_group(name, client.uuid()).await? {
+                    let delete_result = ok::deleted_group(group.make_payload());
+                    self.concierge.broadcast_all_except(&delete_result, group.owner_uuid)
+                        .await?;
+                    client.send(&delete_result.seq(seq))?;
                 } else {
-                    client.send(&err::no_such_group(seq, name))?;
+                    client.send(&err::no_such_group(name).seq(seq))?;
                 }
             }
             Payload::GroupFetch { name } => {
                 if let Some(group) = self.concierge.groups.read().await.get(name) {
                     client.send(&JsonPayload::GroupFetchResult {
-                        group: group.make_payload()
-                    })?;
+                        group: group.make_payload(),
+                    }.seq(seq))?;
                 } else {
-                    client.send(&err::no_such_group(seq, name))?;
+                    client.send(&err::no_such_group(name).seq(seq))?;
                 }
             }
             Payload::ClientFetchAll => {
@@ -414,17 +423,17 @@ impl SocketConnection {
                     .values()
                     .map(Client::make_payload)
                     .collect::<Vec<_>>();
-                client.send(&JsonPayload::ClientFetchAllResult { clients })?;
+                client.send(&JsonPayload::ClientFetchAllResult { clients }.seq(seq))?;
             }
             Payload::GroupFetchAll => {
                 let groups = self.concierge.groups.read().await;
-                let group_payloads = groups
-                    .values()
-                    .map(Group::make_payload)
-                    .collect();
-                client.send(&JsonPayload::GroupFetchAllResult {
-                    groups: group_payloads,
-                })?;
+                let group_payloads = groups.values().map(Group::make_payload).collect();
+                client.send(
+                    &JsonPayload::GroupFetchAllResult {
+                        groups: group_payloads,
+                    }
+                    .seq(seq),
+                )?;
             }
             Payload::SelfFetch => {
                 let subscriptions = client.subscriptions.read().await;
@@ -434,12 +443,15 @@ impl SocketConnection {
                     .filter_map(|id| groups.get(id))
                     .map(Group::make_payload)
                     .collect::<Vec<_>>();
-                client.send(&JsonPayload::SelfFetchResult {
-                    client: client.make_payload(),
-                    subscriptions: group_payloads,
-                })?
+                client.send(
+                    &JsonPayload::SelfFetchResult {
+                        client: client.make_payload(),
+                        subscriptions: group_payloads,
+                    }
+                    .seq(seq),
+                )?
             }
-            _ => client.send(&err::unsupported(seq))?,
+            _ => client.send(&err::unsupported().seq(seq))?,
         }
         Ok(())
     }
@@ -465,17 +477,17 @@ impl SocketConnection {
                     .and_then(|id| clients.get(&id))
                 {
                     target_client.send(&payload.with_origin(client_payload.to_origin()))?;
-                    client.send(&ok::message_sent(seq))
+                    client.send(&ok::message_sent().seq(seq))
                 } else {
-                    client.send(&err::no_such_name(seq, name))
+                    client.send(&err::no_such_name(name).seq(seq))
                 }
             }
             Target::Uuid { uuid } => {
                 if let Some(target_client) = clients.get(&uuid) {
                     target_client.send(&payload.with_origin(client_payload.to_origin()))?;
-                    client.send(&ok::message_sent(seq))
+                    client.send(&ok::message_sent().seq(seq))
                 } else {
-                    client.send(&err::no_such_uuid(seq, uuid))
+                    client.send(&err::no_such_uuid(uuid).seq(seq))
                 }
             }
             Target::Group { group } => {
@@ -484,9 +496,9 @@ impl SocketConnection {
                     group
                         .broadcast(&self.concierge, &payload.with_origin(origin))
                         .await?;
-                    client.send(&ok::message_sent(seq))
+                    client.send(&ok::message_sent().seq(seq))
                 } else {
-                    client.send(&err::no_such_group(seq, group))
+                    client.send(&err::no_such_group(group).seq(seq))
                 }
             }
             Target::All => {
@@ -495,7 +507,7 @@ impl SocketConnection {
                     &payload.with_origin(client_payload.to_origin()),
                 )
                 .await?;
-                client.send(&ok::message_sent(seq))
+                client.send(&ok::message_sent().seq(seq))
             }
         }
     }

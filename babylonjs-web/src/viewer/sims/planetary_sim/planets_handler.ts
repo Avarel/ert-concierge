@@ -136,7 +136,7 @@ export class PlanetsHandler extends ServiceEventHandler {
         this.planets = new Map();
     }
 
-    onRecvMessage(message: Payload.Message<PlanetaryPayload>) {
+    onMessage(message: Payload.Message<PlanetaryPayload>) {
         if (message.origin!.name != PLANET_SIM_NAME) {
             return;
         }

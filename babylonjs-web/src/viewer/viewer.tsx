@@ -32,31 +32,45 @@ export namespace Viewer {
     }
 
     function setup(serverURL: string, name: string) {
-        const leftTabComponentRef = React.createRef<Tabbed.Component>();
-        const rightTabComponentRef = React.createRef<Tabbed.Component>();
-        const sidebarComponentRef = React.createRef<Sidebar.Component>();
+        // const leftTabComponentRef = React.createRef<Tabbed.Component>();
+        // const rightTabComponentRef = React.createRef<Tabbed.Component>();
+        // const sidebarComponentRef = React.createRef<Sidebar.Component>();
 
-        ReactDOM.render(
-            <React.Fragment>
-                <Sidebar.Component ref={sidebarComponentRef} />
-                <div className="float-window left">
-                    <Tabbed.Component ref={leftTabComponentRef} contentHeight={500} />
-                </div>
-                <div className="float-window right tall">
-                    <Tabbed.Component ref={rightTabComponentRef} contentHeight={800} reverseHeader>
-                        <Tabbed.StaticTab tag="about" name="About">
-                            <About />
-                        </Tabbed.StaticTab>
-                    </Tabbed.Component>
-                </div>
-                <div className="views"></div>
-            </React.Fragment>,
-            document.querySelector(".app")
+        // ReactDOM.render(
+        //     <React.Fragment>
+        //         <div><Sidebar.Component ref={sidebarComponentRef} /></div>
+        //         <div className="float-window left">
+        //             <Tabbed.Component ref={leftTabComponentRef} contentHeight={500} />
+        //         </div>
+        //         <div className="float-window right tall">
+        //             <Tabbed.Component ref={rightTabComponentRef} contentHeight={800} reverseHeader>
+        //                 <Tabbed.StaticTab tag="about" name="About">
+        //                     <About />
+        //                 </Tabbed.StaticTab>
+        //             </Tabbed.Component>
+        //         </div>
+        //         <div className="views"></div>
+        //     </React.Fragment>,
+        //     document.querySelector(".app")
+        // );
+
+        // const leftTabComponent = leftTabComponentRef.current!;
+        // const rightTabComponent = rightTabComponentRef.current!;
+        // const sidebarComponent = sidebarComponentRef.current!;
+
+        const leftTabComponent = ReactDOM.render(
+            React.createElement(Tabbed.Component, { contentHeight: 500 }),
+            document.getElementById("left-controls")
         );
-
-        const leftTabComponent = leftTabComponentRef.current!;
-        const rightTabComponent = rightTabComponentRef.current!;
-        const sidebarComponent = sidebarComponentRef.current!;
+        const rightTabComponent = ReactDOM.render(
+            React.createElement(Tabbed.Component, { contentHeight: 800, reverseHeader: true }),
+            document.getElementById("right-controls")
+        );
+        rightTabComponent.addTab("about", "About").reactContent = React.createElement(About);
+        const sidebarComponent = ReactDOM.render(
+            React.createElement(Sidebar.Component),
+            document.getElementById("sidebar-app")
+        );
 
         // Setup the main view.
         let viewManager = new Views.UI(".views");
@@ -75,6 +89,9 @@ export namespace Viewer {
         let client = new ConciergeAPI.Client(name, serverURL, true);
 
         let rendererView = renderer.createView(canvas);
+        rendererView.universalCamera();
+        // rendererView.setCamera(rendererView.universalCamera())
+        // rendererView.setCamera(rendererView.universalCamera())
         // let rendererView2 = renderer.createView(canvas2);
 
         // // simulations

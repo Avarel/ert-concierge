@@ -11,7 +11,7 @@ mod concierge;
 #[cfg(test)]
 mod tests;
 
-use concierge::{Concierge, Group};
+use concierge::{Concierge, FsError, Group};
 use log::{debug, info};
 use semver::VersionReq;
 use std::{net::SocketAddr, sync::Arc};
@@ -53,11 +53,10 @@ async fn setup() {
 
     // Create a chat group
     let chat_name = "chat".to_owned();
-    concierge
-        .groups
-        .write()
-        .await
-        .insert(chat_name.to_owned(), Group::new(chat_name, Some("Chat Channel".to_string()), Uuid::nil()));
+    concierge.groups.write().await.insert(
+        chat_name.to_owned(),
+        Group::new(chat_name, Some("Chat Channel".to_string()), Uuid::nil()),
+    );
 
     serve(concierge).await
 }
@@ -98,7 +97,13 @@ async fn serve(concierge: Arc<Concierge>) {
             .and(warp::header::<Uuid>(FS_KEY_HEADER))
             .and_then(move |name: String, path: Tail, auth: Uuid| {
                 let concierge = concierge.clone();
-                async move { concierge.handle_file_get(name, auth, path.as_str()).await }
+                async move {
+                    concierge
+                        .fs_conn()
+                        .handle_file_get(name, auth, path.as_str())
+                        .await
+                        .map_err(FsError::rejection)
+                }
             })
     };
 
@@ -117,8 +122,10 @@ async fn serve(concierge: Arc<Concierge>) {
                 let concierge = concierge.clone();
                 async move {
                     concierge
+                        .fs_conn()
                         .handle_file_put(name, auth, tail.as_str(), stream)
                         .await
+                        .map_err(FsError::rejection)
                 }
             })
     };
@@ -137,8 +144,10 @@ async fn serve(concierge: Arc<Concierge>) {
                     let concierge = concierge.clone();
                     async move {
                         concierge
+                            .fs_conn()
                             .handle_file_put_multipart(name, auth, tail.as_str(), data)
                             .await
+                            .map_err(FsError::rejection)
                     }
                 },
             )
@@ -154,8 +163,10 @@ async fn serve(concierge: Arc<Concierge>) {
                 let concierge = concierge.clone();
                 async move {
                     concierge
+                        .fs_conn()
                         .handle_file_delete(name, auth, tail.as_str())
                         .await
+                        .map_err(FsError::rejection)
                 }
             })
     };

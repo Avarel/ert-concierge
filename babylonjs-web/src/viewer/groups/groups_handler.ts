@@ -22,35 +22,35 @@ export class GroupsHandler extends EventHandler {
         this.groups.length = 0;
     }
 
-    onRecvHello(hello: Payload.Hello) {
+    onHello(hello: Payload.Hello) {
         this.client.sendJSON({
             type: "GROUP_FETCH_ALL"
         });
         this.render();
     }
 
-    onRecvGroupList(groupList: Payload.GroupFetchAllResult) {
+    onGroupFetchAllResult(groupList: Payload.GroupFetchAllResult) {
         this.groups.length = 0;
         for (const group of groupList.groups) {
             this.addGroup(group);
         }
     }
 
-    onRecvGroupSubs(result: Payload.GroupFetchResult) {
+    onGroupFetchResult(result: Payload.GroupFetchResult) {
         this.removeGroup(result.name);
         this.addGroup(result);
     }
 
-    onRecvStatus(status: Payload.Status) {
+    onStatus(status: Payload.Status) {
         switch (status.code) {
             case "GROUP_CREATED":
                 this.client.sendJSON({
                     type: "GROUP_FETCH",
-                    name: status.group
+                    name: status.name
                 });
                 break;
             case "GROUP_DELETED":
-                this.removeGroup(status.group);
+                this.removeGroup(status.name);
                 break;
         }
     }

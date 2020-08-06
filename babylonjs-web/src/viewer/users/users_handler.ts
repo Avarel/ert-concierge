@@ -27,14 +27,14 @@ export class UsersHandler extends EventHandler {
         this.users.length = 0;
     }
 
-    onRecvHello(hello: Payload.Hello) {
+    onHello(hello: Payload.Hello) {
         this.client.sendJSON({
             type: "CLIENT_FETCH_ALL"
         });
         this.render();
     }
 
-    onRecvClientList(data: Payload.ClientFetchAllResult) {
+    onClientFetchAllResult(data: Payload.ClientFetchAllResult) {
         this.ui.clear();
         for (let client of data.clients) {
             this.ui.addInitialIcon(client.uuid, client.nickname || client.name);
@@ -42,7 +42,7 @@ export class UsersHandler extends EventHandler {
         }
     }
 
-    onRecvStatus(status: Payload.Status) {
+    onStatus(status: Payload.Status) {
         switch (status.code) {
             case "CLIENT_JOINED":
                 this.addClient(status);

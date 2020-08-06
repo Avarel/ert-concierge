@@ -86,7 +86,7 @@ export class PhysicsHandler extends ServiceEventHandler {
         });
     }
 
-    onRecvMessage(message: Payload.Message<PhysicsPayload>) {
+    onMessage(message: Payload.Message<PhysicsPayload>) {
         if (message.origin!.name != PHYSICS_ENGINE_NAME) {
             return;
         }

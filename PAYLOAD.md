@@ -5,8 +5,18 @@ gateway payload object and must have the proper `type` operation set.
 
 ### Example
 ```typescript
-{ "type": "ABCDEFG", ... }
+{ 
+    "type": "ABCDEFG", ..., 
+    "seq": 123 
+}
 ```
+
+### Sequence Numbers
+
+Some payloads have a sequence number attached to them (often statuses or results).
+Sequence numbers are based on the `n`-th **text** payload received by the concierge. The `seq` field
+thus indicates what this status payload is in response to. If the `seq` field is missing, then it means
+that this was a status update due to changes not made by the connecting client.
 
 # Protocol
 The connecting client should connect with a `ert-concierge` subprotocol.
@@ -80,9 +90,15 @@ The `data` field is transmitted verbatim.
     "type": "MESSAGE",
     "origin": {
         "name": string,
+        "nickname": string,
         "uuid": string,
-        "group": string,
         "tags": string[],
+        "group": {
+            "name": string,
+            "nickname": string,
+            "owner_uuid": string,
+            "subscribers": string[]
+        },
     } | undefined,
     "target": { "type": "NAME", "name": string }
             | { "type": "UUID", "uuid": string }
@@ -133,7 +149,7 @@ The user `brendan` will receive this on their end. Notice that they have an `ori
 }
 ```
 
-## Subscribe
+## Self Subscribe
 
 Subscribe to a group's broadcasts. The group must exist before anyone can subscribe
 to it (created using `CREATE_GROUP` payload). All messages sent to the group
@@ -143,8 +159,8 @@ will be broadcasted using the `MESSAGE` payload to the subscribers.
 
 ```typescript
 {
-    "type": "SUBSCRIBE",
-    "group": string
+    "type": "SELF_SUBSCRIBE",
+    "name": string
 }
 ```
 
@@ -152,12 +168,12 @@ will be broadcasted using the `MESSAGE` payload to the subscribers.
 
 ```json
 {
-    "type": "SUBSCRIBE",
-    "group": "simulation1_data"
+    "type": "SELF_SUBSCRIBE",
+    "name": "simulation1_data"
 }
 ```
 
-## Unsubscribe
+## Self Unsubscribe
 
 Unsubscribe from a group's broadcasts.
 
@@ -165,8 +181,8 @@ Unsubscribe from a group's broadcasts.
 
 ```typescript
 {
-    "type": "UNSUBSCRIBE",
-    "group": string
+    "type": "SELF_UNSUBSCRIBE",
+    "name": string
 }
 ```
 
@@ -174,12 +190,12 @@ Unsubscribe from a group's broadcasts.
 
 ```json
 {
-    "type": "UNSUBSCRIBE",
-    "group": "simulation1_data"
+    "type": "SELF_UNSUBSCRIBE",
+    "name": "simulation1_data"
 }
 ```
 
-## Create Group
+## Group Create
 
 Subscribe to a group's broadcast.
 
@@ -188,7 +204,8 @@ Subscribe to a group's broadcast.
 ```typescript
 {
     "type": "GROUP_CREATE",
-    "group": string
+    "name": string,
+    "nickname": string | undefined,
 }
 ```
 
@@ -197,11 +214,12 @@ Subscribe to a group's broadcast.
 ```json
 {
     "type": "GROUP_CREATE",
-    "group": "simulation1_data"
+    "name": "simulation1_data",
+    "nickname": "The First Simulation"
 }
 ```
 
-## Delete Group
+## Group Delete
 
 Unsubscribe from a group's broadcast. The client that created the group using `CREATE_GROUP` payload is the only client that can delete the group. The group
 is also automatically deleted if the owning client disconnects from the concierge.
@@ -211,7 +229,7 @@ is also automatically deleted if the owning client disconnects from the concierg
 ```typescript
 {
     "type": "GROUP_DELETE",
-    "group": string
+    "name": string
 }
 ```
 
@@ -220,11 +238,11 @@ is also automatically deleted if the owning client disconnects from the concierg
 ```json
 {
     "type": "GROUP_DELETE",
-    "group": "simulation1_data"
+    "name": "simulation1_data"
 }
 ```
 
-## Fetch Group Subscribers
+## Fetch Group Information
 
 This payload asks for all the clients of the group specified in the data field.
 
@@ -232,8 +250,8 @@ This payload asks for all the clients of the group specified in the data field.
 
 ```typescript
 {
-    "type": "FETCH_GROUP_SUBSCRIBERS",
-    "group": string
+    "type": "GROUP_FETCH",
+    "name": string
 }
 ```
 
@@ -241,12 +259,12 @@ This payload asks for all the clients of the group specified in the data field.
 
 ```json
 {
-    "type": "FETCH_GROUP_SUBSCRIBERS",
-    "group": "users"
+    "type": "GROUP_FETCH",
+    "name": "users"
 }
 ```
 
-## Fetch Group List
+## Fetch All Groups
 
 This payload asks for all of the groups
 registered with the concierge.
@@ -255,11 +273,11 @@ registered with the concierge.
 
 ```typescript
 {
-    "type": "FETCH_GROUPS"
+    "type": "GROUP_FETCH_ALL"
 }
 ```
 
-## Fetch Client List
+## Fetch All Clients
 
 This payload asks for all of the clients
 connected to the concierge.
@@ -268,18 +286,18 @@ connected to the concierge.
 
 ```typescript
 {
-    "type": "FETCH_CLIENTS"
+    "type": "CLIENT_FETCH_ALL"
 }
 ```
 
-## Fetch Subscriptions
+## Self Fetch
 
 This payload asks for the connecting client's
 subscriptions.
 
 ```typescript
 {
-    "type": "FETCH_SUBSCRIPTIONS"
+    "type": "SELF_FETCH"
 }
 ```
 
@@ -309,7 +327,7 @@ that acts as a file server key and the version of the server.
 }
 ```
 
-## Group Subscribers List
+## Group Fetch Result
 
 Returns all the client names as an array of strings.
 
@@ -317,13 +335,12 @@ Returns all the client names as an array of strings.
 
 ```typescript
 {
-    "type": "GROUP_SUBSCRIBERS",
-    "group": string,
-    "clients": {
-        "name": string,
-        "uuid": string,
-        "tags": string[],
-    }[]
+    "type": "GROUP_FETCH_RESULT",
+    "name": string,
+    "nickname": string,
+    "owner_uuid": string,
+    "subscribers": string[],
+    "seq": number,
 }
 ```
 
@@ -331,24 +348,16 @@ Returns all the client names as an array of strings.
 
 ```json
 {
-    "type": "GROUP_SUBSCRIBERS",
-    "group": "plugins",
-    "clients": [
-        {
-            "name": "simulation1",
-            "uuid": "...",
-            "tags": ["simulation"]
-        },
-        {
-            "name": "simulation2",
-            "uuid": "...",
-            "tags": ["simulation"]
-        }
-    ]
+    "type": "GROUP_FETCH_RESULT",
+    "name": "simulation1_data",
+    "nickname": "The First Simulation",
+    "owner_uuid": "...",
+    "subscribers": ["...", "..."],
+    "seq": 155,
 }
 ```
 
-## Group List
+## Group Fetch All Result
 
 This payload lists all of the groups registered with the concierge.
 
@@ -356,8 +365,14 @@ This payload lists all of the groups registered with the concierge.
 
 ```typescript
 {
-    "type": "GROUPS",
-    "groups": string[]
+    "type": "GROUP_FETCH_ALL_RESULT",
+    "groups": {
+        "name": string,
+        "nickname": string,
+        "owner_uuid": string,
+        "subscribers": string[]
+    }[],
+    "seq": number,
 }
 ```
 
@@ -365,21 +380,37 @@ This payload lists all of the groups registered with the concierge.
 
 ```json
 {
-    "type": "GROUPS",
-    "groups": ["simulation1", "simulation2"]
+    "type": "GROUP_FETCH_ALL_RESULT",
+    "groups": [
+        {
+            "name": "simulation1_data",
+            "nickname": "The First Simulation",
+            "owner_uuid": "...",
+            "subscribers": ["...", "..."]
+        },
+        {
+            "name": "simulation2_data",
+            "nickname": "The Second Simulation",
+            "owner_uuid": "...",
+            "subscribers": ["...", "..."]
+        }
+    ],
+    "seq": 155,
 }
 ```
 
-## Client List
+## Client Fetch All Result
 
 ```typescript
 {
-    "type": "CLIENTS",
+    "type": "CLIENT_FETCH_ALL_RESULT",
     "clients": {
         "name": string,
+        "nickname": string,
         "uuid": string,
         "tags": string[],
-    }[]
+    }[],
+    "seq": number,
 }
 ```
 
@@ -387,15 +418,17 @@ This payload lists all of the groups registered with the concierge.
 
 ```json
 {
-    "type": "CLIENTS",
+    "type": "CLIENT_FETCH_ALL_RESULT",
     "clients": [
         {
             "name": "simulation1",
+            "nickname": "Simulation One",
             "uuid": "...",
             "tags": ["simulation"]
         },
         {
             "name": "simulation2",
+            "nickname": "Simulation Two",
             "uuid": "...",
             "tags": ["simulation"]
         },
@@ -409,11 +442,12 @@ This payload lists all of the groups registered with the concierge.
             "uuid": "...",
             "tags": ["babylon"]
         }
-    ]
+    ],
+    "seq": 155,
 }
 ```
 
-## Subscriptions
+## Self Fetch Result
 
 This payload lists all of the connecting client's subscriptions.
 
@@ -421,8 +455,13 @@ This payload lists all of the connecting client's subscriptions.
 
 ```typescript
 {
-    "type": "SUBSCRIPTIONS",
-    "groups": string[]
+    "type": "SELF_FETCH_RESULT",
+    "name": string,
+    "nickname": string | undefined,
+    "uuid": string,
+    "tags": string[],
+    "subscriptions": string[],
+    "seq": number,
 }
 ```
 
@@ -430,8 +469,13 @@ This payload lists all of the connecting client's subscriptions.
 
 ```json
 {
-    "type": "SUBSCRIPTIONS",
-    "groups": ["simulation1"]
+    "type": "SELF_FETCH_RESULT",
+    "name": "brendan",
+    "nickname": null,
+    "uuid": "...",
+    "tags": ["babylon"],
+    "subscriptions": ["simulation1_data"],
+    "seq": 155,
 }
 ```
 
@@ -457,83 +501,40 @@ such as error response or responses to certain commands.
 {
     "type": "STATUS",
     "code": "OK",
-    "seq": 329
 }
 ```
 
-#### Status Codes
-
-Unless indicated otherwise, these statuses always have a sequence number attached to them.
-Sequence numbers are based on the `n`-th **text** payload received by the concierge. The `seq` field
-thus indicates what this status payload is in response to. If the `seq` field is missing, then it means
-that this was a status update due to changes not made by the connecting client.
-
-## Client Joined
-
-A payload broadcasted whenever a new client joins. This is not
-emitted to newly joining clients.
-
-### Structure
-
-```typescript
-{
-    "type": "STATUS",
-    "code": "CLIENT_JOINED",
-    "name": string,
-    "uuid": string,
-}
-```
-
-### Example
-
-```json
-{ "type": "STATUS", "code": "CLIENT_JOINED", "name": "anthony", "uuid": "..." }
-{ "type": "STATUS", "code": "CLIENT_JOINED", "name": "simulation", "uuid": "..." }
-```
-
-## Client Left
-
-A payload broadcasted whenever a new client leaves. This is not
-emitted to leaving clients.
-
-### Structure
-
-```typescript
-{
-    "type": "STATUS",
-    "code": "CLIENT_LEFT",
-    "name": string,
-    "uuid": string,
-}
-```
-
-### Example
-
-```json
-{ "type": "STATUS", "code": "CLIENT_LEFT", "name": "anthony", "uuid": "..." }
-{ "type": "STATUS", "code": "CLIENT_LEFT", "name": "simulation", "uuid": "..." }
-```
-
-## Other Statuses
+## Statuses
 
 -   `OK`
 -   `MESSAGE_SENT`
     -   Fired in response to `MESSAGE`.
 -   `SUBSCRIBED`
-    -   `group: string`: The group the client subscribed to.
+    -   `name: string`: The name of the group already created.
+    -   `nickname: string | undefined`: THe nickname of the group.
+    -   `owner_uuid: string`: The UUID of the group's owner.
+    -   `subscribers: string[]`: The UUIDs of the subscribers.
 -   `UNSUBSCRIBED`
     -   Fired in response to `UNSUBSCRIBE`, `GROUP_DELETE`, and the group being deleted because the owner of the group left the concierge.
     -   **May not have a `seq` field** if the client did not send a `UNSUBSCRIBE` payload (due to the group being deleted by the owner, etc).
-    -   `group: string`: The group the client unsubscribed from.
+    -   `name: string`: The name of the group already created.
+    -   `nickname: string | undefined`: THe nickname of the group.
+    -   `owner_uuid: string`: The UUID of the group's owner.
+    -   `subscribers: string[]`: The UUIDs of the subscribers.
 -   `GROUP_CREATED`
     -   Fired in response to `GROUP_CREATE`.
     -   **May not have a `seq` field** if the client did not send a `GROUP_CREATE` payload (fired as a status when someone else creates a group).
-    -   `group: string`: The group created;
+    -   `name: string`: The name of the group already created.
+    -   `nickname: string | undefined`: THe nickname of the group.
+    -   `owner_uuid: string`: The UUID of the group's owner.
+    -   `subscribers: string[]`: The UUIDs of the subscribers.
 -   `GROUP_DELETED`
-
     -   Fired in response to `GROUP_DELETE`.
     -   **May not have a `seq` field** if the client did not send a `GROUP_DELETE` payload (fired as a status when someone else deletes a group).
-    -   `group: string`: The group deleted.
+    -   `name: string`: The name of the group already created.
+    -   `nickname: string | undefined`: THe nickname of the group.
+    -   `owner_uuid: string`: The UUID of the group's owner.
+    -   `subscribers: string[]`: The UUIDs of the subscribers.
 
 -   `BAD`
 -   `UNSUPORTED`
@@ -543,7 +544,10 @@ emitted to leaving clients.
     -   `desc: string`: Reason that the server failed to understand the payload.
 -   `GROUP_ALREADY_CREATED`
     -   Fired in response to `GROUP_CREATE`.
-    -   `group: string`: The name of the group already created.
+    -   `name: string`: The name of the group already created.
+    -   `nickname: string | undefined`: THe nickname of the group.
+    -   `owner_uuid: string`: The UUID of the group's owner.
+    -   `subscribers: string[]`: The UUIDs of the subscribers.
 -   `NO_SUCH_NAME`
     -   In response to `MESSAGE`.
     -   Fired when the `target` field points to a name, but the name is not found in the namespace.

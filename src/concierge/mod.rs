@@ -3,7 +3,7 @@ mod ws;
 
 use crate::clients::Client;
 use concierge_api_rs::{payload::GroupPayload, status::ok};
-use fs::FsError;
+use fs::FsConnection;
 use log::{debug, error, warn};
 use serde::Serialize;
 use std::{
@@ -14,7 +14,9 @@ use std::{
 };
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use warp::{multipart::FormData, ws::WebSocket, Buf, Rejection, Reply};
+use warp::ws::WebSocket;
+
+pub use fs::FsError;
 pub use ws::{SocketConnection, WsError};
 
 /// Central struct that stores the concierge data.
@@ -55,54 +57,38 @@ impl Concierge {
 
     /// Create a group if it currently does not exist in the concierge.
     /// Returns `true` if the group was created.
-    ///
-    /// # NOTE
-    /// This will broadcast an `GROUP_CREATED` status to everyone connected to the concierge.
-    /// The caller must handle telling the owner that the group has been created.
     pub async fn create_group(
         &self,
         name: &str,
         nickname: Option<&str>,
         owner_id: Uuid,
-    ) -> Result<bool, WsError> {
+    ) -> Result<Result<GroupPayload<'_>, GroupPayload<'_>>, WsError> {
         let mut groups = self.groups.write().await;
         if !groups.contains_key(name) {
-            groups.insert(
+            let group = groups.entry(name.to_string()).or_insert(Group::new(
                 name.to_owned(),
-                Group::new(name.to_owned(), nickname.map(str::to_string), owner_id),
-            );
-            self.broadcast_all_except(&ok::created_group(None, name), owner_id)
-                .await?;
-            Ok(true)
+                nickname.map(str::to_string),
+                owner_id,
+            ));
+            Ok(Ok(group.make_payload().owned()))
         } else {
-            Ok(false)
+            let group = groups.get(name).unwrap();
+            Ok(Err(group.make_payload().owned()))
         }
     }
 
     /// Remove a group if a client is the owner of that group.
     /// Returns `true` if the group was removed.
-    ///
-    /// # NOTE
-    /// This will broadcast an `UNSUBSCRIBED` status to everyone connected to the group.
-    /// It will also broadcast a `GROUP_DELETE` status to everyone connected to the concierge
-    /// except the owner. The caller must handle telling the owner that their group has
-    /// been deleted (so that they can attach a sequence number).
-    pub async fn remove_group(&self, group_name: &str, owner_id: Uuid) -> Result<bool, WsError> {
+    pub async fn remove_group(&self, group_name: &str, owner_id: Uuid) -> Result<Option<Group>, WsError> {
         let mut groups = self.groups.write().await;
 
         if let Some(group) = groups.get(group_name) {
             if group.owner_uuid == owner_id {
-                // ws::broadcast(self, group, ok::unsubscribed(None, group_name))
-                //     .await?;
-                // Note: The caller will handle telling the owner
-                self.broadcast_all_except(&ok::deleted_group(None, group_name), owner_id)
-                    .await?;
-                groups.remove(group_name);
-                return Ok(true);
+                return Ok(groups.remove(group_name));
             }
         }
 
-        return Ok(false);
+        return Ok(None);
     }
 
     /// Remove all groups owned by a client.
@@ -116,9 +102,9 @@ impl Concierge {
 
         for key in removing {
             let group = groups.remove(&key).unwrap();
-            ws::broadcast(self, &group, &ok::unsubscribed(None, &key)).await?;
+            ws::broadcast(self, &group, &ok::unsubscribed(group.make_payload())).await?;
             // NOTE: This is only called when the owner leaves, so we can safely ignore the owner
-            self.broadcast_all(&ok::deleted_group(None, &key)).await?;
+            self.broadcast_all(&ok::deleted_group(group.make_payload())).await?;
         }
         return Ok(());
     }
@@ -165,53 +151,8 @@ impl Concierge {
         debug!("Socket connection (addr: {:?}) dropped.", addr)
     }
 
-    /// Handle file server GET requests
-    pub async fn handle_file_get(
-        self: Arc<Self>,
-        name: String,
-        auth: Uuid,
-        tail: &str,
-    ) -> Result<impl Reply, Rejection> {
-        fs::handle_file_get(&self, name, auth, tail)
-            .await
-            .map_err(FsError::rejection)
-    }
-
-    /// Handle file server PUT requests
-    pub async fn handle_file_put(
-        self: Arc<Self>,
-        name: String,
-        auth: Uuid,
-        tail: &str,
-        stream: impl Buf,
-    ) -> Result<impl Reply, Rejection> {
-        fs::handle_file_put(&self, name, auth, tail, stream)
-            .await
-            .map_err(FsError::rejection)
-    }
-
-    pub async fn handle_file_put_multipart(
-        self: Arc<Self>,
-        name: String,
-        auth: Uuid,
-        tail: &str,
-        data: FormData,
-    ) -> Result<impl Reply, Rejection> {
-        fs::handle_file_put_multipart(&self, name, auth, tail, data)
-            .await
-            .map_err(FsError::rejection)
-    }
-
-    /// Handle file server DELETE requests
-    pub async fn handle_file_delete(
-        self: Arc<Self>,
-        name: String,
-        auth: Uuid,
-        tail: &str,
-    ) -> Result<impl Reply, Rejection> {
-        fs::handle_file_delete(&self, name, auth, tail)
-            .await
-            .map_err(FsError::rejection)
+    pub fn fs_conn(self: Arc<Self>) -> FsConnection {
+        FsConnection::new(self)
     }
 }
 

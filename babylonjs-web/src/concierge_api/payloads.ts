@@ -39,14 +39,11 @@ export module Targets {
 export type Target = Targets.Target;
 
 export interface BasePayload<T extends string> {
-    readonly type: T
+    readonly type: T,
+    readonly seq?: number,
 }
 
 interface GroupField {
-    readonly group: string
-}
-
-interface GroupField2 {
     readonly name: string
 }
 
@@ -62,11 +59,11 @@ export module Payload {
         readonly origin?: Origin,
         readonly data: T
     }
-    export type SelfSubscribe = BasePayload<"SELF_SUBSCRIBE"> & GroupField2;
-    export type SelfUnsubscribe = BasePayload<"SELF_UNSUBSCRIBE"> & GroupField2;
-    export type GroupCreate = BasePayload<"GROUP_CREATE"> & GroupField2;
-    export type GroupDelete = BasePayload<"GROUP_DELETE"> & GroupField2;
-    export type GroupFetch = BasePayload<"GROUP_FETCH"> & GroupField2;
+    export type SelfSubscribe = BasePayload<"SELF_SUBSCRIBE"> & GroupField;
+    export type SelfUnsubscribe = BasePayload<"SELF_UNSUBSCRIBE"> & GroupField;
+    export type GroupCreate = BasePayload<"GROUP_CREATE"> & GroupField;
+    export type GroupDelete = BasePayload<"GROUP_DELETE"> & GroupField;
+    export type GroupFetch = BasePayload<"GROUP_FETCH"> & GroupField;
     export type GroupFetchAll = BasePayload<"GROUP_FETCH_ALL">;
     export type ClientFetchAll = BasePayload<"CLIENT_FETCH_ALL">;
     export type SelfFetch = BasePayload<"SELF_FETCH">;
@@ -89,34 +86,29 @@ export module Payload {
         /** These statuses may be sequenced. */ 
         export interface BaseStatus<T extends string> extends BasePayload<"STATUS"> {
             readonly code: T
-            readonly seq?: number,
-        }
-        /** These statuses are always sequenced. */ 
-        export interface SequencedStatus<T extends string> extends BaseStatus<T> {
-            readonly seq: number,
         }
     
         export type ClientJoined = BaseStatus<"CLIENT_JOINED"> & ClientPayload;
         export type ClientLeft = BaseStatus<"CLIENT_LEFT"> & ClientPayload;
-        export type Ok = SequencedStatus<"OK">;
-        export type MessageSent = SequencedStatus<"MESSAGE_SENT">;
-        export type Subscribed = SequencedStatus<"SUBSCRIBED"> & GroupField;
-        export type Unsubscribed = BaseStatus<"UNSUBSCRIBED"> & GroupField;
-        export type GroupCreated = BaseStatus<"GROUP_CREATED">  & GroupField;
-        export type GroupDeleted = BaseStatus<"GROUP_DELETED"> & GroupField;
-        export type Bad = SequencedStatus<"BAD">;
-        export type Unsupported = SequencedStatus<"UNSUPPORTED">;
-        export interface Protocol extends SequencedStatus<"PROTOCOL"> {
+        export type Ok = BaseStatus<"OK">;
+        export type MessageSent = BaseStatus<"MESSAGE_SENT">;
+        export type Subscribed = BaseStatus<"SELF_SUBSCRIBED"> & GroupPayload;
+        export type Unsubscribed = BaseStatus<"SELF_UNSUBSCRIBED"> & GroupPayload;
+        export type GroupCreated = BaseStatus<"GROUP_CREATED">  & GroupPayload;
+        export type GroupDeleted = BaseStatus<"GROUP_DELETED"> & GroupPayload;
+        export type Bad = BaseStatus<"BAD">;
+        export type Unsupported = BaseStatus<"UNSUPPORTED">;
+        export interface Protocol extends BaseStatus<"PROTOCOL"> {
             readonly desc: string
         }
-        export type GroupAlreadyCreated = SequencedStatus<"GROUP_ALREADY_CREATED"> & GroupField;
-        export interface NoSuchName extends SequencedStatus<"NO_SUCH_NAME"> {
+        export type GroupAlreadyCreated = BaseStatus<"GROUP_ALREADY_CREATED"> & GroupPayload;
+        export interface NoSuchName extends BaseStatus<"NO_SUCH_NAME"> {
             readonly name: string
         }
-        export interface NoSuchUuid extends SequencedStatus<"NO_SUCH_UUID"> {
+        export interface NoSuchUuid extends BaseStatus<"NO_SUCH_UUID"> {
             readonly uuid: Uuid
         }
-        export type NoSuchGroup = SequencedStatus<"NO_SUCH_GROUP"> & GroupField;
+        export type NoSuchGroup = BaseStatus<"NO_SUCH_GROUP"> & GroupField;
     
         export type Status = Ok | MessageSent | Subscribed | Unsubscribed
             | GroupCreated | GroupDeleted | Bad | Unsupported | Protocol

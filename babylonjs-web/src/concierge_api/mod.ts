@@ -8,7 +8,7 @@ export class Client {
     private socket?: WebSocket;
     private version?: string;
     private secret?: string;
-    private seq: number = 0;
+    private seq: number = -1;
 
     reconnectInterval: number = 10000;
     uuid!: Uuid;
