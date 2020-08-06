@@ -29,12 +29,12 @@ export class UsersHandler extends EventHandler {
 
     onRecvHello(hello: Payload.Hello) {
         this.client.sendJSON({
-            type: "FETCH_CLIENTS"
+            type: "CLIENT_FETCH_ALL"
         });
         this.render();
     }
 
-    onRecvClientList(data: Payload.ClientList) {
+    onRecvClientList(data: Payload.ClientFetchAllResult) {
         this.ui.clear();
         for (let client of data.clients) {
             this.ui.addInitialIcon(client.uuid, client.nickname || client.name);

@@ -6,7 +6,7 @@ class UserComponent extends React.PureComponent<ClientPayload> {
     render() {
         if (this.props.nickname) {
             return <Rs.Card>
-                <h2>{this.props.nickname || this.props.name}</h2>
+                <h2>{this.props.nickname}</h2>
                 <p>{this.props.name}</p>
                 <p>{this.props.uuid}</p>
                 <Rs.Card>{this.props.tags}</Rs.Card>

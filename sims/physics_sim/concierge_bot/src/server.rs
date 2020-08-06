@@ -84,7 +84,8 @@ pub async fn init_bot(running: Arc<AtomicBool>, world: Arc<RwLock<World>>) -> Re
         if let Payload::Hello { .. } = serde_json::from_str(&string).unwrap() {
             ws.send(Message::text(
                 serde_json::to_string(&Payload::GroupCreate {
-                    group: crate::PHYSICS_ENGINE_GROUP,
+                    name: crate::PHYSICS_ENGINE_GROUP,
+                    nickname: Some("Physics Engine Channel")
                 })
                 .unwrap(),
             ))

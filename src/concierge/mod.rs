@@ -7,13 +7,14 @@ use fs::FsError;
 use log::{debug, error, warn};
 use serde::Serialize;
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     net::SocketAddr,
-    sync::Arc, borrow::Cow,
+    sync::Arc,
 };
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use warp::{ws::WebSocket, Buf, Rejection, multipart::FormData, Reply};
+use warp::{multipart::FormData, ws::WebSocket, Buf, Rejection, Reply};
 pub use ws::{SocketConnection, WsError};
 
 /// Central struct that stores the concierge data.
@@ -58,14 +59,19 @@ impl Concierge {
     /// # NOTE
     /// This will broadcast an `GROUP_CREATED` status to everyone connected to the concierge.
     /// The caller must handle telling the owner that the group has been created.
-    pub async fn create_group(&self, group_name: &str, owner_id: Uuid) -> Result<bool, WsError> {
+    pub async fn create_group(
+        &self,
+        name: &str,
+        nickname: Option<&str>,
+        owner_id: Uuid,
+    ) -> Result<bool, WsError> {
         let mut groups = self.groups.write().await;
-        if !groups.contains_key(group_name) {
+        if !groups.contains_key(name) {
             groups.insert(
-                group_name.to_owned(),
-                Group::new(group_name.to_owned(), owner_id),
+                name.to_owned(),
+                Group::new(name.to_owned(), nickname.map(str::to_string), owner_id),
             );
-            self.broadcast_all_except(&ok::created_group(None, group_name), owner_id)
+            self.broadcast_all_except(&ok::created_group(None, name), owner_id)
                 .await?;
             Ok(true)
         } else {
@@ -110,13 +116,11 @@ impl Concierge {
 
         for key in removing {
             let group = groups.remove(&key).unwrap();
-            ws::broadcast(self, &group, &ok::unsubscribed(None, &key))
-                .await?;
+            ws::broadcast(self, &group, &ok::unsubscribed(None, &key)).await?;
             // NOTE: This is only called when the owner leaves, so we can safely ignore the owner
-            self.broadcast_all(&ok::deleted_group(None, &key))
-                .await?;
+            self.broadcast_all(&ok::deleted_group(None, &key)).await?;
         }
-        return Ok(())
+        return Ok(());
     }
 
     /// Remove a client from all groups.
@@ -191,7 +195,7 @@ impl Concierge {
         name: String,
         auth: Uuid,
         tail: &str,
-        data: FormData
+        data: FormData,
     ) -> Result<impl Reply, Rejection> {
         fs::handle_file_put_multipart(&self, name, auth, tail, data)
             .await
@@ -221,11 +225,11 @@ pub struct Group {
 
 impl Group {
     /// Create a new group associated with an owner uuid.
-    pub fn new(name: String, owner_uuid: Uuid) -> Self {
+    pub fn new(name: String, nickname: Option<String>, owner_uuid: Uuid) -> Self {
         Self {
             name,
-            nickname: None,
-            owner_uuid: owner_uuid,
+            nickname,
+            owner_uuid,
             clients: HashSet::new(),
         }
     }
@@ -236,7 +240,7 @@ impl Group {
             name: Cow::Borrowed(&self.name),
             nickname: self.nickname.as_deref().map(Cow::Borrowed),
             owner_uuid: self.owner_uuid,
-            subscribers: self.clients.iter().copied().collect::<Vec<_>>()
+            subscribers: self.clients.iter().copied().collect::<Vec<_>>(),
         }
     }
 

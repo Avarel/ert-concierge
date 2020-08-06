@@ -59,7 +59,7 @@ async def concierge_bot():
         print(f"My uuid is {uuid}. The server version is {server_version}.")
 
         print("Creating group.")
-        await socket.send(GroupCreate(group_name).to_json())
+        await socket.send(GroupCreate(group_name, "Planetary Simulation Channel").to_json())
 
         print("Starting simulation.")
 

@@ -30,35 +30,57 @@ class DiscriminatedSerialize(Serialize):
 
 
 class ClientPayload(Serialize):
-    def __init__(self, name: str, uuid: str, tags: Optional[List[str]] = None):
+    def __init__(self, name: str, nickname: Optional[str], uuid: str, tags: Optional[List[str]] = None):
         self.name = name
+        self.nickname = nickname
         self.uuid = uuid
         self.tags = tags
 
     @staticmethod
-    def from_object(obj: object_type) -> Optional[ClientPayload]:
-        if obj.get("name") != None and obj.get("uuid") != None:
-            return ClientPayload(obj["name"], obj["uuid"], obj.get("tags"))
-        return None
+    def from_object(obj: object_type) -> ClientPayload:
+        return ClientPayload(obj["name"], obj.get("nickname"), obj["uuid"], obj.get("tags"))
 
     def to_object(self) -> object_type:
         return {
             "name": self.name,
+            "nickname": self.nickname,
             "uuid": self.uuid,
             "tags": self.tags
         }
 
 
+class GroupPayload(Serialize):
+    def __init__(self, name: str, nickname: Optional[str], owner_uuid: str, subscribers: List[str]):
+        self.name = name
+        self.nickname = nickname
+        self.owner_uuid = owner_uuid
+        self.subscribers = subscribers
+
+    @staticmethod
+    def from_object(obj: object_type) -> GroupPayload:
+        return GroupPayload(obj["name"], obj.get("nickname"), obj["owner_uuid"], obj["subscribers"])
+
+    def to_object(self) -> object_type:
+        return {
+            "name": self.name,
+            "nickname": self.nickname,
+            "owner_uuid": self.owner_uuid,
+            "subscribers": self.subscribers
+        }
+
+
 class Origin(ClientPayload):
-    def __init__(self, name: str, uuid: str, group: Optional[str]):
-        super().__init__(name, uuid)
+    def __init__(self, client: ClientPayload, group: Optional[GroupPayload]):
+        super().__init__(client.name, client.nickname, client.uuid, client.tags)
         self.group = group
 
     @staticmethod
-    def from_object(obj: Optional[object_type]) -> Optional[Origin]:
-        if obj != None and obj.get("name") != None and obj.get("uuid") != None:
-            return Origin(obj["name"], obj["uuid"], obj.get("group"))
-        return None
+    def from_object(obj: object_type) -> Origin:
+        return Origin(
+            ClientPayload.from_object(obj),
+            GroupPayload.from_object(
+                obj["group"]) if "group" in obj and obj["group"] != None else None
+        )
 
     def to_object(self) -> object_type:
         return dict(super().to_object(), **{"group": self.group})
@@ -110,17 +132,16 @@ class Payload(DiscriminatedSerialize):
             "HELLO": Hello,
             "GROUP_CREATE": GroupCreate,
             "GROUP_DELETE": GroupDelete,
-            "SUBSCRIBE": Subscribe,
-            "UNSUCSCRIBE": Unsubscribe,
+            "SELF_SUBSCRIBE": SelfSubscribe,
+            "SELF_UNSUCSCRIBE": SelfUnsubscribe,
             "STATUS": GenericStatus,
-            "FETCH_GROUP_SUBSCRIBERS": FetchGroupSubscribers,
-            "FETCH_GROUPS": FetchGroups,
-            "FETCH_CLIENTS": FetchClients,
-            "FETCH_SUBSCRIPTIONS": FetchSubscriptions,
-            "GROUP_SUBSCRIBERS": GroupSubscribers,
-            "GROUPS": Groups,
-            "CLIENTS": Clients,
-            "SUBSCRIPTIONS": Subscriptions
+            "GROUP_FETCH_ALL": GroupFetchAll,
+            "CLIENT_FETCH_ALL": ClientFetchAll,
+            "SELF_FETCH": SelfFetch,
+            "GROUP_FETCH_RESULT": GroupFetchResult,
+            "GROUP_FETCH_ALL_RESULT": GroupFetchAllResult,
+            "CLIENT_FETCH_ALL_RESULT": ClientFetchAllResult,
+            "SELF_FETCH_RESULT": SelfFetchResult
         }
 
         type = obj.get("type")
@@ -138,10 +159,8 @@ class Identify(Payload):
         self.tags = tags
 
     @staticmethod
-    def from_object(obj: object_type) -> Optional[Identify]:
-        if obj.get("name") != None and obj.get("version") != None:
-            return Identify(obj["name"], obj.get("nickname"), obj["version"], obj.get("secret"), obj.get("tags"))
-        return None
+    def from_object(obj: object_type) -> Identify:
+        return Identify(obj["name"], obj.get("nickname"), obj["version"], obj.get("secret"), obj.get("tags"))
 
     def to_object(self) -> object_type:
         return self.make_object({
@@ -161,10 +180,8 @@ class Message(Payload):
         self.data = data
 
     @staticmethod
-    def from_object(obj: object_type) -> Optional[Message]:
-        if obj.get("target") != None and obj.get("data") != None:
-            return Message(Origin.from_object(obj.get("origin")), obj["target"], obj["data"])
-        return None
+    def from_object(obj: object_type) -> Message:
+        return Message(Origin.from_object(obj["origin"]) if "origin" in obj else None, obj["target"], obj["data"])
 
     def to_object(self) -> object_type:
         return self.make_object({
@@ -174,85 +191,83 @@ class Message(Payload):
         })
 
 
-class GroupPayload(Payload):
-    def __init__(self, type: str, group_name: str):
-        super().__init__(type)
-        self.group = group_name
+class GroupCreate(Payload):
+    def __init__(self, name: str, nickname: Optional[str] = None):
+        super().__init__("GROUP_CREATE")
+        self.name = name
+        self.nickname = nickname
+
+    @staticmethod
+    def from_object(obj: object_type) -> GroupCreate:
+        return GroupCreate(obj["name"], obj.get("nickname"))
 
     def to_object(self) -> object_type:
         return self.make_object({
-            "group": self.group
+            "name": self.name,
+            "nickname": self.nickname
         })
 
 
-class GroupCreate(GroupPayload):
-    def __init__(self, group_name: str):
-        super().__init__("GROUP_CREATE", group_name)
-
-    @staticmethod
-    def from_object(obj: object_type) -> Optional[GroupCreate]:
-        if obj.get("group") != None:
-            return GroupCreate(obj["group"])
-        return None
-
-
-class GroupDelete(GroupPayload):
-    def __init__(self, group_name: str):
-        super().__init__("GROUP_DELETE", group_name)
+class GroupDelete(Payload):
+    def __init__(self, name: str):
+        super().__init__("GROUP_DELETE")
+        self.name = name
 
     @staticmethod
     def from_object(obj: object_type) -> Optional[GroupDelete]:
-        if obj.get("group") != None:
-            return GroupDelete(obj["group"])
+        if obj.get("name") != None:
+            return GroupDelete(obj["name"])
         return None
 
+    def to_object(self) -> object_type:
+        return self.make_object({
+            "name": self.name
+        })
 
-class Subscribe(GroupPayload):
-    def __init__(self, group_name: str):
-        super().__init__("SUBSCRIBE", group_name)
+
+class SelfSubscribe(Payload):
+    def __init__(self, name: str):
+        super().__init__("SELF_SUBSCRIBE")
+        self.name = name
 
     @staticmethod
-    def from_object(obj: object_type) -> Optional[Subscribe]:
-        if obj.get("group") != None:
-            return Subscribe(obj["group"])
-        return None
+    def from_object(obj: object_type) -> SelfSubscribe:
+        return SelfSubscribe(obj["name"])
+
+    def to_object(self) -> object_type:
+        return self.make_object({
+            "name": self.name
+        })
 
 
-class Unsubscribe(GroupPayload):
-    def __init__(self, group_name: str):
-        super().__init__("UNSUBSCRIBE", group_name)
-
-    @staticmethod
-    def from_object(obj: object_type) -> Optional[Unsubscribe]:
-        if obj.get("group") != None:
-            return Unsubscribe(obj["group"])
-        return None
-
-
-class FetchGroupSubscribers(GroupPayload):
-    def __init__(self, group_name: str):
-        super().__init__("FETCH_GROUP_SUBSCRIBERS", group_name)
+class SelfUnsubscribe(Payload):
+    def __init__(self, name: str):
+        super().__init__("SELF_UNSUBSCRIBE")
+        self.name = name
 
     @staticmethod
-    def from_object(obj: object_type) -> Optional[FetchGroupSubscribers]:
-        if obj.get("group") != None:
-            return FetchGroupSubscribers(obj["group"])
-        return None
+    def from_object(obj: object_type) -> SelfUnsubscribe:
+        return SelfUnsubscribe(obj["name"])
+
+    def to_object(self) -> object_type:
+        return self.make_object({
+            "name": self.name
+        })
 
 
-class FetchGroups(Payload):
-    def __init__(self, group_name: str):
-        super().__init__("FETCH_GROUPS")
+class GroupFetchAll(Payload):
+    def __init__(self):
+        super().__init__("GROUP_FETCH_ALL")
 
 
-class FetchClients(Payload):
-    def __init__(self, group_name: str):
-        super().__init__("FETCH_CLIENTS")
+class ClientFetchAll(Payload):
+    def __init__(self):
+        super().__init__("CLIENT_FETCH_ALL")
 
 
-class FetchSubscriptions(Payload):
-    def __init__(self, group_name: str):
-        super().__init__("FETCH_SUBSCRIPTIONS")
+class SelfFetch(Payload):
+    def __init__(self):
+        super().__init__("SELF_FETCH")
 
 
 class Hello(Payload):
@@ -262,76 +277,66 @@ class Hello(Payload):
         self.version = version
 
     @staticmethod
-    def from_object(obj: object_type) -> Optional[Hello]:
-        if obj.get("uuid") != None and obj.get("version") != None:
-            return Hello(obj["uuid"], obj["version"])
-        return None
+    def from_object(obj: object_type) -> Hello:
+        return Hello(obj["uuid"], obj["version"])
 
 
-class GroupSubscribers(Payload):
-    def __init__(self, group_name: str, clients: List[ClientPayload]):
+class GroupFetchResult(Payload):
+    def __init__(self, group: GroupPayload):
         super().__init__("GROUP_SUBSCRIBERS")
-        self.group = group_name
-        self.clients = clients
+        self.group = group
 
     @staticmethod
-    def from_object(obj: object_type) -> Optional[GroupSubscribers]:
-        if obj.get("group") != None and obj.get("clients") != None:
-            return GroupSubscribers(obj["group"], cast(List[ClientPayload], list(filter(lambda x: x != None, map(ClientPayload.from_object, obj["clients"])))))
-        return None
+    def from_object(obj: object_type) -> GroupFetchResult:
+        return GroupFetchResult(GroupPayload.from_object(obj))
 
     def to_object(self) -> object_type:
-        return self.make_object({
-            "group": self.group,
-            "clients": list(map(Serialize.to_object, self.clients))
-        })
+        return self.group.to_object()
 
 
-class Groups(Payload):
-    def __init__(self, groups: List[str]):
-        super().__init__("GROUPS")
+class GroupFetchAllResult(Payload):
+    def __init__(self, groups: List[GroupPayload]):
+        super().__init__("GROUP_FETCH_ALL_RESULT")
         self.groups = groups
 
     @staticmethod
-    def from_object(obj: object_type) -> Optional[Groups]:
-        if obj.get("groups") != None:
-            return Groups(obj["groups"])
-    
+    def from_object(obj: object_type) -> GroupFetchAllResult:
+        return GroupFetchAllResult(list(map(GroupPayload.from_object, obj["subscriptions"])))
+
     def to_object(self) -> object_type:
         return self.make_object({
-            "groups": self.groups
+            "groups": list(map(GroupPayload.to_object, self.groups))
         })
 
 
-class Clients(Payload):
+class ClientFetchAllResult(Payload):
     def __init__(self, clients: List[ClientPayload]):
-        super().__init__("CLIENTS")
+        super().__init__("CLIENT_FETCH_ALL_RESULT")
         self.clients = clients
 
     @staticmethod
-    def from_object(obj: object_type) -> Optional[Clients]:
-        if obj.get("clients") != None:
-            return Clients(cast(List[ClientPayload], list(filter(lambda x: x != None, map(ClientPayload.from_object, obj["clients"])))))
-        return None
+    def from_object(obj: object_type) -> ClientFetchAllResult:
+        return ClientFetchAllResult(list(map(ClientPayload.from_object, obj["clients"])))
 
     def to_object(self) -> object_type:
         return self.make_object({
-            "clients": list(map(Serialize.to_object, self.clients))
+            "clients": list(map(lambda x: x.to_object(), self.clients))
         })
 
-class Subscriptions(Payload):
-    def __init__(self, groups: List[str]):
-        super().__init__("SUBSCRIPTIONS")
-        self.groups = groups
+
+class SelfFetchResult(Payload):
+    def __init__(self, client: ClientPayload, subscriptions: List[GroupPayload]):
+        super().__init__("SELF_FETCH_RESULT")
+        self.client = client
+        self.subscriptions = subscriptions
 
     @staticmethod
-    def from_object(obj: object_type) -> Optional[Subscriptions]:
-        if obj.get("groups") != None:
-            return Subscriptions(obj["groups"])
-    
+    def from_object(obj: object_type) -> SelfFetchResult:
+        return SelfFetchResult(ClientPayload.from_object(obj), list(map(GroupPayload.from_object, obj["subscriptions"])))
+
     def to_object(self) -> object_type:
-        return self.make_object({
-            "groups": self.groups
+        return dict(super().to_object(), **{
+            "subscriptions": list(map(lambda x: x.to_object(), self.subscriptions))
         })
 
 
@@ -342,10 +347,8 @@ class GenericStatus(Payload):
         self.data = data
 
     @staticmethod
-    def from_object(obj: object_type) -> Optional[GenericStatus]:
-        if obj.get("code") != None:
-            return GenericStatus(obj["code"], obj)
-        return None
+    def from_object(obj: object_type) -> GenericStatus:
+        return GenericStatus(obj["code"], obj)
 
     def to_object(self) -> object_type:
         return self.make_object(self.data)

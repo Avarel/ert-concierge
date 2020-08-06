@@ -64,7 +64,7 @@ export class ChatHandler extends ServiceEventHandler {
 
 
     onRecvMessage(message: Payload.Message<any>) {
-        if (!message.origin || message.origin.group != CHAT_GROUP) {
+        if (!message.origin || message.origin.group?.name != CHAT_GROUP) {
             return;
         }
 

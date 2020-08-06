@@ -117,9 +117,6 @@ export namespace Tabbed {
             let tab = new Item(this, tag, name);
 
             this.setState(state => {
-                if (state.tabs.has(tag)) {
-                    throw new Error(`"${tag}" is not a registered tag in the component.`);
-                }
                 let tabs = new Map(state.tabs);
                 tabs.set(tag, tab);
 
@@ -138,10 +135,6 @@ export namespace Tabbed {
 
         removeTab(tag: string) {
             this.setState(state => {
-                if (!state.tabs.has(tag)) {
-                    throw new Error(`"${tag}" is not a registered tag in the component.`);
-                }
-    
                 let tabs = new Map(state.tabs);
                 tabs.delete(tag);
 

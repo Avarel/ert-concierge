@@ -24,16 +24,16 @@ export abstract class EventHandler implements RawHandler {
             case "HELLO":
                 this.onRecvHello?.(payload);
                 break;
-            case "GROUP_SUBSCRIBERS":
+            case "GROUP_FETCH_RESULT":
                 this.onRecvGroupSubs?.(payload);
                 break;
-            case "GROUPS":
+            case "GROUP_FETCH_ALL_RESULT":
                 this.onRecvGroupList?.(payload);
                 break;
-            case "CLIENTS":
+            case "CLIENT_FETCH_ALL_RESULT":
                 this.onRecvClientList?.(payload);
                 break;
-            case "SUBSCRIPTIONS":
+            case "SELF_FETCH_RESULT":
                 this.onRecvSubscriptions?.(payload);
                 break;
             case "STATUS":
@@ -44,10 +44,10 @@ export abstract class EventHandler implements RawHandler {
 
     onRecvMessage?(message: Payload.Message<any>): void;
     onRecvHello?(hello: Payload.Hello): void;
-    onRecvGroupSubs?(groupSubs: Payload.GroupSubscriptions): void;
-    onRecvGroupList?(groupList: Payload.GroupList): void;
-    onRecvClientList?(clientList: Payload.ClientList): void;
-    onRecvSubscriptions?(subs: Payload.Subscriptions): void;
+    onRecvGroupSubs?(groupSubs: Payload.GroupFetchResult): void;
+    onRecvGroupList?(groupList: Payload.GroupFetchAllResult): void;
+    onRecvClientList?(clientList: Payload.ClientFetchAllResult): void;
+    onRecvSubscriptions?(subs: Payload.SelfFetchResult): void;
     onRecvStatus?(status: Payload.Status): void;
 }
 
@@ -67,21 +67,21 @@ export abstract class ServiceEventHandler extends EventHandler {
 
     onRecvHello(_event: Payload.Hello) {
         this.client.sendJSON({
-            type: "FETCH_GROUP_SUBSCRIBERS",
-            group: this.group
+            type: "GROUP_FETCH",
+            name: this.group
         })
     }
 
-    onRecvGroupSubs(event: Payload.GroupSubscriptions) {
-        if (event.group == this.group) {
+    onRecvGroupSubs(event: Payload.GroupFetchResult) {
+        if (event.name == this.group) {
             this.subscribe(this.group);
         }
     }
 
-    private subscribe(group: string) {
+    private subscribe(name: string) {
         this.client.sendJSON({
-            type: "SUBSCRIBE",
-            group
+            type: "SELF_SUBSCRIBE",
+            name
         });
     }
 

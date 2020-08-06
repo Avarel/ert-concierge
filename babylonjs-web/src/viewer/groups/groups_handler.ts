@@ -1,14 +1,13 @@
-import { Sidebar } from "../../overlay/mod";
 import { EventHandler } from "../../concierge_api/handlers";
 import Client from "../../concierge_api/mod";
-import Payload, { ClientPayload } from "../../concierge_api/payloads";
+import Payload, { GroupPayload } from "../../concierge_api/payloads";
 import React from "react";
 import Tabbed from "../../overlay/tabbed/react";
 import { GroupsTabComponent } from "./react";
 
 export class GroupsHandler extends EventHandler {
     private readonly tab: Tabbed.Item;
-    groups: string[] = [];
+    groups: GroupPayload[] = [];
 
     constructor(
         private readonly client: Client,
@@ -25,21 +24,30 @@ export class GroupsHandler extends EventHandler {
 
     onRecvHello(hello: Payload.Hello) {
         this.client.sendJSON({
-            type: "FETCH_GROUPS"
+            type: "GROUP_FETCH_ALL"
         });
         this.render();
     }
 
-    onRecvGroupList(groupList: Payload.GroupList) {
+    onRecvGroupList(groupList: Payload.GroupFetchAllResult) {
+        this.groups.length = 0;
         for (const group of groupList.groups) {
             this.addGroup(group);
         }
     }
 
+    onRecvGroupSubs(result: Payload.GroupFetchResult) {
+        this.removeGroup(result.name);
+        this.addGroup(result);
+    }
+
     onRecvStatus(status: Payload.Status) {
         switch (status.code) {
             case "GROUP_CREATED":
-                this.addGroup(status.group);
+                this.client.sendJSON({
+                    type: "GROUP_FETCH",
+                    name: status.group
+                });
                 break;
             case "GROUP_DELETED":
                 this.removeGroup(status.group);
@@ -47,14 +55,15 @@ export class GroupsHandler extends EventHandler {
         }
     }
 
-    addGroup(group: string) {
+    addGroup(group: GroupPayload) {
         this.groups.push(group);
         this.render()
     }
 
-    removeGroup(group: string) {
+    removeGroup(name: string) {
         for (let i = 0; i < this.groups.length; i++) {
-            if (this.groups[i] == group) {
+            console.log("Checking", this.groups[i].name);
+            if (this.groups[i].name == name) {
                 this.groups.splice(i, 1);
                 i--;
             }

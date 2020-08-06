@@ -51,13 +51,13 @@ pub struct Origin<'a> {
     /// This indicates the group that the message
     /// was originally sent to.
     #[serde(borrow)]
-    pub group: Option<Cow<'a, str>>,
+    pub group: Option<GroupPayload<'a>>,
 }
 
 impl<'a> Origin<'a> {
     /// Attaches a group to the origin.
-    pub fn with_group(mut self, group: GroupId<'a>) -> Origin<'a> {
-        self.group = Some(group.into());
+    pub fn with_group(mut self, group_payload: GroupPayload<'a>) -> Origin<'a> {
+        self.group = Some(group_payload);
         self
     }
 }
@@ -155,64 +155,54 @@ pub enum Payload<'a, T> {
         data: T,
     },
     /// Subscribe to a group's broadcast.
-    Subscribe { group: GroupId<'a> },
+    SelfSubscribe { name: GroupId<'a> },
     /// Unsubscribe from a group's broadcast.
-    Unsubscribe { group: GroupId<'a> },
-    /// Create a group such that every subscriber
-    /// will receive the message targeted towards that group.
-    GroupCreate { group: GroupId<'a> },
-    /// Delete a group. This operation only succeeds if
-    /// the client is the group's owner.
-    GroupDelete { group: GroupId<'a> },
-    /// Fetch general group information.
-    FetchGroup { group: GroupId<'a> },
-    /// This payload asks for all the clients of the
-    /// group specified in the data field.
-    FetchGroupSubscribers { group: GroupId<'a> },
-    /// This payload asks for all of the groups
-    /// registered with the concierge.
-    FetchGroups,
-    /// This payload asks for all of the clients
-    /// connected to the concierge.
-    FetchClients,
+    SelfUnsubscribe { name: GroupId<'a> },
     /// This payload asks for the connecting client's
     /// subscriptions.
-    FetchSubscriptions,
+    SelfFetch,
+    /// Create a group such that every subscriber
+    /// will receive the message targeted towards that group.
+    GroupCreate {
+        name: GroupId<'a>,
+        nickname: Option<&'a str>,
+    },
+    /// Delete a group. This operation only succeeds if
+    /// the client is the group's owner.
+    GroupDelete { name: GroupId<'a> },
+    /// Fetch general group information.
+    GroupFetch { name: GroupId<'a> },
+    /// This payload asks for all of the groups
+    /// registered with the concierge.
+    GroupFetchAll,
+    /// This payload asks for all of the clients
+    /// connected to the concierge.
+    ClientFetchAll,
     /// This payload is sent upon successful identification.
     /// The payload will also contain a universally unique identifier
     /// that acts as a file server key. The payload also returns
     /// the server's version.
     Hello { uuid: Uuid, version: &'a str },
     /// General group information.
-    Group {
-        group: GroupId<'a>,
-        /// The owner of the channel.
-        #[serde(borrow)]
-        owner: ClientPayload<'a>,
-        /// All of the subscribers.
-        #[serde(borrow)]
-        clients: Vec<ClientPayload<'a>>,
-    },
-    /// Returns all of the clients (subscribed to the group) an array of origin structs.
-    GroupSubscribers {
-        group: GroupId<'a>,
-        #[serde(borrow)]
-        clients: Vec<ClientPayload<'a>>,
+    GroupFetchResult {
+        #[serde(flatten)]
+        group: GroupPayload<'a>,
     },
     /// This payload lists all of the groups registered with the concierge.
-    Groups {
+    GroupFetchAllResult {
         #[serde(borrow)]
-        groups: Vec<Cow<'a, str>>,
+        groups: Vec<GroupPayload<'a>>,
     },
     /// This payload lists all of the clients registered with the concierge.
-    Clients {
+    ClientFetchAllResult {
         #[serde(borrow)]
         clients: Vec<ClientPayload<'a>>,
     },
     /// This payload lists all of the connecting client's subscriptions.
-    Subscriptions {
-        #[serde(borrow)]
-        groups: Vec<Cow<'a, str>>,
+    SelfFetchResult {
+        #[serde(flatten)]
+        client: ClientPayload<'a>,
+        subscriptions: Vec<GroupPayload<'a>>,
     },
     /// Status payload sent by the concierge. May happen for various reasons
     /// such as error response.

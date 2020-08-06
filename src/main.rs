@@ -57,7 +57,7 @@ async fn setup() {
         .groups
         .write()
         .await
-        .insert(chat_name.to_owned(), Group::new(chat_name, Uuid::nil()));
+        .insert(chat_name.to_owned(), Group::new(chat_name, Some("Chat Channel".to_string()), Uuid::nil()));
 
     serve(concierge).await
 }

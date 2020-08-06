@@ -372,95 +372,71 @@ impl SocketConnection {
                 self.handle_raw_message(client_uuid, seq, PayloadRawMessage::new(target, &data))
                     .await?
             }
-            Payload::Subscribe { group: group_name } => {
-                if client.subscribe(&self.concierge, group_name).await {
-                    client.send(&ok::subscribed(seq, group_name))?;
+            Payload::SelfSubscribe { name } => {
+                if client.subscribe(&self.concierge, name).await {
+                    client.send(&ok::subscribed(seq, name))?;
                 } else {
-                    client.send(&err::no_such_group(seq, group_name))?;
+                    client.send(&err::no_such_group(seq, name))?;
                 }
             }
-            Payload::Unsubscribe { group: group_name } => {
-                if client.unsubscribe(&self.concierge, group_name).await {
-                    client.send(&ok::unsubscribed(Some(seq), group_name))?;
+            Payload::SelfUnsubscribe { name } => {
+                if client.unsubscribe(&self.concierge, name).await {
+                    client.send(&ok::unsubscribed(Some(seq), name))?;
                 } else {
-                    client.send(&err::no_such_group(seq, group_name))?;
+                    client.send(&err::no_such_group(seq, name))?;
                 }
             }
-            Payload::GroupCreate { group } => {
-                if self.concierge.create_group(group, client_uuid).await? {
-                    client.send(&ok::created_group(Some(seq), group))?;
+            Payload::GroupCreate { name, nickname } => {
+                if self.concierge.create_group(name, nickname, client_uuid).await? {
+                    client.send(&ok::created_group(Some(seq), name))?;
                 } else {
-                    client.send(&err::group_already_created(seq, group))?;
+                    client.send(&err::group_already_created(seq, name))?;
                 }
             }
-            Payload::GroupDelete { group } => {
-                if self.concierge.remove_group(group, client.uuid()).await? {
-                    client.send(&ok::deleted_group(Some(seq), group))?;
+            Payload::GroupDelete { name } => {
+                if self.concierge.remove_group(name, client.uuid()).await? {
+                    client.send(&ok::deleted_group(Some(seq), name))?;
                 } else {
-                    client.send(&err::no_such_group(seq, group))?;
+                    client.send(&err::no_such_group(seq, name))?;
                 }
             }
-            Payload::FetchGroup { group } => {
-                if let Some(group) = self.concierge.groups.read().await.get(group) {
-                    let owner = clients.get(&group.owner_uuid).ok_or(WsError::Internal)?;
-                    let clients = group
-                        .clients
-                        .iter()
-                        .filter_map(|uuid| clients.get(uuid))
-                        .map(Client::make_payload)
-                        .collect::<Vec<_>>();
-                    client.send(&JsonPayload::Group {
-                        group: &group.name,
-                        owner: owner.make_payload(),
-                        clients,
+            Payload::GroupFetch { name } => {
+                if let Some(group) = self.concierge.groups.read().await.get(name) {
+                    client.send(&JsonPayload::GroupFetchResult {
+                        group: group.make_payload()
                     })?;
                 } else {
-                    client.send(&err::no_such_group(seq, group))?;
+                    client.send(&err::no_such_group(seq, name))?;
                 }
             }
-            Payload::FetchGroupSubscribers { group } => {
-                if let Some(group) = self.concierge.groups.read().await.get(group) {
-                    let clients = group
-                        .clients
-                        .iter()
-                        .filter_map(|uuid| clients.get(uuid))
-                        .map(Client::make_payload)
-                        .collect::<Vec<_>>();
-                    client.send(&JsonPayload::GroupSubscribers {
-                        group: &group.name,
-                        clients,
-                    })?;
-                } else {
-                    client.send(&err::no_such_group(seq, group))?;
-                }
-            }
-            Payload::FetchClients => {
+            Payload::ClientFetchAll => {
                 let clients = clients
                     .values()
                     .map(Client::make_payload)
                     .collect::<Vec<_>>();
-                client.send(&JsonPayload::Clients { clients })?;
+                client.send(&JsonPayload::ClientFetchAllResult { clients })?;
             }
-            Payload::FetchGroups => {
+            Payload::GroupFetchAll => {
                 let groups = self.concierge.groups.read().await;
-                let group_names = groups
-                    .keys()
-                    .map(String::as_str)
-                    .map(Cow::Borrowed)
+                let group_payloads = groups
+                    .values()
+                    .map(Group::make_payload)
                     .collect();
-                client.send(&JsonPayload::Groups {
-                    groups: group_names,
+                client.send(&JsonPayload::GroupFetchAllResult {
+                    groups: group_payloads,
                 })?;
             }
-            Payload::FetchSubscriptions => {
-                let groups = client.subscriptions.read().await;
-                let group_names = groups
+            Payload::SelfFetch => {
+                let subscriptions = client.subscriptions.read().await;
+                let groups = self.concierge.groups.read().await;
+                let group_payloads = subscriptions
                     .iter()
-                    .map(String::as_str)
-                    .map(Cow::Borrowed)
+                    .filter_map(|id| groups.get(id))
+                    .map(Group::make_payload)
                     .collect::<Vec<_>>();
-                client.send(&JsonPayload::Subscriptions {
-                    groups: group_names,
+                client.send(&JsonPayload::SelfFetchResult {
+                    client: client.make_payload(),
+                    subscriptions: group_payloads,
                 })?
             }
             _ => client.send(&err::unsupported(seq))?,
@@ -504,7 +480,7 @@ impl SocketConnection {
             }
             Target::Group { group } => {
                 if let Some(group) = self.concierge.groups.read().await.get(group) {
-                    let origin = client_payload.to_origin().with_group(&group.name);
+                    let origin = client_payload.to_origin().with_group(group.make_payload());
                     group
                         .broadcast(&self.concierge, &payload.with_origin(origin))
                         .await?;
