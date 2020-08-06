@@ -3,17 +3,23 @@ import { Client } from '../concierge_api/mod';
 import { Payload } from '../concierge_api/payloads';
 import React from 'react';
 import { Chat } from "../overlay/mod";
+import Tabbed from "../overlay/tabbed/react";
 
 const CHAT_GROUP = "chat";
 
 export class ChatHandler extends ServiceEventHandler {
-    constructor(client: Client, readonly ui: Chat.Component) {
+    private readonly tab: Tabbed.Item;
+    private items: (Chat.Message | Chat.Status)[] = [];
+
+    constructor(client: Client, private readonly tabComponent: Tabbed.Component) {
         super(client, CHAT_GROUP);
-        this.ui.onSubmit = this.onEnter.bind(this);
+        this.tab = this.tabComponent.addTab("chat", "Chat");
+        this.onEnter = this.onEnter.bind(this);
+        this.render();
     }
 
     onSubscribe() {
-        this.ui.addStatus("Connected to the chat system.");
+        this.addStatus("Connected to the chat system.");
     }
 
     /**
@@ -31,6 +37,32 @@ export class ChatHandler extends ServiceEventHandler {
         });
     }
 
+    render() {
+        this.tab.reactContent = React.createElement(Chat.Component, { 
+            items: this.items, 
+            onSubmit: this.onEnter 
+        });
+    }
+
+    addStatus(text: string) {
+        this.items.push({
+            type: "STATUS",
+            text,
+        });
+        this.render();
+    }
+
+    addMessage(name: string, text: string, you: boolean = false) {
+        this.items.push({
+            type: "MESSAGE",
+            name,
+            text,
+            you
+        });
+        this.render();
+    }
+
+
     onRecvMessage(message: Payload.Message<any>) {
         if (!message.origin || message.origin.group != CHAT_GROUP) {
             return;
@@ -39,11 +71,11 @@ export class ChatHandler extends ServiceEventHandler {
         if (typeof message.data != "string") {
             return;
         }
-        
-        this.ui.addMessage(message.origin.name, message.data, message.origin.name == this.client.name);
+
+        this.addMessage(message.origin.name, message.data, message.origin.name == this.client.name);
     }
 
     onUnsubscribe() {
-        this.ui.addStatus("Disconnected from the chat system.");
+        this.addStatus("Disconnected from the chat system.");
     }
 }

@@ -32,20 +32,20 @@ export module Rs {
     }
     
     interface InputField {
-        tag?: string,
-        value: any
+        readonly tag?: string,
+        readonly value: any
     }
-    interface InputValueProp {
-        label: string,
-        inputs: InputField[],
-        readOnly?: true,
-        onSubmit?: (tag: string, value: string) => void,
+    interface InputValueProps {
+        readonly label: string,
+        readonly inputs: ReadonlyArray<InputField>,
+        readonly readOnly?: true,
+        readonly onSubmit?: (tag: string, value: string) => void,
     }
     interface InputValueState {
-        values: any[]
+        readonly values: ReadonlyArray<any>
     }
-    export class InputValue extends React.Component<InputValueProp, InputValueState> {
-        constructor(props: InputValueProp) {
+    export class InputValue extends React.Component<InputValueProps, InputValueState> {
+        constructor(props: InputValueProps) {
             super(props);
             this.state = { values: props.inputs.map(_ => undefined) };
         }
@@ -53,26 +53,35 @@ export module Rs {
         handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>, index: number) {
             if (event.keyCode === 13) {
                 event.preventDefault();
-                const tag = this.props.inputs[index].tag;
-                if (!tag) return;
-                const originalValue = this.props.inputs[index].value;
-                const value = this.state.values[index];
-                if (value && value != originalValue) {
-                    this.props.onSubmit?.(tag, value);
-                    this.state.values[index] = undefined;
-                }
-            }
+                this.setState((state, props) => {
+                    const tag = props.inputs[index].tag;
+                    if (tag) {
+                        const originalValue = props.inputs[index].value;
+                        const value = state.values[index];
+
+                        if (value && value != originalValue) {
+                            props.onSubmit?.(tag, value);
+                            
+                            let values = state.values.slice();
+                            values[index] = undefined;
+                            return { values }
+                        }
+                    }
+                    return state;
+                });
+            };
         }
     
         handleChange(event: React.ChangeEvent<HTMLInputElement>, index: number) {
-            const value = event.currentTarget.value;
-            const originalValue = this.props.inputs[index].value;
-            if (value == originalValue) {
-                value == undefined;
-            }
-            this.setState(state => {
-                state.values[index] = value;
-                return state
+            let value: string | undefined = event.currentTarget.value;
+            this.setState((state, props) => {
+                const originalValue = props.inputs[index].value;
+                if (value == originalValue) {
+                    value = undefined;
+                }
+                let values = state.values.slice();
+                values[index] = value;
+                return { values }
             });
         }
     

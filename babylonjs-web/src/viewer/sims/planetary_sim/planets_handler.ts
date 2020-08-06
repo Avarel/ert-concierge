@@ -116,7 +116,7 @@ class Planet {
 
 export class PlanetsHandler extends ServiceEventHandler {
     /** Keeps latest batch of sys data */
-    sysData!: SystemData;
+    sysData?: SystemData;
     /** Map of planets */
     planets: Map<string, Planet>;
 

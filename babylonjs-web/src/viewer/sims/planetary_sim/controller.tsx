@@ -97,11 +97,13 @@ class PlanetaryInfoComponent extends React.Component<PlanetaryComponentProps> {
                 data={planet.data}
                 onSubmit={(tag, value) => this.handleFieldUpdate(planet!.id, tag, value)}
             />
-        } else {
+        } else if (handler.sysData) {
             return <SystemInfoComponent
                 data={handler.sysData}
                 onSubmit={(tag, value) => this.handleFieldUpdate("system", tag, value)}
             />
+        } else {
+            return null;
         }
     }
 

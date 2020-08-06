@@ -3,19 +3,14 @@ import React from "react";
 
 export module Chat {
     interface ComponentProps {
-        readonly items?: (Message | Status)[],
+        readonly items: ReadonlyArray<Message | Status>,
         readonly onSubmit?: (text: string) => void
     }
-    interface ComponentState {
-        readonly items: (Message | Status)[],
-        readonly onSubmit?: (text: string) => void
-    }
-    export class Component extends React.Component<ComponentProps, ComponentState> {
+    export class Component extends React.Component<ComponentProps> {
         messagesEndRef = React.createRef<HTMLDivElement>()
 
         constructor(props: ComponentProps) {
             super(props);
-            this.state = { items: props.items || [] };
         }
 
         componentDidUpdate() {
@@ -26,52 +21,28 @@ export module Chat {
         }
 
         set onSubmit(callback: ((text: string) => void) | undefined) {
-            this.setState({ items: this.state.items, onSubmit: callback });
-        }
-
-        addStatus(text: string) {
-            let items = this.state.items;
-            items.push({
-                type: "STATUS",
-                text,
-            });
-
-            this.setState({ items, onSubmit: this.state.onSubmit });
-            this.forceUpdate();
-        }
-
-        addMessage(name: string, text: string, you: boolean = false) {
-            let items = this.state.items;
-            items.push({
-                type: "MESSAGE",
-                name,
-                text,
-                you
-            });
-
-            this.setState({ items, onSubmit: this.state.onSubmit });
-            this.forceUpdate();
+            this.setState({ onSubmit: callback });
         }
 
         render() {
             return <div className="chat-container">
                 <div className="chat-messages" ref={this.messagesEndRef}>
-                    {this.state.items.map(it => <Entry {...it} />)}
+                    {this.props.items.map(it => <Entry {...it} />)}
                 </div>
-                <Input onSubmit={this.state.onSubmit}/>
+                <Input onSubmit={this.props.onSubmit}/>
             </div>
         }
     }
 
     export interface Status {
         readonly type: "STATUS",
-        text: string
+        readonly text: string
     }
     export interface Message {
         readonly type: "MESSAGE",
-        name: string,
-        text: string,
-        you: boolean
+        readonly name: string,
+        readonly text: string,
+        readonly you: boolean
     }
     export type Item = Status | Message;
 
@@ -90,14 +61,14 @@ export module Chat {
         }
     }
 
-    interface InputProp {
+    interface InputProps {
         readonly onSubmit?: (text: string) => void
     }
     interface InputState {
         text: string
     }
-    class Input extends React.PureComponent<InputProp, InputState> {
-        constructor(props: InputProp) {
+    class Input extends React.PureComponent<InputProps, InputState> {
+        constructor(props: InputProps) {
             super(props);
             this.state = { text: "" };
         }
@@ -114,10 +85,12 @@ export module Chat {
         }
 
         handleSubmit() {
-            if (this.state.text) {
-                this.setState({ text: "" })
-                this.props.onSubmit?.(this.state.text)
-            }
+            this.setState((state, props) => {
+                if (state.text) {
+                    props.onSubmit?.(state.text)
+                }
+                return { text: "" }
+            })
         }
 
         render() {

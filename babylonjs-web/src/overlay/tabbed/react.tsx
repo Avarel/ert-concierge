@@ -18,12 +18,12 @@ export namespace Tabbed {
          * By default, the value is null when constructed from {@link Tabbed.Component}.
          */
         private jsxContent?: JSX.Element | null = null;
+        private readonly ref = React.createRef<HTMLDivElement>();
 
         constructor(
             private readonly parent: Component,
             readonly tag: string,
-            readonly name: string,
-            readonly ref: React.RefObject<HTMLDivElement>,
+            readonly name: string
         ) {
             this.renderHeader = this.renderHeader.bind(this);
             this.renderBody = this.renderBody.bind(this);
@@ -76,18 +76,18 @@ export namespace Tabbed {
     }
 
     interface ComponentProps {
-        contentHeight?: number;
-        reverseHeader?: boolean;
+        readonly contentHeight?: number;
+        readonly reverseHeader?: boolean;
     }
     interface ComponentState {
-        shown: boolean,
-        activeTag: string | undefined,
-        tabs: Map<string, Item>
+        readonly shown: boolean,
+        readonly activeTag: string | undefined,
+        readonly tabs: ReadonlyMap<string, Item>
     }
 
     interface StaticTabProps {
-        tag: string,
-        name: string
+        readonly tag: string,
+        readonly name: string
     }
     export class StaticTab extends React.Component<StaticTabProps> {
         // dummy component
@@ -96,84 +96,96 @@ export namespace Tabbed {
     export class Component extends React.Component<ComponentProps, ComponentState> {
         constructor(props: ComponentProps) {
             super(props);
-            this.state = { shown: true, activeTag: undefined, tabs: new Map() }
+
+            let tabs = new Map();
 
             React.Children.forEach(this.props.children, (child: any) => {
                 if (child.type == StaticTab) {
                     let props = child.props;
-                    let tab = this.addTab(props.tag, props.name);
+                    let tab = new Item(this, props.tag, props.name);
                     if (props.children) {
                         tab.reactContent = props.children;
                     }
+                    tabs.set(tab.tag, tab);
                 }
             });
+
+            this.state = { shown: true, activeTag: undefined, tabs }
         }
 
         addTab(tag: string, name: string): Item {
-            if (this.state.tabs.has(tag)) {
-                throw new Error(`"${tag}" is not a registered tag in the component.`);
-            }
+            let tab = new Item(this, tag, name);
 
-            let ref = React.createRef<HTMLDivElement>();
+            this.setState(state => {
+                if (state.tabs.has(tag)) {
+                    throw new Error(`"${tag}" is not a registered tag in the component.`);
+                }
+                let tabs = new Map(state.tabs);
+                tabs.set(tag, tab);
 
-            let tabs = this.state.tabs;
-            let tab = new Item(this, tag, name, ref);
-            tabs.set(tag, tab);
+                // Finds and a tab active if there is no active tab.
+                let activeTag = state.activeTag;
+                if (!activeTag) {
+                    let tag = tabs.keys().next().value;
+                    activeTag = tag;
+                }
+                
+                return { activeTag, tabs };
+            });
 
-            this.setState({ activeTag: this.state.activeTag, tabs });
             return tab;
         }
 
-        /** Finds and makes a tab active if there is no active tab. */
-        searchForActiveTab() {
-            if (!this.state.activeTag) {
-                let activeTag = this.state.activeTag;
-                let tabs = this.state.tabs;
-                activeTag = tabs.keys().next().value;
-
-                this.setState({ activeTag: activeTag, tabs })
-            }
-        }
-
         removeTab(tag: string) {
-            let state = this.state;
-            if (!state.tabs.has(tag)) {
-                throw new Error(`"${tag}" is not a registered tag in the component.`);
-            }
+            this.setState(state => {
+                if (!state.tabs.has(tag)) {
+                    throw new Error(`"${tag}" is not a registered tag in the component.`);
+                }
+    
+                let tabs = new Map(state.tabs);
+                tabs.delete(tag);
 
-            let tabs = state.tabs;
-            tabs.delete(tag);
+                // Finds and a tab active if there is no active tab.
+                let activeTag = state.activeTag;
+                if (activeTag == tag) {
+                    let tag = tabs.keys().next().value;
+                    activeTag = tag;
+                }
 
-            this.setState({ activeTag: state.activeTag, tabs });
-            this.forceUpdate();
+                return { activeTag, tabs }
+            });
         }
 
         getTab(tag: string): Item | undefined {
             return this.state.tabs.get(tag)
         }
 
-        setActive(tag: string) {
-            let state = this.state;
-            if (!state.tabs.has(tag)) {
-                throw new Error(`"${tag}" is not a registered tag in the component.`);
-            }
-            this.setState({ activeTag: tag, tabs: state.tabs });
+        setActive(activeTag: string) {
+            this.setState(state => {
+                if (!state.tabs.has(activeTag)) {
+                    throw new Error(`"${activeTag}" is not a registered tag in the component.`);
+                }
+                return { activeTag }
+            });
         }
 
         toggleShown(value: boolean = !this.state.shown) {
-            this.setState({ ...this.state, shown: value });
+            this.setState({ shown: value });
+        }
+
+        get isShown() {
+            return this.state.shown && this.state.activeTag;
         }
 
         render() {
-            this.searchForActiveTab();
-            return <div className={`tabbed${this.state.shown ? "" : " hidden"}`}>
-                <div className="tabbed-header" style={this.props.reverseHeader ? {flexDirection: "row-reverse"} : {}}>
+            return <div className={`tabbed${this.isShown ? "" : " hidden"}`}>
+                <div className="tabbed-header" style={this.props.reverseHeader ? { flexDirection: "row-reverse" } : {}}>
                     <div className="tabbed-drawer" onClick={() => this.toggleShown()}>
                         <i className="fa fa-angle-double-down" />
                     </div>
                     {Array.from(this.state.tabs.values(), tab => <tab.renderHeader />)}
                 </div>
-                <div className="tabbed-content" style={{height: this.props.contentHeight}}>
+                <div className="tabbed-content" style={{ height: this.props.contentHeight }}>
                     {Array.from(this.state.tabs.values(), tab => <tab.renderBody />)}
                 </div>
             </div>

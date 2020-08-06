@@ -4,23 +4,23 @@ import Tippy from '@tippyjs/react';
 import "tippy.js/dist/tippy.css";
 
 export namespace Sidebar {
-    interface ImageIconProp {
-        type: "IMAGE",
-        name: string,
-        imgSrc: string
+    interface ImageIcon {
+        readonly type: "IMAGE",
+        readonly name: string,
+        readonly imgSrc: string
     }
     
-    interface TextIconProp {
-        type: "TEXT",
-        name: string,
-        colorCss: string
+    interface TextIcon {
+        readonly type: "TEXT",
+        readonly name: string,
+        readonly colorCss: string
     }
     
     interface ComponentProps {
-        items?: Map<string, ImageIconProp | TextIconProp>
+        readonly items?: ReadonlyMap<string, ImageIcon | TextIcon>
     }
     interface ComponentState {
-        items: Map<string, ImageIconProp | TextIconProp>
+        readonly items: ReadonlyMap<string, ImageIcon | TextIcon>
     }
     export class Component extends React.PureComponent<ComponentProps, ComponentState> {
         constructor(props: ComponentProps) {
@@ -32,9 +32,7 @@ export namespace Sidebar {
          * Clear all icons in the sidebar.
          */
         clear() {
-            let items = this.state.items;
-            items.clear();
-            this.setState({ items });
+            this.setState({ items: new Map() });
         }
     
         /**
@@ -43,14 +41,15 @@ export namespace Sidebar {
          * @param imgSrc The source link of the image.
          */
         addImageIcon(id: string, name: string, imgSrc: string) {
-            let items = this.state.items;
-            items.set(id, {
-                type: "IMAGE",
-                name,
-                imgSrc
-            });
-            this.setState({ items });
-            this.forceUpdate();
+            this.setState(state => {
+                let items = new Map(state.items);
+                items.set(id, {
+                    type: "IMAGE",
+                    name,
+                    imgSrc
+                });
+                return { items };
+            })
         }
     
         private static hashString(str: string): number {
@@ -68,25 +67,28 @@ export namespace Sidebar {
          * @param name The full name of the icon.
          * @param text The text of the icon.
          */
-        addInitialIcon(id: string, name: string, text: string) {
-            let rand = Component.hashString(name) % 360;
-            let colorCss = `hsl(${rand}, 100%, 25%)`;
-    
-            let items = this.state.items;
-            items.set(id, {
-                type: "TEXT",
-                name,
-                colorCss
-            });
-            this.setState({ items });
-            this.forceUpdate();
+        addInitialIcon(id: string, name: string) {
+            this.setState(state => {
+                let items = new Map(state.items);
+
+                let rand = Component.hashString(name) % 360;
+                let colorCss = `hsl(${rand}, 100%, 25%)`;
+
+                items.set(id, {
+                    type: "TEXT",
+                    name,
+                    colorCss,
+                });
+                return { items };
+            })
         }
 
         removeIcon(id: string) {
-            let items = this.state.items;
-            items.delete(id);
-            this.setState({ items });
-            this.forceUpdate();
+            this.setState(state => {
+                let items = new Map(state.items);
+                items.delete(id);
+                return { items };
+            })
         }
     
         render() {
@@ -96,7 +98,7 @@ export namespace Sidebar {
         }
     }
     
-    class Item extends React.PureComponent<ImageIconProp | TextIconProp> {
+    class Item extends React.PureComponent<ImageIcon | TextIcon> {
         innerRender() {
             if (this.props.type == "TEXT") {
                 return <div className="icon">

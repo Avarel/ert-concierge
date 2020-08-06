@@ -1,37 +1,15 @@
 // Branded type, it's just a string underneath
-export type Uuid = string & { __is_uuid: true };
-
-/**
- * Alias type for primitive types
- * @ignorenaming
- */
-type Primitive = undefined | null | boolean | string | number | Function;
-/**
- * Type modifier to make all the properties of an object Readonly
- */
-export type Immutable<T> = T extends Primitive ? T : T extends Array<infer U> ? ReadonlyArray<U> : DeepImmutable<T>;
-/**
- * Type modifier to make all the properties of an object Readonly recursively
- */
-export type DeepImmutable<T> = T extends Primitive ? T : T extends Array<infer U> ? DeepImmutableArray<U> : DeepImmutableObject<T>;
-/**
- * Type modifier to make object properties readonly.
- */
-export type DeepImmutableObject<T> = {
-    readonly [K in keyof T]: DeepImmutable<T[K]>;
-};
-
-export type DeepImmutableArray<T> = ReadonlyArray<DeepImmutable<T>>;
+export type Uuid = string & { readonly __is_uuid: true };
 
 export interface ClientPayload {
-    name: string,
-    nickname?: string,
-    uuid: Uuid,
-    tags: string[],
+    readonly name: string,
+    readonly nickname?: string,
+    readonly uuid: Uuid,
+    readonly tags: ReadonlyArray<string>,
 }
 
 export interface Origin extends ClientPayload {
-    group?: string,
+    readonly group?: string,
 }
 
 export module Targets {
@@ -39,13 +17,13 @@ export module Targets {
         readonly type: T
     }
     export interface TargetName extends BaseTarget<"NAME"> {
-        name: string
+        readonly name: string
     }
     export interface TargetUuid extends BaseTarget<"UUID"> {
-        uuid: Uuid,
+        readonly uuid: Uuid,
     }
     export interface TargetGroup extends BaseTarget<"GROUP"> {
-        group: string
+        readonly group: string
     }
     type TargetAll = BaseTarget<"ALL">;
 
@@ -54,24 +32,24 @@ export module Targets {
 export type Target = Targets.Target;
 
 export interface BasePayload<T extends string> {
-    type: T
+    readonly type: T
 }
 
 interface GroupField {
-    group: string
+    readonly group: string
 }
 
 export module Payload {
     export interface Identify extends BasePayload<"IDENTIFY"> {
-        name: string,
-        version: string,
-        secret?: string,
-        tags?: string[],
+        readonly name: string,
+        readonly version: string,
+        readonly secret?: string,
+        readonly tags?: ReadonlyArray<string>,
     }
     export interface Message<T> extends BasePayload<"MESSAGE"> {
-        target: Target,
-        origin?: Origin,
-        data: T
+        readonly target: Target,
+        readonly origin?: Origin,
+        readonly data: T
     }
     export type Subscribe = BasePayload<"SUBSCRIBE"> & GroupField;
     export type Unsubscribe = BasePayload<"UNSUBSCRIBE"> & GroupField;
@@ -82,31 +60,31 @@ export module Payload {
     export type FetchClientList = BasePayload<"FETCH_CLIENTS">;
     export type FetchSubList = BasePayload<"FETCH_SUBSCRIPTIONS">;
     export interface Hello extends BasePayload<"HELLO"> {
-        uuid: Uuid,
-        version: string
+        readonly uuid: Uuid,
+        readonly version: string
     }
     export interface GroupSubscriptions extends BasePayload<"GROUP_SUBSCRIBERS">, GroupField {
-        clients: ClientPayload[]
+        readonly clients: ReadonlyArray<ClientPayload>
     }
     export interface GroupList extends BasePayload<"GROUPS"> {
-        groups: string[]
+        readonly groups: ReadonlyArray<string>
     }
     export interface ClientList extends BasePayload<"CLIENTS"> {
-        clients: ClientPayload[]
+        readonly clients: ReadonlyArray<ClientPayload>
     }
     export interface Subscriptions extends BasePayload<"SUBSCRIPTIONS"> {
-        groups: string[],
+        readonly groups: ReadonlyArray<string>,
     }
 
     export module StatusPayload {
         /** These statuses may be sequenced. */ 
         export interface BaseStatus<T extends string> extends BasePayload<"STATUS"> {
             readonly code: T
-            seq?: number,
+            readonly seq?: number,
         }
         /** These statuses are always sequenced. */ 
         export interface SequencedStatus<T extends string> extends BaseStatus<T> {
-            seq: number,
+            readonly seq: number,
         }
     
         export type ClientJoined = BaseStatus<"CLIENT_JOINED"> & ClientPayload;
@@ -120,20 +98,16 @@ export module Payload {
         export type Bad = SequencedStatus<"BAD">;
         export type Unsupported = SequencedStatus<"UNSUPPORTED">;
         export interface Protocol extends SequencedStatus<"PROTOCOL"> {
-            desc: string
+            readonly desc: string
         }
-        export interface GroupAlreadyCreated extends SequencedStatus<"GROUP_ALREADY_CREATED"> {
-            group: string
-        }
+        export type GroupAlreadyCreated = SequencedStatus<"GROUP_ALREADY_CREATED"> & GroupField;
         export interface NoSuchName extends SequencedStatus<"NO_SUCH_NAME"> {
-            name: string
+            readonly name: string
         }
         export interface NoSuchUuid extends SequencedStatus<"NO_SUCH_UUID"> {
-            uuid: Uuid
+            readonly uuid: Uuid
         }
-        export interface NoSuchGroup extends SequencedStatus<"NO_SUCH_GROUP"> {
-            group: string
-        }
+        export type NoSuchGroup = SequencedStatus<"NO_SUCH_GROUP"> & GroupField;
     
         export type Status = Ok | MessageSent | Subscribed | Unsubscribed
             | GroupCreated | GroupDeleted | Bad | Unsupported | Protocol

@@ -4,14 +4,15 @@ import * as ConciergeAPI from "../concierge_api/mod";
 import { PhysicsHandler } from "./sims/physics_sim/physics_handler";
 import { ChatHandler } from "./chat_handler";
 import { PlanetsHandler } from "./sims/planetary_sim/planets_handler";
-import { UsersHandler } from "./users_handler";
+import { UsersHandler } from "./users/users_handler";
 import { Renderer } from "./renderer";
-import { Sidebar, Views, Chat } from "../overlay/mod";
+import { Sidebar, Views } from "../overlay/mod";
 
 import React from "react";
 import ReactDOM from "react-dom";
 import { About } from "./about";
 import Tabbed from "../overlay/tabbed/react";
+import { GroupsHandler } from "./groups/groups_handler";
 
 export namespace Viewer {
     export function start() {
@@ -31,20 +32,15 @@ export namespace Viewer {
     }
 
     function setup(serverURL: string, name: string) {
-        let leftTabComponentRef = React.createRef<Tabbed.Component>();
-        let rightTabComponentRef = React.createRef<Tabbed.Component>();
-        let chatComponentRef = React.createRef<Chat.Component>();
-        let sidebarComponentRef = React.createRef<Sidebar.Component>();
+        const leftTabComponentRef = React.createRef<Tabbed.Component>();
+        const rightTabComponentRef = React.createRef<Tabbed.Component>();
+        const sidebarComponentRef = React.createRef<Sidebar.Component>();
 
         ReactDOM.render(
             <React.Fragment>
                 <Sidebar.Component ref={sidebarComponentRef} />
                 <div className="float-window left">
-                    <Tabbed.Component ref={leftTabComponentRef} contentHeight={500}>
-                        <Tabbed.StaticTab tag="chat" name="Chat">
-                            <Chat.Component ref={chatComponentRef} />
-                        </Tabbed.StaticTab>
-                    </Tabbed.Component>
+                    <Tabbed.Component ref={leftTabComponentRef} contentHeight={500} />
                 </div>
                 <div className="float-window right tall">
                     <Tabbed.Component ref={rightTabComponentRef} contentHeight={800} reverseHeader>
@@ -58,10 +54,9 @@ export namespace Viewer {
             document.querySelector(".app")
         );
 
-        let leftTabComponent = leftTabComponentRef.current!;
-        let rightTabComponent = rightTabComponentRef.current!;
-        let chatComponent = chatComponentRef.current!;
-        let sidebarComponent = sidebarComponentRef.current!;
+        const leftTabComponent = leftTabComponentRef.current!;
+        const rightTabComponent = rightTabComponentRef.current!;
+        const sidebarComponent = sidebarComponentRef.current!;
 
         // Setup the main view.
         let viewManager = new Views.UI(".views");
@@ -90,12 +85,16 @@ export namespace Viewer {
         client.handlers.push(planetHandler);
 
         // chat
-        let chatHandler = new ChatHandler(client, chatComponent);
+        let chatHandler = new ChatHandler(client, leftTabComponent);
         client.handlers.push(chatHandler);
 
         // users sidebar
-        let userHandler = new UsersHandler(client, sidebarComponent);
+        let userHandler = new UsersHandler(client, sidebarComponent, leftTabComponent);
         client.handlers.push(userHandler);
+
+        // users sidebar
+        let groupHandler = new GroupsHandler(client, leftTabComponent);
+        client.handlers.push(groupHandler);
 
         renderer.start();
 

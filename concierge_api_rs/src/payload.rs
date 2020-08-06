@@ -18,6 +18,20 @@ pub struct ClientPayload<'a> {
     pub tags: Vec<&'a str>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct GroupPayload<'a> {
+    /// Group name.
+    #[serde(borrow)]
+    pub name: Cow<'a, str>,
+    /// Group name.
+    #[serde(borrow)]
+    pub nickname: Option<Cow<'a, str>>,
+    /// Uuid of the group's owner.
+    pub owner_uuid: Uuid,
+    /// Subscribers
+    pub subscribers: Vec<Uuid>,
+}
+
 impl<'a> ClientPayload<'a> {
     /// Convert the client payload into an origin payload.
     pub fn to_origin(self) -> Origin<'a> {

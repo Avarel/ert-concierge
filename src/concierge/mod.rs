@@ -2,14 +2,14 @@ mod fs;
 mod ws;
 
 use crate::clients::Client;
-use concierge_api_rs::status::ok;
+use concierge_api_rs::{payload::GroupPayload, status::ok};
 use fs::FsError;
 use log::{debug, error, warn};
 use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
     net::SocketAddr,
-    sync::Arc,
+    sync::Arc, borrow::Cow,
 };
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -85,7 +85,7 @@ impl Concierge {
         let mut groups = self.groups.write().await;
 
         if let Some(group) = groups.get(group_name) {
-            if group.owner == owner_id {
+            if group.owner_uuid == owner_id {
                 // ws::broadcast(self, group, ok::unsubscribed(None, group_name))
                 //     .await?;
                 // Note: The caller will handle telling the owner
@@ -104,7 +104,7 @@ impl Concierge {
         let mut groups = self.groups.write().await;
         let removing = groups
             .iter()
-            .filter(|(_, group)| group.owner == owner_id)
+            .filter(|(_, group)| group.owner_uuid == owner_id)
             .map(|(name, _)| name.to_owned())
             .collect::<Vec<_>>();
 
@@ -214,27 +214,39 @@ impl Concierge {
 /// A struct containing group information.
 pub struct Group {
     pub name: String,
-    pub owner: Uuid,
+    pub nickname: Option<String>,
+    pub owner_uuid: Uuid,
     pub clients: HashSet<Uuid>,
 }
 
 impl Group {
     /// Create a new group associated with an owner uuid.
-    pub fn new(name: String, owner: Uuid) -> Self {
+    pub fn new(name: String, owner_uuid: Uuid) -> Self {
         Self {
             name,
-            owner,
+            nickname: None,
+            owner_uuid: owner_uuid,
             clients: HashSet::new(),
         }
     }
 
+    /// Utility method to construct an origin receipt on certain payloads.
+    pub fn make_payload(&self) -> GroupPayload<'_> {
+        GroupPayload {
+            name: Cow::Borrowed(&self.name),
+            nickname: self.nickname.as_deref().map(Cow::Borrowed),
+            owner_uuid: self.owner_uuid,
+            subscribers: self.clients.iter().copied().collect::<Vec<_>>()
+        }
+    }
+
     /// Add the client to the group.
-    pub fn add_client(&mut self, _: &Concierge, uuid: Uuid) {
+    pub fn add_subscriber(&mut self, _: &Concierge, uuid: Uuid) {
         self.clients.insert(uuid);
     }
 
     /// Remove the client from the group.
-    pub fn remove_client(&mut self, _: &Concierge, uuid: &Uuid) {
+    pub fn remove_subscriber(&mut self, _: &Concierge, uuid: &Uuid) {
         self.clients.remove(&uuid);
     }
 

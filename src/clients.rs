@@ -88,7 +88,7 @@ impl Client {
     pub async fn subscribe(&self, concierge: &Concierge, group_name: &str) -> bool {
         let mut groups = concierge.groups.write().await;
         if let Some(group) = groups.get_mut(group_name) {
-            group.add_client(concierge, self.uuid);
+            group.add_subscriber(concierge, self.uuid);
             self.subscriptions.write().await.insert(group.name.to_owned());
             true
         } else {
@@ -100,7 +100,7 @@ impl Client {
     pub async fn unsubscribe(&self, concierge: &Concierge, group_name: &str) -> bool {
         let mut groups = concierge.groups.write().await;
         if let Some(group) = groups.get_mut(group_name) {
-            group.remove_client(concierge, &self.uuid);
+            group.remove_subscriber(concierge, &self.uuid);
             self.subscriptions.write().await.remove(group_name);
             true
         } else {

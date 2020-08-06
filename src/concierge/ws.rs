@@ -402,7 +402,7 @@ impl SocketConnection {
             }
             Payload::FetchGroup { group } => {
                 if let Some(group) = self.concierge.groups.read().await.get(group) {
-                    let owner = clients.get(&group.owner).ok_or(WsError::Internal)?;
+                    let owner = clients.get(&group.owner_uuid).ok_or(WsError::Internal)?;
                     let clients = group
                         .clients
                         .iter()
