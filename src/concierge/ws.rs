@@ -323,7 +323,7 @@ impl SocketConnection {
                 } else {
                     match serde_json::from_str::<JsonPayload>(string) {
                         Ok(payload) => {
-                            if let Err(err) = self.handle_payload(uuid, seq, payload).await {
+                            if let Err(err) = self.handle_payload(uuid, &mut seq, payload).await {
                                 let clients = self.concierge.clients.read().await;
                                 let client = clients.get(&uuid).unwrap();
                                 // Ignore, don't panic and die
@@ -349,9 +349,10 @@ impl SocketConnection {
     async fn handle_payload(
         &self,
         client_uuid: Uuid,
-        seq: usize,
+        seq_ref: &mut usize,
         payload: JsonPayload<'_>,
     ) -> Result<(), WsError> {
+        let seq = *seq_ref;
         let clients = self.concierge.clients.read().await;
         let client = clients.get(&client_uuid).unwrap();
 
@@ -369,18 +370,32 @@ impl SocketConnection {
                     .await?
             }
             Payload::SelfSubscribe { name } => {
-                if let Some(group_payload) = client.subscribe(&self.concierge, name).await {
-                    client.send(&ok::subscribed(group_payload).seq(seq))?;
+                if let Some((group_payload, new_sub)) = client.subscribe(&self.concierge, name).await {
+                    let created_result = if new_sub {
+                        ok::subscribed(group_payload)
+                    } else {
+                        err::already_subscribed(group_payload)
+                    };
+                    client.send(&created_result.seq(seq))?;
                 } else {
                     client.send(&err::no_such_group(name).seq(seq))?;
                 }
             }
             Payload::SelfUnsubscribe { name } => {
-                if let Some(group_payload) = client.unsubscribe(&self.concierge, name).await {
-                    client.send(&ok::unsubscribed(group_payload).seq(seq))?;
+                if let Some((group_payload, unsub)) = client.unsubscribe(&self.concierge, name).await {
+                    let created_result = if unsub {
+                        ok::unsubscribed(group_payload)
+                    } else {
+                        err::not_subscribed(group_payload)
+                    };
+                    client.send(&created_result.seq(seq))?;
                 } else {
                     client.send(&err::no_such_group(name).seq(seq))?;
                 }
+            }
+            Payload::SelfSetSeq { seq } => {
+                *seq_ref = seq;
+                client.send(&ok::ok().seq(seq))?;
             }
             Payload::GroupCreate { name, nickname } => {
                 match self

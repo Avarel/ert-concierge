@@ -61,6 +61,9 @@ export module Payload {
     }
     export type SelfSubscribe = BasePayload<"SELF_SUBSCRIBE"> & GroupField;
     export type SelfUnsubscribe = BasePayload<"SELF_UNSUBSCRIBE"> & GroupField;
+    export interface SelfSetSeq extends BasePayload<"SELF_SET_SEQ"> {
+        readonly seq: number,
+    }
     export type GroupCreate = BasePayload<"GROUP_CREATE"> & GroupField;
     export type GroupDelete = BasePayload<"GROUP_DELETE"> & GroupField;
     export type GroupFetch = BasePayload<"GROUP_FETCH"> & GroupField;
@@ -93,6 +96,8 @@ export module Payload {
         export type Ok = BaseStatus<"OK">;
         export type MessageSent = BaseStatus<"MESSAGE_SENT">;
         export type Subscribed = BaseStatus<"SELF_SUBSCRIBED"> & GroupPayload;
+        export type AlreadySubscribed = BaseStatus<"SELF_ALREADY_SUBSCRIBED"> & GroupPayload;
+        export type NotSubscribed = BaseStatus<"SELF_NOT_SUBSCRIBED"> & GroupPayload;
         export type Unsubscribed = BaseStatus<"SELF_UNSUBSCRIBED"> & GroupPayload;
         export type GroupCreated = BaseStatus<"GROUP_CREATED">  & GroupPayload;
         export type GroupDeleted = BaseStatus<"GROUP_DELETED"> & GroupPayload;

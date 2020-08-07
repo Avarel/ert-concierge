@@ -10,9 +10,6 @@ import React from "react";
 import { PlanetaryComponent } from "./controller";
 import { Tabbed } from "../../../overlay/mod";
 
-export const PLANET_SIM_NAME = "planetary_simulation";
-export const PLANET_SIM_GROUP = "planetary_simulation_out";
-
 class Planet {
     enterAction?: IAction;
     exitAction?: IAction;
@@ -43,7 +40,7 @@ class Planet {
         this.mesh.dispose();
     }
 
-    hookHover(handler: PlanetsHandler) {
+    hookHover(handler: PlanetaryService) {
         if (this.mesh.actionManager) {
             this.enterAction = new ExecuteCodeAction(
                 BABYLON.ActionManager.OnPointerOverTrigger,
@@ -114,7 +111,10 @@ class Planet {
     }
 }
 
-export class PlanetsHandler extends ServiceEventHandler {
+export class PlanetaryService extends ServiceEventHandler {
+    private static readonly NAME = "planetary_simulation";
+    private static readonly GROUP = "planetary_simulation_out";
+
     /** Keeps latest batch of sys data */
     sysData?: SystemData;
     /** Map of planets */
@@ -132,12 +132,12 @@ export class PlanetsHandler extends ServiceEventHandler {
         readonly view: RendererView,
         private tabbedComponent?: Tabbed.Instance
     ) {
-        super(client, PLANET_SIM_GROUP);
+        super(client, PlanetaryService.GROUP);
         this.planets = new Map();
     }
 
     onMessage(message: Payload.Message<PlanetaryPayload>) {
-        if (message.origin!.name != PLANET_SIM_NAME) {
+        if (message.origin!.name != PlanetaryService.NAME) {
             return;
         }
         this.processPlanetsPayload(message.data);
@@ -148,14 +148,14 @@ export class PlanetsHandler extends ServiceEventHandler {
             type: "MESSAGE",
             target: {
                 type: "NAME",
-                name: PLANET_SIM_NAME
+                name: PlanetaryService.NAME
             },
             data
         });
     }
 
     onSubscribe() {
-        this.tab = this.tabbedComponent?.addTab(PLANET_SIM_NAME, "Planetary Controls");
+        this.tab = this.tabbedComponent?.addTab(PlanetaryService.NAME, "Planetary Controls");
         console.log("Planet simulator client is ready to go!");
 
         this.sendToSim({
@@ -217,7 +217,7 @@ export class PlanetsHandler extends ServiceEventHandler {
     }
 
     onUnsubscribe() {
-        this.tabbedComponent?.removeTab(PLANET_SIM_NAME);
+        this.tabbedComponent?.removeTab(PlanetaryService.NAME);
         this.clearShapes();
         console.log("Planet simulator client has disconnected!");
     }

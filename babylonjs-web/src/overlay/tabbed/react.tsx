@@ -8,29 +8,32 @@ export module TabbedReact {
         readonly refobj?: React.RefObject<HTMLDivElement>;
     }
 
-    namespace TabComponent {
-        export function header(props: TabProps & { readonly component: Component }) {
-            return <div className={`tabbed-header-label${props.component.isActive(props.id) ? " active" : ""}`}
-                onClick={() => props.component.makeActive(props.id)}>
-                {props.label}
+    type TabComponentProps = TabProps & { readonly component: Component };
+    export class TabHeader extends React.Component<TabComponentProps> {
+        render() {
+            return <div className={`tabbed-header-label${this.props.component.isActive(this.props.id) ? " active" : ""}`}
+                onClick={() => this.props.component.makeActive(this.props.id)}>
+                {this.props.label}
             </div>
         }
+    }
 
-        export function body(props: TabProps & { readonly component: Component }) {
-            if (props.jsxContent || props.jsxContent === null) {
-                if (props.component.isActive(props.id)) {
-                    return <div className={`tabbed-body${props.component.isActive(props.id) ? " active" : ""}`} ref={props.refobj}>
-                        {props.jsxContent}
+    export class TabBody extends React.Component<TabComponentProps> {
+        render() {
+            if (this.props.jsxContent || this.props.jsxContent === null) {
+                if (this.props.component.isActive(this.props.id)) {
+                    return <div className={`tabbed-body${this.props.component.isActive(this.props.id) ? " active" : ""}`} ref={this.props.refobj}>
+                        {this.props.jsxContent}
                     </div>
                 } else {
                     return null
                 }
             } else {
-                return <div className={`tabbed-body${props.component.isActive(props.id) ? " active" : ""}`} ref={props.refobj} />
+                return <div className={`tabbed-body${this.props.component.isActive(this.props.id) ? " active" : ""}`} ref={this.props.refobj} />
             }
         }
     }
-
+    
     interface ComponentProps {
         readonly contentHeight?: number;
         readonly reverseHeader?: boolean;
@@ -78,10 +81,10 @@ export module TabbedReact {
                     <div className="tabbed-drawer" onClick={() => this.toggleShown()}>
                         <i className="fa fa-angle-double-down" />
                     </div>
-                    {Array.from(this.props.tabs, props => <TabComponent.header component={this} {...props} />)}
+                    {Array.from(this.props.tabs, props => <TabHeader component={this} {...props} />)}
                 </div>
                 <div className="tabbed-content" style={{ height: this.props.contentHeight }}>
-                    {Array.from(this.props.tabs, props => <TabComponent.body component={this} {...props} />)}
+                    {Array.from(this.props.tabs, props => <TabBody component={this} {...props} />)}
                 </div>
             </div>
         }

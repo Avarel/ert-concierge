@@ -1,13 +1,27 @@
 import "./style.scss";
-import React from "react";
 import Tippy from '@tippyjs/react';
 import "tippy.js/dist/tippy.css";
+import React from "react";
 
 export namespace IconSidebarReact {
     interface IconProps {
         readonly label: string,
         readonly colorCss: string,
         readonly imgSrc?: string
+    }
+
+    export class Icon extends React.PureComponent<IconProps> {
+        render() {
+            if (this.props.imgSrc) {
+                return <div className="icon">
+                        <img src={this.props.imgSrc}/>
+                </div>
+            } else {
+                return <div className="icon">
+                    <p style={{backgroundColor: this.props.colorCss}}>{this.props.label.charAt(0)}</p>
+                </div>;
+            }
+        }
     }
     
     interface ComponentProps {
@@ -19,21 +33,11 @@ export namespace IconSidebarReact {
             this.state = { items: props.icons || new Map() }
         }
 
-        icon(props: IconProps) {
-            if (props.imgSrc) {
-                return <div className="icon">
-                     <img src={props.imgSrc}/>
-                </div>
-            } else {
-                return <div className="icon">
-                    <p style={{backgroundColor: props.colorCss}}>{props.label.charAt(0)}</p>
-                </div>;
-            }
-        }
-    
         render() {
             return <div className="sidebar">
-                {Array.from(this.props.icons.values(), prop => <this.icon {...prop}/>)}
+                {Array.from(this.props.icons.values(), prop => <Tippy content={prop.label}>
+                    <Icon {...prop}/>
+                </Tippy>)}
             </div>;
         }
     }

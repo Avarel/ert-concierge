@@ -1,16 +1,15 @@
 import "./viewer.scss";
 
 import * as ConciergeAPI from "../concierge_api/mod";
-import { PhysicsHandler } from "./sims/physics_sim/physics_handler";
-import { ChatHandler } from "./chat_handler";
-import { PlanetsHandler } from "./sims/planetary_sim/planets_handler";
-import { UsersHandler } from "./users/users_handler";
+import { RustPhysicsService } from "./service_impls/physics_service/mod";
+import { ChatService } from "./service_impls/chat_service";
+import { PlanetaryService } from "./service_impls/planetary_service/mod";
+import { ClientsHandler } from "./users/users_handler";
 import { Renderer } from "./renderer";
 import { IconSidebar, Views, Tabbed } from "../overlay/mod";
-
-import React from "react";
 import { About } from "./about";
-import { GroupsHandler } from "./groups/groups_handler";
+import { ServicesHandler } from "./services/services_handler";
+import React from "react";
 
 export namespace Viewer {
     export function start() {
@@ -41,35 +40,24 @@ export namespace Viewer {
         let canvas = document.createElement("canvas");
         view.htmlElement!.appendChild(canvas);
 
-        // setup the renderer;
+        // Setup the BABYLON renderer
         let renderer = new Renderer();
 
         let client = new ConciergeAPI.Client(name, serverURL, true);
 
         let rendererView = renderer.createView(canvas);
         rendererView.universalCamera();
-        // rendererView.setCamera(rendererView.universalCamera())
-        // rendererView.setCamera(rendererView.universalCamera())
-        // let rendererView2 = renderer.createView(canvas2);
 
-        // // simulations
-        let physicsHandler = new PhysicsHandler(client, rendererView, rightTabComponent);
-        client.handlers.push(physicsHandler);
+        // Clients Tab
+        let userHandler = new ClientsHandler(client, sidebarComponent, leftTabComponent);
+        client.addHandler(userHandler);
 
-        let planetHandler = new PlanetsHandler(client, rendererView, rightTabComponent);
-        client.handlers.push(planetHandler);
-
-        // chat
-        let chatHandler = new ChatHandler(client, leftTabComponent);
-        client.handlers.push(chatHandler);
-
-        // users sidebar
-        let userHandler = new UsersHandler(client, sidebarComponent, leftTabComponent);
-        client.handlers.push(userHandler);
-
-        // users sidebar
-        let groupHandler = new GroupsHandler(client, leftTabComponent);
-        client.handlers.push(groupHandler);
+        // Services Tab
+        let servicesHandler = new ServicesHandler(client, leftTabComponent);
+        client.addHandler(servicesHandler);
+        servicesHandler.addService(new ChatService(client, leftTabComponent));
+        servicesHandler.addService(new PlanetaryService(client, rendererView, rightTabComponent));
+        servicesHandler.addService(new RustPhysicsService(client, rendererView, rightTabComponent));
 
         renderer.start();
 

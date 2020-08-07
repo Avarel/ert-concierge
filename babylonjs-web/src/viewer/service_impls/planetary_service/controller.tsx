@@ -1,6 +1,6 @@
 import { SystemData, SystemObject } from "./payloads";
 
-import { PlanetsHandler } from "./planets_handler";
+import { PlanetaryService } from "./mod";
 import Rs from "../../../overlay/rstyle/react";
 import React from "react";
 import ReactDOM from "react-dom";
@@ -48,7 +48,7 @@ class RenderingInfo extends React.Component<PlanetaryComponentProps, RenderingIn
 }
 
 interface PlanetaryComponentProps {
-    handler: PlanetsHandler
+    handler: PlanetaryService
 }
 export class PlanetaryComponent extends React.Component<PlanetaryComponentProps> {
     render() {

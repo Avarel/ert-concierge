@@ -12,7 +12,7 @@ export class Client {
 
     reconnectInterval: number = 10000;
     uuid!: Uuid;
-    handlers: RawHandler[] = [];
+    private handlers: RawHandler[] = [];
 
     constructor(readonly name: string, readonly url: string, public reconnect: boolean = false) {}
 
@@ -49,6 +49,19 @@ export class Client {
             this.socket = undefined;
             this.version = undefined;
             this.secret = undefined;
+        }
+    }
+    
+    addHandler(handler: RawHandler) {
+        this.handlers.push(handler);
+    }
+
+    removeHandler(handler: RawHandler) {
+        for(let i = 0; i < this.handlers.length; i++) {
+            if (this.handlers[i] === handler) {
+                this.handlers.splice(i, 1);
+                i -= 1;
+            }
         }
     }
 

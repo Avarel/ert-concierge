@@ -1,15 +1,15 @@
 {
     "scripts": {
-        "build-dev": "webpack --config webpack.dev.js",
+        "build:dev": "webpack --config webpack.dev.js",
         "build": "webpack --config webpack.prod.js",
         "start": "webpack-dev-server --open --config webpack.dev.js --hot"
     },
     "dependencies": {
-        "@tippyjs/react": "^4.1.0",
-        "react": "^16.13.1",
-        "react-dom": "^16.13.1"
+        "@tippyjs/react": "^4.1.0"
     },
     "devDependencies": {
+        "react": "^16.13.1",
+        "react-dom": "^16.13.1",
         "@types/react": "^16.9.44",
         "@types/react-dom": "^16.9.8",
         "babylonjs": "^4.2.0-alpha.27",

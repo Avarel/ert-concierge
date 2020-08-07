@@ -57,9 +57,22 @@ export abstract class EventHandler implements RawHandler {
 export abstract class ServiceEventHandler extends EventHandler {
     protected subscribed: boolean = false;
 
+    /** 
+     * Keeps track of the sequence number of a group fetch [all] request.
+     * The service handler should only respond to a fetch result
+     * if the returned sequence number matches.
+     */
+    private fetchSeq?: number;
+    
+    /** 
+     * The service handler should only respond to a subscription result
+     * if the returned sequence number matches.
+     */
+    private subSeq?: number;
+
     constructor(
-        readonly client: Client, 
-        protected group: string,
+        protected readonly client: Client, 
+        readonly group: string,
         public autoSubscribe: boolean = true,
     ) {
         super();
@@ -70,22 +83,32 @@ export abstract class ServiceEventHandler extends EventHandler {
     }
 
     onHello(_event: Payload.Hello) {
-        this.client.sendJSON({
-            type: "GROUP_FETCH",
-            name: this.group
-        })
-    }
-
-    onGroupFetchResult(event: Payload.GroupFetchResult) {
-        if (event.name == this.group) {
-            this.subscribe(this.group);
+        if (this.autoSubscribe) {
+            this.fetchSeq = this.client.sendJSON({
+                type: "GROUP_FETCH",
+                name: this.group
+            });
         }
     }
 
-    private subscribe(name: string) {
-        this.client.sendJSON({
+    onGroupFetchResult(event: Payload.GroupFetchResult) {
+        if (event.seq == this.fetchSeq && event.name == this.group) {
+            this.fetchSeq = undefined;
+            this.subscribe();
+        }
+    }
+
+    subscribe() {
+        this.subSeq = this.client.sendJSON({
             type: "SELF_SUBSCRIBE",
-            name
+            name: this.group
+        });
+    }
+
+    unsubscribe() {
+        this.client.sendJSON({
+            type: "SELF_UNSUBSCRIBE",
+            name: this.group
         });
     }
 
@@ -100,10 +123,9 @@ export abstract class ServiceEventHandler extends EventHandler {
     abstract onUnsubscribe(): void;
 
     onStatus(status: Payload.Status): void {
-        // console.log("RECV", JSON.stringify(status));
         switch (status.code) {
             case "NO_SUCH_GROUP":
-                if (status.name == this.group) {
+                if (status.name == this.group && status.seq == (this.subSeq || this.fetchSeq)) {
                     console.warn("Group `", this.group, "` does not exist on concierge.");
                 }
                 break;
@@ -113,20 +135,21 @@ export abstract class ServiceEventHandler extends EventHandler {
                 }
                 break;
             case "GROUP_CREATED":
-                if (status.name == this.group) {
-                    this.subscribe(this.group);
+                if (status.name == this.group && this.autoSubscribe) {
+                    this.subscribe();
                 }
                 break;
             case "SELF_SUBSCRIBED":
-                if (status.name == this.group) {
-                    console.log("Subscribed to `", this.group, "`.");
+                if (status.name == this.group && this.subSeq == status.seq) {
+                    console.info("Subscribed to `", this.group, "`.");
                     this.subscribed = true;
+                    this.subSeq = undefined;
                     this.onSubscribe();
                 }
                 break;
             case "SELF_UNSUBSCRIBED":
                 if (status.name == this.group) {
-                    console.log("Unsubscribed from `", this.group, "`.");
+                    console.info("Unsubscribed from `", this.group, "`.");
                     this.subscribed = false;
                     this.onUnsubscribe();
                 }

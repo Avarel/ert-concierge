@@ -1,5 +1,4 @@
 import * as BABYLON from 'babylonjs';
-import { Vector3 } from 'babylonjs';
 
 export class RendererView {
     isFocused: boolean = false;
@@ -25,8 +24,8 @@ export class RendererView {
     }
 
     universalCamera() {
-        let camera = new BABYLON.UniversalCamera("UniversalCamera", new Vector3(0, 15, -15), this.scene);
-        camera.setTarget(new Vector3(0, 0, 0));
+        let camera = new BABYLON.UniversalCamera("UniversalCamera", new BABYLON.Vector3(0, 15, -15), this.scene);
+        camera.setTarget(new BABYLON.Vector3(0, 0, 0));
         camera.speed = 0.5;                 // KEYS:
         camera.keysDownward.push(17, 16);   // CTRL, SHIFT
         camera.keysUpward.push(32);         // SPACE
@@ -38,8 +37,8 @@ export class RendererView {
     }
 
     arcRotateCamera() {
-        let camera = new BABYLON.ArcRotateCamera("ArcCamera", Math.PI, Math.PI, 15, Vector3.Zero(), this.scene);
-        camera.setPosition(new Vector3(0, 5, 15));
+        let camera = new BABYLON.ArcRotateCamera("ArcCamera", Math.PI, Math.PI, 15, BABYLON.Vector3.Zero(), this.scene);
+        camera.setPosition(new BABYLON.Vector3(0, 5, 15));
         camera.speed = 0.25;                 // KEYS:
         camera.keysUp.push(87, 38);         // W, UP
         camera.keysDown.push(83, 40)        // D, DOWN

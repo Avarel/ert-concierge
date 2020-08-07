@@ -8,9 +8,6 @@ import { PhysicsComponent } from "./controller";
 import React from "react";
 import { Tabbed } from "../../../overlay/mod";
 
-export const PHYSICS_ENGINE_NAME = "physics_engine";
-export const PHYSICS_ENGINE_GROUP = "physics_engine_out";
-
 function vec2f2vector2(vec: Readonly<Vec2f>): Vector2 {
     return new Vector2(vec.x - 500, vec.y - 500);
 }
@@ -63,7 +60,10 @@ class PolygonShape {
     }
 }
 
-export class PhysicsHandler extends ServiceEventHandler {
+export class RustPhysicsService extends ServiceEventHandler {
+    private static readonly NAME = "physics_engine";
+    private static readonly GROUP = "physics_engine_out";
+
     private shapes: Map<string, PolygonShape> = new Map();
     private readonly visualScale: number = 1 / 50;
     private tab: Tabbed.Tab | undefined;
@@ -73,7 +73,7 @@ export class PhysicsHandler extends ServiceEventHandler {
         private readonly renderer: RendererView,
         private tabbedComponent?: Tabbed.Instance
     ) {
-        super(client, PHYSICS_ENGINE_GROUP);
+        super(client, RustPhysicsService.GROUP);
     }
 
     sendToSim(data: PhysicsPayload) {
@@ -81,14 +81,14 @@ export class PhysicsHandler extends ServiceEventHandler {
             type: "MESSAGE",
             target: {
                 type: "NAME",
-                name: PHYSICS_ENGINE_NAME
+                name: RustPhysicsService.NAME
             },
             data
         });
     }
 
     onMessage(message: Payload.Message<PhysicsPayload>) {
-        if (message.origin!.name != PHYSICS_ENGINE_NAME) {
+        if (message.origin!.name != RustPhysicsService.NAME) {
             return;
         }
         this.processPhysicsPayload(message.data);
@@ -102,12 +102,12 @@ export class PhysicsHandler extends ServiceEventHandler {
         this.sendToSim({
             type: "SPAWN_ENTITY"
         });
-        this.tab = this.tabbedComponent?.addTab(PHYSICS_ENGINE_NAME, "Rust Physics");
+        this.tab = this.tabbedComponent?.addTab(RustPhysicsService.NAME, "Rust Physics");
 
-        this.renderController();
+        this.renderTab();
     }
 
-    renderController() {
+    renderTab() {
         if (this.tab) {
             this.tab.reactContent = React.createElement(PhysicsComponent, { handler: this });
         }
@@ -115,12 +115,11 @@ export class PhysicsHandler extends ServiceEventHandler {
 
     onUnsubscribe() {
         this.clearShapes();
-
-        this.destroyController();
+        this.destroyTab();
     }
 
-    destroyController() {
-        this.tabbedComponent?.removeTab(PHYSICS_ENGINE_NAME);
+    destroyTab() {
+        this.tabbedComponent?.removeTab(RustPhysicsService.NAME);
     }
 
     clearShapes() {
@@ -128,9 +127,9 @@ export class PhysicsHandler extends ServiceEventHandler {
             if (this.shapes.has(key)) {
                 let shape = this.shapes.get(key)!;
                 shape.dispose();
-                this.shapes.delete(key);
             }
         }
+        this.shapes.clear();
     }
 
     createPolygon(id: string, centroid: Vector2, points: Vector2[], color: Color3): PolygonShape {

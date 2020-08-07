@@ -195,6 +195,30 @@ Unsubscribe from a group's broadcasts.
 }
 ```
 
+## Self Set Sequence Number
+
+Set the sequence number counter on the server to the client's
+provided number. This can be used to get the server's sequence 
+counter back in sync with the client.
+
+### Structure
+
+```typescript
+{
+    "type": "SELF_SET_SEQ",
+    "seq": number
+}
+```
+
+### Example
+
+```json
+{
+    "type": "SELF_SET_SEQ",
+    "seq": 0
+}
+```
+
 ## Group Create
 
 Subscribe to a group's broadcast.
@@ -509,7 +533,7 @@ such as error response or responses to certain commands.
 -   `OK`
 -   `MESSAGE_SENT`
     -   Fired in response to `MESSAGE`.
--   `SUBSCRIBED`
+-   `SUBSCRIBED`, `NOT_SUBSCRIBED`, `ALREADY_SUBSCRIBED`
     -   `name: string`: The name of the group already created.
     -   `nickname: string | undefined`: THe nickname of the group.
     -   `owner_uuid: string`: The UUID of the group's owner.

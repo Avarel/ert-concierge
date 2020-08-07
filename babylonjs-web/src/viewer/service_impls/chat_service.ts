@@ -1,25 +1,24 @@
-import { ServiceEventHandler } from "../concierge_api/handlers";
-import { Client } from '../concierge_api/mod';
-import { Payload } from '../concierge_api/payloads';
+import { ServiceEventHandler } from "../../concierge_api/handlers";
+import { Client } from '../../concierge_api/mod';
+import { Payload } from '../../concierge_api/payloads';
 import React from 'react';
-import { Chat } from "../overlay/mod";
-import Tabbed from "../overlay/tabbed/mod";
+import { Chat } from "../../overlay/mod";
+import Tabbed from "../../overlay/tabbed/mod";
 
-const CHAT_GROUP = "chat";
-
-export class ChatHandler extends ServiceEventHandler {
-    private readonly tab: Tabbed.Tab;
+export class ChatService extends ServiceEventHandler {
+    private static readonly CHAT_GROUP = "chat";
+    private tab?: Tabbed.Tab;
     private items: (Chat.Message | Chat.Status)[] = [];
 
     constructor(client: Client, private readonly tabComponent: Tabbed.Instance) {
-        super(client, CHAT_GROUP);
-        this.tab = this.tabComponent.addTab("chat", "Chat");
+        super(client, ChatService.CHAT_GROUP);
         this.onEnter = this.onEnter.bind(this);
-        this.render();
+        this.renderTab();
     }
 
     onSubscribe() {
-        this.addStatus("Connected to the chat system.");
+        this.tab = this.tabComponent.addTab(ChatService.CHAT_GROUP, "Chat");
+        this.renderTab();
     }
 
     /**
@@ -31,17 +30,19 @@ export class ChatHandler extends ServiceEventHandler {
             type: "MESSAGE",
             target: {
                 type: "GROUP",
-                group: CHAT_GROUP,
+                group: ChatService.CHAT_GROUP,
             },
             data: text
         });
     }
 
-    render() {
-        this.tab.reactContent = React.createElement(Chat.Component, {
-            items: this.items,
-            onSubmit: this.onEnter
-        });
+    renderTab() {
+        if (this.tab) {
+            this.tab.reactContent = React.createElement(Chat.Component, {
+                items: this.items,
+                onSubmit: this.onEnter
+            });
+        }
     }
 
     addStatus(text: string) {
@@ -49,7 +50,7 @@ export class ChatHandler extends ServiceEventHandler {
             type: "STATUS",
             text,
         });
-        this.render();
+        this.renderTab();
     }
 
     addMessage(name: string, text: string, you: boolean = false) {
@@ -59,12 +60,12 @@ export class ChatHandler extends ServiceEventHandler {
             text,
             you
         });
-        this.render();
+        this.renderTab();
     }
 
 
     onMessage(message: Payload.Message<any>) {
-        if (!message.origin || message.origin.group?.name != CHAT_GROUP) {
+        if (!message.origin || message.origin.group?.name != ChatService.CHAT_GROUP) {
             return;
         }
 
@@ -76,6 +77,7 @@ export class ChatHandler extends ServiceEventHandler {
     }
 
     onUnsubscribe() {
-        this.addStatus("Disconnected from the chat system.");
+        this.tabComponent.removeTab("chat");
+        this.tab = undefined;
     }
 }

@@ -1,6 +1,6 @@
 import React from "react";
 
-export namespace ViewsReact {
+export module ViewsReact {
     interface ViewProps {
         readonly jsxContent?: JSX.Element | null;
         readonly refobj?: React.RefObject<HTMLDivElement>;
@@ -8,19 +8,24 @@ export namespace ViewsReact {
     interface ComponentProps {
         readonly views: ReadonlyArray<ViewProps>;
     }
-    export class Component extends React.Component<ComponentProps> {
-        view(props: ViewProps) {
-            return <div className="view" ref={props.refobj}>
-                { props.jsxContent }
+
+    export class ViewComponent extends React.Component<ViewProps> {
+        render() {
+            return <div className="view" ref={this.props.refobj}>
+                {this.props.jsxContent}
             </div>
         }
+    }
 
+    export class Component extends React.Component<ComponentProps> {
         render() {
             return <div className="views">
                 {Array.from(this.props.views, props => {
-                    return <this.view {...props} />
+                    return <ViewComponent {...props} />
                 })}
             </div>
         }
     }
 }
+
+export default ViewsReact;

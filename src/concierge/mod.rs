@@ -186,13 +186,13 @@ impl Group {
     }
 
     /// Add the client to the group.
-    pub fn add_subscriber(&mut self, _: &Concierge, uuid: Uuid) {
-        self.clients.insert(uuid);
+    pub fn add_subscriber(&mut self, _: &Concierge, uuid: Uuid) -> bool {
+        self.clients.insert(uuid)
     }
 
     /// Remove the client from the group.
-    pub fn remove_subscriber(&mut self, _: &Concierge, uuid: &Uuid) {
-        self.clients.remove(&uuid);
+    pub fn remove_subscriber(&mut self, _: &Concierge, uuid: &Uuid) -> bool {
+        self.clients.remove(&uuid)
     }
 
     /// Broadcast a payload to all connected client of a certain group.

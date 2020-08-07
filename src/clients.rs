@@ -90,31 +90,41 @@ impl Client {
     }
 
     /// Attempt to subscribe to a group.
+    ///
+    /// If this function returns `None`, it means that no such group exists.
+    /// If this function returns `Some`, then it is attached with the group information.
+    /// In addition, there is a boolean indicating if the client subscribed to a new group
+    /// (`true`) or is already subscribed to the group (`false`).
     pub async fn subscribe(
         &self,
         concierge: &Concierge,
         group_name: &str,
-    ) -> Option<GroupPayload<'_>> {
+    ) -> Option<(GroupPayload<'_>, bool)> {
         let mut groups = concierge.groups.write().await;
         if let Some(group) = groups.get_mut(group_name) {
-            group.add_subscriber(concierge, self.uuid);
+            let result = group.add_subscriber(concierge, self.uuid);
             self.subscriptions
                 .write()
                 .await
                 .insert(group.name.to_owned());
-            Some(group.make_payload().owned())
+            Some((group.make_payload().owned(), result))
         } else {
             None
         }
     }
 
     /// Attempt to unsubscribe from a group.
-    pub async fn unsubscribe(&self, concierge: &Concierge, group_name: &str) -> Option<GroupPayload<'_>> {
+    ///
+    /// If this function returns `None`, it means that no such group exists.
+    /// If this function returns `Some`, then it is attached with the group information.
+    /// In addition, there is a boolean indicating if the client unsubscribed from a group
+    /// (`true`) or was not subscribed to the group in the first place (`false`).
+    pub async fn unsubscribe(&self, concierge: &Concierge, group_name: &str) -> Option<(GroupPayload<'_>, bool)> {
         let mut groups = concierge.groups.write().await;
         if let Some(group) = groups.get_mut(group_name) {
-            group.remove_subscriber(concierge, &self.uuid);
+            let result = group.remove_subscriber(concierge, &self.uuid);
             self.subscriptions.write().await.remove(group_name);
-            Some(group.make_payload().owned())
+            Some((group.make_payload().owned(), result))
         } else {
             None
         }

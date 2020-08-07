@@ -1,16 +1,16 @@
 {
     "compilerOptions": {
+        "outDir": "./dist/",
         "target": "es2016",
-        "module": "commonjs",
+        "module": "es6",
+        "moduleResolution": "node",
+        // Strict type checking
         "strict": true,
-        "noImplicitAny": true,
-        "strictNullChecks": true,
-        "noImplicitThis": true,
         "noImplicitReturns": true,
+        // Other goodies
         "removeComments": true,
         "suppressImplicitAnyIndexErrors": true,
         "sourceMap": true,
-        "outDir": "./",
         "esModuleInterop": true,
         "jsx": "react"
     },

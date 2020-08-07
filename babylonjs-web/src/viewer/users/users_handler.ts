@@ -6,7 +6,8 @@ import React from "react";
 import Tabbed from "../../overlay/tabbed/mod";
 import { UsersTabComponent } from "./react";
 
-export class UsersHandler extends EventHandler {
+export class ClientsHandler extends EventHandler {
+    private static readonly TAB_ID = "clients";
     private tab?: Tabbed.Tab;
     users: ClientPayload[] = [];
 
@@ -16,15 +17,15 @@ export class UsersHandler extends EventHandler {
         private readonly tabComponent: Tabbed.Instance,
     ) {
         super();
-        this.tab = this.tabComponent.addTab("users", "Users");
+        this.tab = this.tabComponent.addTab(ClientsHandler.TAB_ID, "Clients");
         this.render();
     }
 
     onClose(event: CloseEvent) {
         this.ui.clear();
-        this.tabComponent.removeTab("users");
+        this.tabComponent.removeTab(ClientsHandler.TAB_ID);
         this.tab = undefined;
-        this.users.length = 0;
+        this.clear();
     }
 
     onHello(hello: Payload.Hello) {
@@ -35,10 +36,9 @@ export class UsersHandler extends EventHandler {
     }
 
     onClientFetchAllResult(data: Payload.ClientFetchAllResult) {
-        this.ui.clear();
+        this.clear();
         for (let client of data.clients) {
-            this.ui.addIcon(client.uuid, client.nickname || client.name);
-            this.users.push(client);
+            this.addClient(client);
         }
     }
 
@@ -51,6 +51,10 @@ export class UsersHandler extends EventHandler {
                 this.removeUser(status.uuid);
                 break;
         }
+    }
+
+    clear() {
+        this.users.length = 0;
     }
 
     addClient(client: ClientPayload) {

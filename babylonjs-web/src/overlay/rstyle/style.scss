@@ -1,5 +1,23 @@
+@mixin vmargin($size: 10px) {
+    margin-bottom: $size;
+    &:last-child {
+        margin-bottom: 0;
+    }
+}
+
+@mixin hmargin($size: 10px) {
+    margin-right: 10px;
+    &:last-child {
+        margin-right: 0;
+    }
+}
+
+@mixin lshadow($alpha: 0.067) {
+    box-shadow: 0px 5px 5px rgba(0, 0, 0, $alpha);
+}
+
 .rstyled {
-    background-color: rgba(180, 180, 180, 0.95);
+    background-color: rgb(180, 180, 180);
     position: relative;
     font-family: "Titillium Web", "Roboto", sans-serif;
     box-sizing: border-box;
@@ -14,7 +32,7 @@
 
     h1 {
         font-size: 30px;
-        margin-bottom: 5px;
+        margin: 5px 0;
         font-weight: bold;
     }
 
@@ -39,9 +57,11 @@
         padding: 10px;
         border: none;
         border-radius: 5px;
-        transition: transform 0.2s;
+        transition: box-shadow 0.2s, transform 0.2s, opacity 0.2s;
         background: white;
         color: black;
+
+        @include lshadow();
 
         &.red {
             background: rgb(223, 0, 0);
@@ -73,7 +93,6 @@
         }
         &:hover {
             opacity: 0.7;
-            transform: scale(1.05);
         }
         &:active {
             opacity: 0.3;
@@ -86,7 +105,7 @@
         margin-bottom: 5px;
 
         > .label {
-            width: 40%;
+            flex: 0 0 35%;
             text-align: right;
             padding-right: 10px;
             box-sizing: border-box;
@@ -148,17 +167,21 @@
             border-radius: 5px;
             box-sizing: border-box;
             word-break: break-word;
-            margin-bottom: 10px;
             background: rgba(255, 255, 255, 0.25);
-
-            &:last-child {
-                margin-bottom: 0;
-            }
+            @include lshadow();
+            @include vmargin();
         }
     }
 
     .rs-flex-row {
         display: flex;
         flex-direction: row;
+
+        .rs-card {
+            margin-bottom: 0;
+            @include hmargin();
+        }
+
+        @include vmargin();
     }
 }

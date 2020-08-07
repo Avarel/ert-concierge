@@ -183,6 +183,9 @@ pub enum Payload<'a, T> {
     /// This payload asks for the connecting client's
     /// subscriptions.
     SelfFetch,
+    /// Set the sequence number counter on the server to the client's
+    /// provided number.
+    SelfSetSeq { seq: usize },
     /// Create a group such that every subscriber
     /// will receive the message targeted towards that group.
     GroupCreate {

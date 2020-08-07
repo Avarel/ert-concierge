@@ -35,14 +35,16 @@ export function About() {
             <h2>BabylonJS Client</h2>
         </Rs.Pad>
         <Rs.Pad style={{flexGrow: 1}}>
-            <Rs.Card>
-                <h2>An Tran</h2>
-                <p>Intern</p>
-            </Rs.Card>
-            <Rs.Card>
-                <h2>Santiago Lombeyda</h2>
-                <p>Mentor</p>
-            </Rs.Card>
+            <Rs.Row>
+                <Rs.Card>
+                    <h2>Intern</h2>
+                    <p>An Tran</p>
+                </Rs.Card>
+                <Rs.Card>
+                    <h2>Mentor</h2>
+                    <p>Santiago Lombeyda</p>
+                </Rs.Card>
+            </Rs.Row>
             <Rs.Card>
                 <h2>Front-End</h2>
                 <p>Pug/SCSS/TypeScript</p>

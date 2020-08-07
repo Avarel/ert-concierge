@@ -27,6 +27,16 @@ pub enum StatusPayload<'a> {
         #[serde(flatten)]
         group: GroupPayload<'a>
     },
+    /// Indicates that the client is already subscribed to a group.
+    SelfAlreadySubscribed { 
+        #[serde(flatten)]
+        group: GroupPayload<'a>
+    },
+    /// Indicates that the client is not subscribed to a group.
+    SelfNotSubscribed { 
+        #[serde(flatten)]
+        group: GroupPayload<'a>
+    },
     /// Indicates that the client is no longer subscribed to a group.
     /// May not be attached with a sequence number if the client did not send
     /// an UNSUBSCRIBE payload to unsubscribe from this group.
@@ -150,6 +160,18 @@ pub mod err {
     pub const fn group_already_created(group: GroupPayload<'_>) -> JsonPayload {
         JsonPayload::Status {
             data: StatusPayload::GroupAlreadyCreated { group },
+        }
+    }
+
+    pub fn already_subscribed(group: GroupPayload<'_>) -> JsonPayload {
+        JsonPayload::Status {
+            data: StatusPayload::SelfAlreadySubscribed { group },
+        }
+    }
+
+    pub const fn not_subscribed(group: GroupPayload<'_>) -> JsonPayload {
+        JsonPayload::Status {
+            data: StatusPayload::SelfNotSubscribed { group },
         }
     }
 

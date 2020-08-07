@@ -7,30 +7,32 @@ class UserComponent extends React.PureComponent<ClientPayload> {
         if (this.props.nickname) {
             return <Rs.Card>
                 <h2>{this.props.nickname}</h2>
-                <p>{this.props.name}</p>
-                <p>{this.props.uuid}</p>
-                <Rs.Card>{this.props.tags}</Rs.Card>
+                <Rs.InputValue label="Name" inputs={[{value: this.props.name}]}/>
+                <Rs.InputValue label="UUID" inputs={[{value: this.props.uuid}]}/>
+                <Rs.InputValue label="Tags" inputs={[{value: this.props.tags}]}/>
             </Rs.Card>;
         } else {
             return <Rs.Card>
                 <h2>{this.props.name}</h2>
-                <p>{this.props.uuid}</p>
-                <Rs.Card>{this.props.tags}</Rs.Card>
+                <Rs.InputValue label="UUID" inputs={[{value: this.props.uuid}]}/>
+                <Rs.InputValue label="Tags" inputs={[{value: this.props.tags}]}/>
             </Rs.Card>;
         }
     }
 }
+
 interface UsersTabComponentProps {
     readonly name: string,
     readonly uuid: string,
     readonly users: ReadonlyArray<ClientPayload>
 }
-export class UsersTabComponent extends React.PureComponent<UsersTabComponentProps> {
+export class UsersTabComponent extends React.Component<UsersTabComponentProps> {
+
     render() {
         return <div className="rstyled full">
             <Rs.Pad light>
-                <h1>{this.props.name}</h1>
-                <p>{this.props.uuid}</p>
+                <h1>Clients</h1>
+                <p>Clients connected to the server.</p>
             </Rs.Pad>
             <Rs.Pad style={{flexGrow: 1}}>
                 {this.props.users.map(prop =>  <UserComponent {...prop}/>)}

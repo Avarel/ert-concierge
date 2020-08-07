@@ -1,9 +1,9 @@
-import { PhysicsHandler } from "./physics_handler";
+import { RustPhysicsService } from "./mod";
 import React from "react";
 import Rs from "../../../overlay/rstyle/react";
 
 interface PhysicsComponentProp {
-    handler: PhysicsHandler
+    handler: RustPhysicsService
 }
 export class PhysicsComponent extends React.Component<PhysicsComponentProp> {
     handleRespawn() {

@@ -1,6 +1,6 @@
 import "./style.scss";
+import ViewsReact from "./react";
 import React from "react";
-import { ViewsReact } from "./react";
 import ReactDOM from "react-dom";
 
 export function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: string[] = []): HTMLElementTagNameMap[K] {
