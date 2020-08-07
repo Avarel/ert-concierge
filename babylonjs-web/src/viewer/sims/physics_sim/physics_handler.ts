@@ -1,21 +1,21 @@
 import * as ConciergeAPI from "../../../concierge_api/mod";
-import { DeepImmutable, Vector2, DeepImmutableArray, Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, PolygonMeshBuilder, StandardMaterial, ActionManager, MeshBuilder, Mesh } from "babylonjs";
+import { Vector2, Color3, ExecuteCodeAction, Vector3, Scene, PolygonMeshBuilder, StandardMaterial, ActionManager, Mesh } from "babylonjs";
 import { RendererView } from "../../renderer";
 import { ServiceEventHandler } from "../../../concierge_api/handlers";
 import { Payload } from "../../../concierge_api/payloads";
 import { Vec2f, RgbColor, PhysicsPayload } from "./payloads";
-import Tabbed from "../../../overlay/tabbed/react";
 import { PhysicsComponent } from "./controller";
 import React from "react";
+import { Tabbed } from "../../../overlay/mod";
 
 export const PHYSICS_ENGINE_NAME = "physics_engine";
 export const PHYSICS_ENGINE_GROUP = "physics_engine_out";
 
-function vec2f2vector2(vec: Vec2f): Vector2 {
+function vec2f2vector2(vec: Readonly<Vec2f>): Vector2 {
     return new Vector2(vec.x - 500, vec.y - 500);
 }
 
-function tuple2color3(tuple: DeepImmutable<RgbColor>): Color3 {
+function tuple2color3(tuple: Readonly<RgbColor>): Color3 {
     function clamp(n: number): number {
         return Math.max(0, Math.min(n, 255)) / 255
     }
@@ -47,11 +47,11 @@ class PolygonShape {
         return new PolygonShape(centroid.scaleInPlace(scale), mesh);
     }
 
-    setColor(color: DeepImmutableObject<Color3>) {
+    setColor(color: Readonly<Color3>) {
         (this.mesh.material! as StandardMaterial).diffuseColor! = color;
     }
 
-    moveTo(point: DeepImmutableObject<Vector3>) {
+    moveTo(point: Readonly<Vector3>) {
         let translate = point.subtract(this.centroid);
 
         this.mesh.position.addInPlace(translate);
@@ -66,11 +66,12 @@ class PolygonShape {
 export class PhysicsHandler extends ServiceEventHandler {
     private shapes: Map<string, PolygonShape> = new Map();
     private readonly visualScale: number = 1 / 50;
+    private tab: Tabbed.Tab | undefined;
 
     constructor(
         client: ConciergeAPI.Client,
         private readonly renderer: RendererView,
-        private tabbedComponent?: Tabbed.Component
+        private tabbedComponent?: Tabbed.Instance
     ) {
         super(client, PHYSICS_ENGINE_GROUP);
     }
@@ -101,14 +102,14 @@ export class PhysicsHandler extends ServiceEventHandler {
         this.sendToSim({
             type: "SPAWN_ENTITY"
         });
+        this.tab = this.tabbedComponent?.addTab(PHYSICS_ENGINE_NAME, "Rust Physics");
 
-        this.setupController();
+        this.renderController();
     }
 
-    setupController() {
-        const tab = this.tabbedComponent?.addTab(PHYSICS_ENGINE_NAME, "Rust Physics");
-        if (tab) {
-            tab.reactContent = React.createElement(PhysicsComponent, { handler: this });
+    renderController() {
+        if (this.tab) {
+            this.tab.reactContent = React.createElement(PhysicsComponent, { handler: this });
         }
     }
 
@@ -141,7 +142,7 @@ export class PhysicsHandler extends ServiceEventHandler {
         throw new Error("Scene not initialized!")
     }
 
-    private createShape(id: string, centroid: Vec2f, points: DeepImmutableArray<Vec2f>, color: DeepImmutable<RgbColor>) {
+    private createShape(id: string, centroid: Vec2f, points: ReadonlyArray<Vec2f>, color: Readonly<RgbColor>) {
         let centroidv = vec2f2vector2(centroid);
         let pointsv = points.map(vec2f2vector2);
         let color3 = tuple2color3(color);
@@ -176,14 +177,14 @@ export class PhysicsHandler extends ServiceEventHandler {
         }
     }
 
-    private updateColor(id: string, color: DeepImmutable<RgbColor>) {
+    private updateColor(id: string, color: Readonly<RgbColor>) {
         let shape = this.shapes.get(id);
         if (shape) {
             shape.setColor(tuple2color3(color));
         }
     }
 
-    private processPhysicsPayload(payload: DeepImmutable<PhysicsPayload>) {
+    private processPhysicsPayload(payload: Readonly<PhysicsPayload>) {
         switch (payload.type) {
             case "ENTITY_NEW":
                 let entity = payload.entity;

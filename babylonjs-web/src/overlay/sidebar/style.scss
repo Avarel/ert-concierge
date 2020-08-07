@@ -1,3 +1,5 @@
+$display-size: 70px;
+
 .sidebar {
     position: fixed;
     z-index: 100;
@@ -6,9 +8,16 @@
     flex-direction: column;
     display: flex;
     overflow: auto;
-    width: 70px;
+    width: $display-size;
     height: 100%;
     padding: 15px;
+    pointer-events: none;
+
+    &.horizontal {
+        height: $display-size;
+        width: 100%;
+        flex-direction: row;
+    }
 
     &::-webkit-scrollbar {
         width: 5px;
@@ -25,49 +34,50 @@
     }
 
     .icon {
+        pointer-events: all;
         flex: 0 0 auto;
-        width: 70px;
-        height: 70px;
-        margin-bottom: 10px;
+        width: $display-size;
+        height: $display-size;
+        margin: 0px 10px 10px 0;
         box-sizing: border-box;
         position: relative;
 
-        &:hover {
-            .tooltip {
-                visibility: visible;
-                opacity: 1;
-            }
-        }
+        // &:hover {
+        //     .tooltip {
+        //         visibility: visible;
+        //         opacity: 1;
+        //     }
+        // }
 
-        // Inline tooltips, not used for now
-        .tooltip {
-            background-color: #555;
-            border-radius: 5px;
-            color: white;
-            font-family: monospace;
-            margin-left: -10px;
-            margin-top: 5px;
-            opacity: 0;
-            padding: 5px 0;
-            position: absolute;
-            text-align: center;
-            transition: opacity 0.2s;
-            visibility: hidden;
-            width: calc(100% + 20px);
-            word-break: break-all;
-            z-index: 101;
+        // // Inline tooltips, not used for now
+        // .tooltip {
+        //     background-color: #555;
+        //     border-radius: 5px;
+        //     color: white;
+        //     font-family: monospace;
+        //     margin-left: -10px;
+        //     margin-top: 5px;
+        //     opacity: 0;
+        //     padding: 5px 0;
+        //     position: absolute;
+        //     text-align: center;
+        //     transition: opacity 0.2s;
+        //     visibility: hidden;
+        //     width: calc(100% + 20px);
+        //     word-break: break-all;
+        //     z-index: 101;
 
-            &::after {
-                content: "";
-                position: absolute;
-                bottom: 100%;
-                left: 50%;
-                margin-left: -5px;
-                border-width: 5px;
-                border-style: solid;
-                border-color: transparent transparent #555 transparent;
-            }
-        }
+        //     &::after {
+        //         content: "";
+        //         position: absolute;
+        //         bottom: 100%;
+        //         left: 50%;
+        //         margin-left: -5px;
+        //         border-width: 5px;
+        //         border-style: solid;
+        //         border-color: transparent transparent #555 transparent;
+        //     }
+        // }
 
         img {
             height: 100%;
@@ -86,7 +96,7 @@
             @extend img;
 
             color: white;
-            line-height: 70px;
+            line-height: $display-size;
             text-align: center;
             font-size: 40px;
             font-family: "Titillium Web", "Roboto", sans-serif;

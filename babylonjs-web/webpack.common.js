@@ -1,4 +1,5 @@
 const path = require("path");
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 
 module.exports = {
@@ -31,21 +32,32 @@ module.exports = {
         })
     ],
     resolve: {
-        extensions: [".ts", ".tsx", ".js", ".scss", ".css",  ".pug", ".html"]
+        extensions: [".ts", ".tsx", ".js", ".scss", ".css", ".pug", ".html"]
     },
     module: {
         rules: [
             {
                 test: /\.tsx?$/,
+                exclude: /(node_modules|bower_components)/,
                 loader: "ts-loader"
             },
             {
                 test: /\.css$/,
-                use: ["style-loader", "css-loader"],
+                use: [
+                    "style-loader",
+                    "css-loader"
+                ],
             },
             {
                 test: /\.s[ac]ss$/,
-                use: ["style-loader", "css-loader", "sass-loader"]
+                use: [
+                    // fallback to style-loader in development
+                    process.env.NODE_ENV !== 'production'
+                        ? 'style-loader'
+                        : MiniCssExtractPlugin.loader,
+                    "css-loader",
+                    "sass-loader"
+                ]
             },
             {
                 test: /\.pug$/,

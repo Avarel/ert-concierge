@@ -1,5 +1,7 @@
 import "./style.scss";
-import Split from "split.js";
+import React from "react";
+import { ViewsReact } from "./react";
+import ReactDOM from "react-dom";
 
 export function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: string[] = []): HTMLElementTagNameMap[K] {
     let div = document.createElement(tag);
@@ -8,15 +10,39 @@ export function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, cla
 }
 
 export namespace Views {
-    export interface View {
-        id: string,
-        element: HTMLElement,
+    export class View {
+        private jsxContent?: JSX.Element | null = null;
+        private readonly ref = React.createRef<HTMLDivElement>();
+
+        constructor(
+            private readonly instance: Instance,
+            readonly id: string,
+        ) { }
+
+        get htmlElement(): HTMLDivElement | null {
+            this.jsxContent = undefined;
+            return this.ref.current;
+        }
+
+        set reactContent(content: JSX.Element) {
+            this.jsxContent = content;
+            this.instance.render();
+        }
+
+        toProps() {
+            console.log("refz", this.ref);
+            return {
+                id: this.id,
+                jsxContent: this.jsxContent,
+                refobj: this.ref
+            }
+        }
     }
 
-    export class UI {
-        views: Map<string, View>;
-        split?: Split.Instance;
-        rootElement: HTMLElement;
+    export class Instance {
+        private readonly element: HTMLElement;
+        private readonly viewsMap: Map<string, View> = new Map();
+        component?: ViewsReact.Component;
 
         constructor(rootElement: HTMLElement | string, private enableSplit: boolean = false) {
             if (rootElement == undefined) {
@@ -26,55 +52,31 @@ export namespace Views {
                 if (!element) {
                     throw new Error("Query selector " + rootElement + " return null!");
                 }
-                this.rootElement = element;
+                this.element = element;
             } else {
-                this.rootElement = rootElement;
+                this.element = rootElement;
             }
-            this.views = new Map();
-        }
-        
-        unsetSplit() {
-            if (!this.enableSplit) return;
-            
-            this.split?.destroy();
-        }
-
-        setSplit() {
-            if (!this.enableSplit) return;
-            
-            let viewElements = [];
-            for (const value of this.views.values()) {
-                viewElements.push(value.element);
-            }
-            this.split = Split(viewElements, {
-                direction: 'horizontal',
-                // sizes: [50, 50],
-                gutterSize: 10,
-                minSize: 300
-            });
         }
 
         addView(id: string): View {
-            this.unsetSplit();
-            if (this.views.has(id)) {
-                throw new Error("View " + id + " already exists!");
-            }
-            let element = createElement("div", ["view"])
-            this.rootElement.appendChild(element);
-            let view = { id, element };
-            this.views.set(id, view);
-            this.setSplit();
+            let view = new View(this, id);
+            this.viewsMap.set(id, view);
+            this.render();
             return view;
         }
 
         removeView(id: string) {
-            this.unsetSplit();
-            let view = this.views.get(id);
-            if (view) {
-                view.element.remove();
-                this.views.delete(id);
-            }
-            this.setSplit();
+            this.viewsMap.delete(id);
+            this.render();
+        }
+
+        render() {
+            this.component = ReactDOM.render(
+                React.createElement(ViewsReact.Component, {
+                    views: Array.from(this.viewsMap.values(), view => view.toProps()),
+                }),
+                this.element
+            )
         }
     }
 }

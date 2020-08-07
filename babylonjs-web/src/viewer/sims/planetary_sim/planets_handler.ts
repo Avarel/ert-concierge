@@ -6,9 +6,9 @@ import { ServiceEventHandler } from "../../../concierge_api/handlers";
 import { Client } from "../../../concierge_api/mod";
 import { Payload } from "../../../concierge_api/payloads";
 import { SystemObject, SystemData, PlanetaryPayload } from "./payloads";
-import Tabbed from "../../../overlay/tabbed/react";
 import React from "react";
 import { PlanetaryComponent } from "./controller";
+import { Tabbed } from "../../../overlay/mod";
 
 export const PLANET_SIM_NAME = "planetary_simulation";
 export const PLANET_SIM_GROUP = "planetary_simulation_out";
@@ -121,7 +121,7 @@ export class PlanetsHandler extends ServiceEventHandler {
     planets: Map<string, Planet>;
 
     private readonly visualScale: number = 5;
-    private controllerTab?: Tabbed.Item;
+    private tab?: Tabbed.Tab;
     
     planetLock?: string;
     hoveredPlanets: Set<string> = new Set();
@@ -130,7 +130,7 @@ export class PlanetsHandler extends ServiceEventHandler {
     constructor(
         client: Client,
         readonly view: RendererView,
-        private tabbedComponent?: Tabbed.Component
+        private tabbedComponent?: Tabbed.Instance
     ) {
         super(client, PLANET_SIM_GROUP);
         this.planets = new Map();
@@ -155,7 +155,7 @@ export class PlanetsHandler extends ServiceEventHandler {
     }
 
     onSubscribe() {
-        this.controllerTab = this.tabbedComponent?.addTab(PLANET_SIM_NAME, "Planetary Controls");
+        this.tab = this.tabbedComponent?.addTab(PLANET_SIM_NAME, "Planetary Controls");
         console.log("Planet simulator client is ready to go!");
 
         this.sendToSim({
@@ -187,8 +187,8 @@ export class PlanetsHandler extends ServiceEventHandler {
             }
         }
 
-        if (this.controllerTab && (this.controllerTab.isActive || force)) {
-            this.controllerTab!.reactContent = React.createElement(PlanetaryComponent, { handler: this });
+        if (this.tab && (this.tab.isActive || force)) {
+            this.tab!.reactContent = React.createElement(PlanetaryComponent, { handler: this });
         }
     }
 

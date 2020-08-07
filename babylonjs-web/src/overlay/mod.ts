@@ -1,7 +1,6 @@
-
-import "./window/style.scss";
-import Sidebar from "./sidebar/react";
+import IconSidebar from "./sidebar/mod";
 import Views from "./views/mod"
 import Chat from "./chat/react";
+import Tabbed from "./tabbed/mod";
 
-export { Chat, Sidebar, Views };
+export { Chat, IconSidebar, Views, Tabbed };

@@ -1,19 +1,19 @@
-import { Sidebar } from "../../overlay/mod";
+import { IconSidebar } from "../../overlay/mod";
 import { EventHandler } from "../../concierge_api/handlers";
 import Client from "../../concierge_api/mod";
 import Payload, { ClientPayload } from "../../concierge_api/payloads";
 import React from "react";
-import Tabbed from "../../overlay/tabbed/react";
+import Tabbed from "../../overlay/tabbed/mod";
 import { UsersTabComponent } from "./react";
 
 export class UsersHandler extends EventHandler {
-    private tab?: Tabbed.Item;
+    private tab?: Tabbed.Tab;
     users: ClientPayload[] = [];
 
     constructor(
         private readonly client: Client,
-        private readonly ui: Sidebar.Component,
-        private readonly tabComponent: Tabbed.Component,
+        private readonly ui: IconSidebar.Instance,
+        private readonly tabComponent: Tabbed.Instance,
     ) {
         super();
         this.tab = this.tabComponent.addTab("users", "Users");
@@ -37,7 +37,7 @@ export class UsersHandler extends EventHandler {
     onClientFetchAllResult(data: Payload.ClientFetchAllResult) {
         this.ui.clear();
         for (let client of data.clients) {
-            this.ui.addInitialIcon(client.uuid, client.nickname || client.name);
+            this.ui.addIcon(client.uuid, client.nickname || client.name);
             this.users.push(client);
         }
     }
@@ -54,7 +54,7 @@ export class UsersHandler extends EventHandler {
     }
 
     addClient(client: ClientPayload) {
-        this.ui.addInitialIcon(client.uuid, client.nickname || client.name);
+        this.ui.addIcon(client.uuid, client.nickname || client.name);
         this.users.push(client);
         this.render()
     }

@@ -57,7 +57,11 @@ export abstract class EventHandler implements RawHandler {
 export abstract class ServiceEventHandler extends EventHandler {
     protected subscribed: boolean = false;
 
-    constructor(readonly client: Client, protected group: string) {
+    constructor(
+        readonly client: Client, 
+        protected group: string,
+        public autoSubscribe: boolean = true,
+    ) {
         super();
     }
 
@@ -100,7 +104,7 @@ export abstract class ServiceEventHandler extends EventHandler {
         switch (status.code) {
             case "NO_SUCH_GROUP":
                 if (status.name == this.group) {
-                    console.error("Group `", this.group, "` does not exist on concierge.");
+                    console.warn("Group `", this.group, "` does not exist on concierge.");
                 }
                 break;
             case "GROUP_DELETED":

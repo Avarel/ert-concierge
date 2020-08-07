@@ -3,15 +3,15 @@ import { Client } from '../concierge_api/mod';
 import { Payload } from '../concierge_api/payloads';
 import React from 'react';
 import { Chat } from "../overlay/mod";
-import Tabbed from "../overlay/tabbed/react";
+import Tabbed from "../overlay/tabbed/mod";
 
 const CHAT_GROUP = "chat";
 
 export class ChatHandler extends ServiceEventHandler {
-    private readonly tab: Tabbed.Item;
+    private readonly tab: Tabbed.Tab;
     private items: (Chat.Message | Chat.Status)[] = [];
 
-    constructor(client: Client, private readonly tabComponent: Tabbed.Component) {
+    constructor(client: Client, private readonly tabComponent: Tabbed.Instance) {
         super(client, CHAT_GROUP);
         this.tab = this.tabComponent.addTab("chat", "Chat");
         this.onEnter = this.onEnter.bind(this);
@@ -38,9 +38,9 @@ export class ChatHandler extends ServiceEventHandler {
     }
 
     render() {
-        this.tab.reactContent = React.createElement(Chat.Component, { 
-            items: this.items, 
-            onSubmit: this.onEnter 
+        this.tab.reactContent = React.createElement(Chat.Component, {
+            items: this.items,
+            onSubmit: this.onEnter
         });
     }
 

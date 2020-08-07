@@ -2,16 +2,16 @@ import { EventHandler } from "../../concierge_api/handlers";
 import Client from "../../concierge_api/mod";
 import Payload, { GroupPayload } from "../../concierge_api/payloads";
 import React from "react";
-import Tabbed from "../../overlay/tabbed/react";
+import Tabbed from "../../overlay/tabbed/mod";
 import { GroupsTabComponent } from "./react";
 
 export class GroupsHandler extends EventHandler {
-    private readonly tab: Tabbed.Item;
+    private readonly tab: Tabbed.Tab;
     groups: GroupPayload[] = [];
 
     constructor(
         private readonly client: Client,
-        private readonly tabComponent: Tabbed.Component,
+        private readonly tabComponent: Tabbed.Instance,
     ) {
         super();
         this.tab = this.tabComponent.addTab("groups", "Groups");

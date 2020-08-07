@@ -1,10 +1,10 @@
-$drawer-height: 40px;
-$normal-height: 500px;
-$tall-height: $normal-height + 300px;
+$header-height: 40px;
 
 .tabbed {
     height: auto;
     width: 100%;
+    display: flex;
+    flex-direction: column;
 
     &.hidden {
         > .tabbed-content {
@@ -17,11 +17,9 @@ $tall-height: $normal-height + 300px;
     }
 
     > .tabbed-header {
-        min-height: $drawer-height;
-        height: $drawer-height;
-        max-height: $drawer-height;
         margin-left: 5px;
         margin-right: 5px;
+        flex: 0 0 $header-height;
         display: flex;
         flex-direction: row;
         overflow-x: auto;
@@ -49,15 +47,13 @@ $tall-height: $normal-height + 300px;
 
         > .tabbed-header-label {
             display: inline;
-            max-height: $drawer-height;
-            line-height: $drawer-height;
+            line-height: $header-height;
             background: transparent;
-            // border-radius: 5px 5px 0 0;
             text-align: center;
             padding: 0px 10px 0px;
             color: #ccc;
             cursor: pointer;
-            transition: background-color 0.2s, color 0.2s;
+            transition: color 0.2s;
             white-space: nowrap;
             &:hover {
                 color: white;
@@ -69,12 +65,9 @@ $tall-height: $normal-height + 300px;
         }
 
         > .tabbed-drawer {
-            @extend .tabbed-header-label;
-            margin-top: 0;
-            background: none;
-            color: white;
-            min-width: $drawer-height;
-            width: $drawer-height;
+            @extend .tabbed-header-label, .active;
+            min-width: $header-height;
+            width: $header-height;
             padding: 0;
             transition: transform 0.5s;
         }

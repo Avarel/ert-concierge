@@ -13,4 +13,43 @@ body {
         height: 100%;
         touch-action: none;
     }
+
+    #views {
+        width: 100%;
+        height: 100%;
+    }
+}
+
+@mixin small-screen {
+    @media screen and (max-width: 500px) {
+        @content;
+    }
+}
+.float-window {
+    z-index: 100;
+    position: fixed;
+    display: flex;
+    bottom: 0;
+    width: 400px;
+    max-height: 100%;
+    box-sizing: border-box;
+    transition: margin-left 0.5s, margin-bottom 0.5s;
+    flex-direction: column;
+    font-family: "Titillium Web", "Roboto", sans-serif;
+    
+    &.left {
+        left: 50px;
+    }
+
+    &.right {
+        right: 50px;
+    }
+
+    @include small-screen {
+        left: 0 !important;
+        right: 0;
+        bottom: 0;
+        max-height: 50vh;
+        width: 100vw;
+    }
 }
