@@ -250,9 +250,14 @@ impl SocketConnection {
         }
 
         // Remove the client from all services
-        services.iter_mut().for_each(|(_, service)| {
+        for service in services.values_mut() {
+            service.hook(&self.concierge).broadcast(&ok::service_client_unsubscribed(
+                client.info(),
+                service.info(),
+            )).await?;
             service.remove_subscriber(client_uuid);
-        });
+        }
+
         drop(services);
 
         // Broadcast client leave to all connecting clients.
@@ -350,15 +355,16 @@ impl SocketConnection {
                     client.hook(&self.concierge).subscribe(name).await
                 {
                     let sub_result = if action {
-                        if let Some(service) = self.concierge.services.read().await.get(name) {
-                            service
-                                .hook(&self.concierge)
-                                .broadcast(&ok::service_client_subscribed(
-                                    client.info(),
-                                    service.info(),
-                                ))
-                                .await?;
-                        }
+                        let services = self.concierge.services.read().await;
+                        let service = services.get(name).unwrap();
+                        service
+                            .hook(&self.concierge)
+                            .broadcast(&ok::service_client_subscribed(
+                                client.info(),
+                                service.info(),
+                            ))
+                            .await?;
+                        drop(services);
 
                         ok::self_subscribed(service_info)
                     } else {
@@ -374,15 +380,16 @@ impl SocketConnection {
                     client.hook(&self.concierge).unsubscribe(name).await
                 {
                     let unsub_result = if action {
-                        if let Some(service) = self.concierge.services.read().await.get(name) {
-                            service
-                                .hook(&self.concierge)
-                                .broadcast(&ok::service_client_subscribed(
-                                    client.info(),
-                                    service.info(),
-                                ))
-                                .await?;
-                        }
+                        let services = self.concierge.services.read().await;
+                        let service = services.get(name).unwrap();
+                        service
+                            .hook(&self.concierge)
+                            .broadcast(&ok::service_client_unsubscribed(
+                                client.info(),
+                                service.info(),
+                            ))
+                            .await?;
+                        drop(services);
 
                         ok::self_unsubscribed(service_info)
                     } else {
@@ -500,7 +507,7 @@ impl SocketConnection {
                 }
             }
             Target::Service {
-                service: service_name,
+                name: service_name,
             } => {
                 if let Some(service) = self.concierge.services.read().await.get(service_name) {
                     let origin = client_info.to_origin().with_service(service.info());
@@ -512,12 +519,34 @@ impl SocketConnection {
                             .broadcast(&payload.with_origin(origin))
                             .await?;
                         client.send(&ok::message_sent().seq(seq))
+                    } else if !service.clients.contains(&client_uuid) {
+                        // Client must be subscribed in order to send messages to the owner.
+                        client.send(&err::bad().seq(seq))
                     } else if let Some(owner_client) = clients.get(&service.owner_uuid) { 
                         // Other clients sending to the service will only send to the owner.
                         owner_client.send(&payload.with_origin(origin))?;
                         client.send(&ok::message_sent().seq(seq))
                     } else {
                         client.send(&err::internal("Group owner does not exist").seq(seq))
+                    }
+                } else {
+                    client.send(&err::no_such_group(service_name).seq(seq))
+                }
+            }
+            Target::ServiceClientUuid {
+                name: service_name,
+                uuid: target_client_uuid
+            } => {
+                if let Some(service) = self.concierge.services.read().await.get(service_name) {
+                    // Only owners of a service are allowed to use this target.
+                    if client_uuid != service.owner_uuid {
+                        client.send(&err::bad().seq(seq))
+                    } else if let Some(target_client) = clients.get(&target_client_uuid) {
+                        let origin = client_info.to_origin().with_service(service.info());
+                        target_client.send(&payload.with_origin(origin))?;
+                        client.send(&ok::message_sent().seq(seq))
+                    } else {
+                        client.send(&err::no_such_uuid(target_client_uuid).seq(seq))
                     }
                 } else {
                     client.send(&err::no_such_group(service_name).seq(seq))

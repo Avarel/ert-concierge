@@ -37,7 +37,7 @@ use url::Url;
 pub const MS_SEND_INTERVAL: u64 = 20;
 
 pub const GROUP_TARGET: Target = Target::Service {
-    service: crate::PHYSICS_ENGINE_GROUP,
+    name: crate::PHYSICS_ENGINE_GROUP,
 };
 
 fn color_from_string_hash(string: &str) -> (u8, u8, u8) {
@@ -74,7 +74,7 @@ pub async fn init_bot(running: Arc<AtomicBool>, world: Arc<RwLock<World>>) -> Re
     ws.send(Message::text(serde_json::to_string(&Payload::Identify {
         name: crate::PHYSICS_ENGINE_NAME,
         nickname: Some("Physics Engine"),
-        version: "0.1.1",
+        version: "0.2.0",
         secret: None,
         tags: vec!["simulation"],
     })?))
@@ -86,6 +86,13 @@ pub async fn init_bot(running: Arc<AtomicBool>, world: Arc<RwLock<World>>) -> Re
                 serde_json::to_string(&Payload::ServiceCreate {
                     name: crate::PHYSICS_ENGINE_GROUP,
                     nickname: Some("Physics Engine Channel")
+                })
+                .unwrap(),
+            ))
+            .await?;
+            ws.send(Message::text(
+                serde_json::to_string(&Payload::SelfSubscribe {
+                    name: crate::PHYSICS_ENGINE_GROUP
                 })
                 .unwrap(),
             ))
@@ -129,7 +136,7 @@ pub async fn send_loop(
             serde_json::to_string(&Payload::Message {
                 origin: None,
                 target: Target::Service {
-                    service: crate::PHYSICS_ENGINE_GROUP,
+                    name: crate::PHYSICS_ENGINE_GROUP,
                 },
                 data: PhysicsPayload::PositionDump { updates },
             })
@@ -156,9 +163,17 @@ pub async fn recv_loop<T>(
                     handle_message(data, client, &world, &tx).await;
                 }
                 Ok(Payload::Status {
-                    data: StatusPayload::ClientLeft { client },
+                    data: StatusPayload::ServiceClientSubscribed { client, service },
                     ..
-                }) => {
+                }) if service.name == crate::PHYSICS_ENGINE_GROUP => {
+                    println!("Client {} subscribed!", client.name);
+                }
+                Ok(Payload::Status {
+                    data: StatusPayload::ServiceClientUnsubscribed { client, service },
+                    ..
+                }) if service.name == crate::PHYSICS_ENGINE_GROUP => {
+                    println!("Client {} unsubscribed!", client.name);
+
                     let mut world = world.write().await;
                     let entities = world.entities();
                     let owners = world.read_component::<Owner>();
@@ -319,7 +334,7 @@ async fn handle_message(
             let _ = tx.send(Message::text(
                 serde_json::to_string(&Payload::Message {
                     origin: None,
-                    target: Target::Uuid { uuid: client.uuid },
+                    target: Target::ServiceClientUuid { name: crate::PHYSICS_ENGINE_GROUP, uuid: client.uuid },
                     data: PhysicsPayload::EntityDump {
                         entities: entities.clone(),
                     },

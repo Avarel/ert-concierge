@@ -58,9 +58,8 @@ class PolygonShape {
     }
 }
 
-export class RustPhysicsService extends ServiceEventHandler {
-    private static readonly NAME = "physics_engine";
-    private static readonly GROUP = "physics_engine_out";
+export class RustPhysicsService extends ServiceEventHandler<PhysicsPayload> {
+    private static readonly SERVICE_NAME = "physics_engine_out";
 
     private shapes: Map<string, PolygonShape> = new Map();
     private readonly visualScale: number = 1 / 50;
@@ -71,23 +70,13 @@ export class RustPhysicsService extends ServiceEventHandler {
         private readonly renderer: RendererView,
         private tabbedComponent?: Tabbed.Instance
     ) {
-        super(client, RustPhysicsService.GROUP);
-    }
-
-    sendToSim(data: Readonly<PhysicsPayload>) {
-        this.client.sendPayload({
-            type: "MESSAGE",
-            target: {
-                type: "NAME",
-                name: RustPhysicsService.NAME
-            },
-            data
-        });
+        super(client, RustPhysicsService.SERVICE_NAME);
     }
 
     onReceive(payload: Readonly<Payload.Any<any>>) {
         if (payload.type == "MESSAGE") {
-            if (payload.origin!.name != RustPhysicsService.NAME) {
+            if (payload.origin!.service?.name != RustPhysicsService.SERVICE_NAME) {
+                console.log(payload);
                 return;
             }
             this.processPhysicsPayload(payload.data);
@@ -98,13 +87,13 @@ export class RustPhysicsService extends ServiceEventHandler {
 
     onSubscribe() {
         console.log("Fetching...")
-        this.sendToSim({
+        this.sendToService({
             type: "FETCH_ENTITIES"
         });
-        this.sendToSim({
+        this.sendToService({
             type: "SPAWN_ENTITY"
         });
-        this.tab = this.tabbedComponent?.addTab(RustPhysicsService.NAME, "Rust Physics");
+        this.tab = this.tabbedComponent?.addTab(RustPhysicsService.SERVICE_NAME, "Rust Physics");
 
         this.renderTab();
     }
@@ -121,7 +110,7 @@ export class RustPhysicsService extends ServiceEventHandler {
     }
 
     destroyTab() {
-        this.tabbedComponent?.removeTab(RustPhysicsService.NAME);
+        this.tabbedComponent?.removeTab(RustPhysicsService.SERVICE_NAME);
     }
 
     clearShapes() {
@@ -150,7 +139,7 @@ export class RustPhysicsService extends ServiceEventHandler {
                 BABYLON.ActionManager.OnPickTrigger,
                 () => {
                     console.log("Clicking on object ", id, ".")
-                    this.sendToSim({
+                    this.sendToService({
                         type: "TOUCH_ENTITY",
                         id: id,
                     });

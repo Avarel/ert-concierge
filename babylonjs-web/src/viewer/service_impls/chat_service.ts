@@ -2,7 +2,7 @@ import Client, { Payload, ServiceEventHandler } from '../../concierge_api/mod';
 import { Chat } from "../../overlay/mod";
 import Tabbed from "../../overlay/tabbed/mod";
 
-export class ChatService extends ServiceEventHandler {
+export class ChatService extends ServiceEventHandler<string> {
     private static readonly CHAT_GROUP = "chat";
     private tab?: Tabbed.Tab;
     private chatInstance?: Chat.Instance;
@@ -35,7 +35,7 @@ export class ChatService extends ServiceEventHandler {
             type: "MESSAGE",
             target: {
                 type: "SERVICE",
-                service: ChatService.CHAT_GROUP,
+                name: ChatService.CHAT_GROUP,
             },
             data: text
         });

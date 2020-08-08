@@ -113,7 +113,7 @@ class Planet {
     }
 }
 
-export class PlanetaryService extends ServiceEventHandler {
+export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
     private static readonly NAME = "planetary_simulation";
     private static readonly GROUP = "planetary_simulation_out";
 
@@ -149,22 +149,11 @@ export class PlanetaryService extends ServiceEventHandler {
         }
     }
 
-    sendToSim(data: PlanetaryPayload) {
-        this.client.sendPayload({
-            type: "MESSAGE",
-            target: {
-                type: "NAME",
-                name: PlanetaryService.NAME
-            },
-            data
-        });
-    }
-
     onSubscribe() {
         this.tab = this.tabbedComponent?.addTab(PlanetaryService.NAME, "Planetary Controls");
         console.log("Planet simulator client is ready to go!");
 
-        this.sendToSim({
+        this.sendToService({
             type: "FETCH_SYSTEM_DATA"
         });
     }
@@ -211,7 +200,7 @@ export class PlanetaryService extends ServiceEventHandler {
         switch (response.status) {
             case 200:
             case 201:
-                this.sendToSim({
+                this.sendToService({
                     type: "LOAD_SYSTEM",
                     url: url.toString()
                 });
@@ -252,7 +241,7 @@ export class PlanetaryService extends ServiceEventHandler {
             case "SYSTEM_DATA_DUMP":
                 this.sysData = payload.data;
                 this.clearShapes();
-                this.sendToSim({
+                this.sendToService({
                     type: "FETCH_SYSTEM_OBJS"
                 });
                 this.renderInformation(true);

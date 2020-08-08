@@ -70,7 +70,7 @@ export class PlanetaryComponent extends React.Component<PlanetaryComponentProps>
 
 class PlanetaryInfoComponent extends React.Component<PlanetaryComponentProps> {
     handleFieldUpdate(target: string, tag: string, value: string) {
-        this.props.handler.sendToSim({
+        this.props.handler.sendToService({
             type: "UPDATE_DATA",
             target,
             field: tag,
@@ -144,7 +144,7 @@ class PlanetaryStateComponent extends React.Component<PlanetaryComponentProps> {
     }
 
     private sendState(type: any) {
-        this.props.handler.sendToSim({
+        this.props.handler.sendToService({
             type
         });
     }

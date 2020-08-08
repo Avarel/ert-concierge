@@ -23,7 +23,7 @@ impl<'a> ClientInfo<'a> {
     pub fn to_origin(self) -> OriginInfo<'a> {
         OriginInfo {
             client: self,
-            group: None,
+            service: None,
         }
     }
 
@@ -73,16 +73,16 @@ pub struct OriginInfo<'a> {
     #[serde(flatten)]
     pub client: ClientInfo<'a>,
     /// Only available on MESSAGE payloads.
-    /// This indicates the group that the message
+    /// This indicates the service that the message
     /// was originally sent to.
     #[serde(borrow)]
-    pub group: Option<ServiceInfo<'a>>,
+    pub service: Option<ServiceInfo<'a>>,
 }
 
 impl<'a> OriginInfo<'a> {
-    /// Attaches a group to the origin.
-    pub fn with_service(mut self, group_payload: ServiceInfo<'a>) -> OriginInfo<'a> {
-        self.group = Some(group_payload);
+    /// Attaches a service to the origin.
+    pub fn with_service(mut self, service_info: ServiceInfo<'a>) -> OriginInfo<'a> {
+        self.service = Some(service_info);
         self
     }
 }
@@ -95,8 +95,10 @@ pub enum Target<'a> {
     Name { name: &'a str },
     /// Target a client Uuid.
     Uuid { uuid: Uuid },
-    /// Target a group name.
-    Service { service: ServiceId<'a> },
+    /// Target a service name.
+    Service { name: ServiceId<'a> },
+    /// Target a client subscriber of a service (OWNER ONLY).
+    ServiceClientUuid { name: ServiceId<'a>, uuid: Uuid },
     /// Target every client connected to the concierge.
     All,
 }
@@ -118,7 +120,7 @@ pub struct PayloadRawMessage<'a> {
     #[serde(skip_deserializing)]
     pub origin: Option<OriginInfo<'a>>,
     /// Target of the message. This can be a single user
-    /// (using name or uuid), or a group.
+    /// (using name or uuid), or a service.
     pub target: Target<'a>,
     /// Data field. This is a raw JSON value field that borrows the JSON
     /// string directly from the deserialized buffer.
@@ -174,7 +176,7 @@ pub enum Payload<'a, T> {
         #[serde(borrow)]
         origin: Option<OriginInfo<'a>>,
         /// Target of the message. This can be a single user
-        /// (using name or uuid), or a group.
+        /// (using name or uuid), or a service.
         target: Target<'a>,
         /// Data field.
         data: T,
@@ -189,18 +191,19 @@ pub enum Payload<'a, T> {
     /// Set the sequence number counter on the server to the client's
     /// provided number.
     SelfSetSeq { seq: usize },
-    /// Create a group such that every subscriber
-    /// will receive the message targeted towards that group.
+    /// Create a service such that every subscriber
+    /// will receive the message the owner targeted towards that service.
+    /// Also directs every message sent by subscribers to the owner.
     ServiceCreate {
         name: ServiceId<'a>,
         nickname: Option<&'a str>,
     },
-    /// Delete a group. This operation only succeeds if
-    /// the client is the group's owner.
+    /// Delete a service. This operation only succeeds if
+    /// the client is the service's owner.
     ServiceDelete { name: ServiceId<'a> },
-    /// Fetch general group information.
+    /// Fetch general service information.
     ServiceFetch { name: ServiceId<'a> },
-    /// This payload asks for all of the groups
+    /// This payload asks for all of the services
     /// registered with the concierge.
     ServiceFetchAll,
     /// This payload asks for all of the clients
@@ -211,12 +214,12 @@ pub enum Payload<'a, T> {
     /// that acts as a file server key. The payload also returns
     /// the server's version.
     Hello { uuid: Uuid, version: &'a str },
-    /// General group information.
+    /// General service information.
     ServiceFetchResult {
         #[serde(flatten)]
         service: ServiceInfo<'a>,
     },
-    /// This payload lists all of the groups registered with the concierge.
+    /// This payload lists all of the services registered with the concierge.
     ServiceFetchAllResult {
         #[serde(borrow)]
         services: Vec<ServiceInfo<'a>>,

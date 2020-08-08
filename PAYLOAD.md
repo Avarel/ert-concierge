@@ -87,6 +87,11 @@ the service, then it will be broadcasted for everyone subscribed to the service.
 other hand, subscribers of a service sending a message to the service will only send
 the message to the owner of the service.
 
+### Service Client UUID Target
+This `SERVICE_CLIENT_UUID` target is extra special. This can be used by only the owner
+of the service, which will send a message to a specific client subscribed to the service
+attached with the `service` field.
+
 ### Structure
 
 ```typescript
@@ -102,11 +107,12 @@ the message to the owner of the service.
             "nickname": string,
             "owner_uuid": string,
             "subscribers": string[]
-        },
+        } | undefined,
     } | undefined,
     "target": { "type": "NAME", "name": string }
             | { "type": "UUID", "uuid": string }
             | { "type": "SERVICE", "name": string },
+            | { "type": "SERVICE_CLIENT_UUID", "name": string, "uuid": string },
             | { "type": "ALL" },
     "data": any
 }
@@ -551,17 +557,21 @@ such as error response or responses to certain commands.
 -   `SERVICE_CREATED`
     -   Fired in response to `SERVICE_CREATE`.
     -   **May not have a `seq` field** if the client did not send a `SERVICE_CREATE` payload (fired as a status when someone else creates a service).
-    -   `name: string`: The name of the service already created.
+    -   `name: string`: The name of the service created.
     -   `nickname: string | undefined`: THe nickname of the service.
     -   `owner_uuid: string`: The UUID of the service's owner.
     -   `subscribers: string[]`: The UUIDs of the subscribers.
 -   `SERVICE_DELETED`
     -   Fired in response to `SERVICE_DELETE`.
     -   **May not have a `seq` field** if the client did not send a `SERVICE_DELETE` payload (fired as a status when someone else deletes a service).
-    -   `name: string`: The name of the service already created.
+    -   `name: string`: The name of the service deleted.
     -   `nickname: string | undefined`: THe nickname of the service.
     -   `owner_uuid: string`: The UUID of the service's owner.
     -   `subscribers: string[]`: The UUIDs of the subscribers.
+-   `SERVICE_CLIENT_SUBSCRIBED`
+    - Fired when a client subscribes to
+-   `SERVICE_CLIENT_UNSUBSCRIBED`
+    - Fired when a client unsubscribes from
 
 -   `BAD`
 -   `UNSUPORTED`

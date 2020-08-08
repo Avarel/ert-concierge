@@ -25,7 +25,7 @@ export interface RawHandler {
  * Multiple service event handlers of the same service is not supported
  * as of the moment, and will likely lead to unwanted behavior.
  */
-export abstract class ServiceEventHandler implements RawHandler {
+export abstract class ServiceEventHandler<T> implements RawHandler {
     private _subscribed: boolean = false;
     /** Is this handler subscribed to its service group. */
     get subscribed(): boolean {
@@ -54,6 +54,17 @@ export abstract class ServiceEventHandler implements RawHandler {
         }
     }
 
+    sendToService(data: Readonly<T>) {
+        this.client.sendPayload({
+            type: "MESSAGE",
+            target: {
+                type: "SERVICE",
+                name: this.serviceName
+            },
+            data
+        });
+    }
+
     /**
      * This override automatically handles the subscription and unsubscription
      * process. It is a good idea to call `super.onReceive` for implementors
@@ -61,7 +72,7 @@ export abstract class ServiceEventHandler implements RawHandler {
      * 
      * @param payload The payload.
      */
-    onReceive(payload: Readonly<Payload.Any<any>>) {
+    onReceive(payload: Readonly<Payload.Any<T>>) {
         switch (payload.type) {
             case "HELLO":
                 if (this.autoSubscribe) {

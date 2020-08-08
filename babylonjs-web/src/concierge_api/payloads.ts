@@ -36,11 +36,15 @@ export module Payload {
                 readonly uuid: Uuid,
             }
             export interface TargetService extends BaseTarget<"SERVICE"> {
-                readonly service: string
+                readonly name: string
+            }
+            export interface TargetServiceClientUuid extends BaseTarget<"SERVICE_CLIENT_UUID"> {
+                readonly name: string,
+                readonly uuid: Uuid,
             }
             type TargetAll = BaseTarget<"ALL">;
         
-            export type Any = TargetName | TargetUuid | TargetService | TargetAll;
+            export type Any = TargetName | TargetUuid | TargetService | TargetServiceClientUuid | TargetAll;
         }
     }
 
