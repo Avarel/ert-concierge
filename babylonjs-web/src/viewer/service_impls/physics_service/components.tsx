@@ -1,6 +1,6 @@
 import { RustPhysicsService } from "./mod";
 import React from "react";
-import Rs from "../../../overlay/rstyle/react";
+import Rs from "../../../overlay/rstyle/components";
 
 interface PhysicsComponentProp {
     handler: RustPhysicsService

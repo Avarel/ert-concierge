@@ -1,13 +1,7 @@
 import "./style.scss";
-import ViewsReact from "./react";
+import ViewsComponent from "./components";
 import React from "react";
 import ReactDOM from "react-dom";
-
-export function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, classes: string[] = []): HTMLElementTagNameMap[K] {
-    let div = document.createElement(tag);
-    div.classList.add(...classes);
-    return div;
-}
 
 export namespace Views {
     export class View {
@@ -26,7 +20,7 @@ export namespace Views {
 
         set reactContent(content: JSX.Element) {
             this.jsxContent = content;
-            this.instance.render();
+            this.instance.renderToDOM();
         }
 
         toProps() {
@@ -40,43 +34,46 @@ export namespace Views {
     }
 
     export class Instance {
-        private readonly element: HTMLElement;
+        private readonly element?: HTMLElement;
         private readonly viewsMap: Map<string, View> = new Map();
-        component?: ViewsReact.Component;
+        private component?: ViewsComponent;
 
-        constructor(rootElement: HTMLElement | string, private enableSplit: boolean = false) {
-            if (rootElement == undefined) {
+        constructor(selectorOrElement?: HTMLElement | string) {
+            if (selectorOrElement == undefined) {
                 throw new Error("Root element must not be null!");
-            } else if (typeof rootElement == "string") {
-                let element = document.querySelector<HTMLElement>(rootElement);
+            } else if (typeof selectorOrElement == "string") {
+                const element = document.querySelector<HTMLElement>(selectorOrElement);
                 if (!element) {
-                    throw new Error("Query selector " + rootElement + " return null!");
+                    throw new Error("Query selector " + selectorOrElement + " return null!");
                 }
                 this.element = element;
             } else {
-                this.element = rootElement;
+                this.element = selectorOrElement;
             }
         }
 
         addView(id: string): View {
-            let view = new View(this, id);
+            const view = new View(this, id);
             this.viewsMap.set(id, view);
-            this.render();
+            this.renderToDOM();
             return view;
         }
 
         removeView(id: string) {
             this.viewsMap.delete(id);
-            this.render();
+            this.renderToDOM();
         }
 
         render() {
-            this.component = ReactDOM.render(
-                React.createElement(ViewsReact.Component, {
-                    views: Array.from(this.viewsMap.values(), view => view.toProps()),
-                }),
-                this.element
-            )
+            return React.createElement(ViewsComponent, {
+                views: Array.from(this.viewsMap.values(), view => view.toProps()),
+            });
+        }
+
+        renderToDOM() {
+            if (this.element) {
+                this.component = ReactDOM.render(this.render(), this.element);
+            }
         }
     }
 }

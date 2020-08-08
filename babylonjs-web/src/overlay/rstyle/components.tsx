@@ -22,6 +22,14 @@ export module Rs {
         }
     }
 
+    export class Box extends React.PureComponent<React.HTMLAttributes<HTMLDivElement>> {
+        render() {
+            return <div className="rs-box" {...this.props}>
+                {this.props.children}
+            </div>;
+        }
+    }
+
     export class Card extends React.PureComponent<React.HTMLAttributes<HTMLDivElement>> {
         render() {
             return <div className="rs-card" {...this.props}>
@@ -61,7 +69,7 @@ export module Rs {
                         if (value && value != originalValue) {
                             props.onSubmit?.(tag, value);
 
-                            let values = state.values.slice();
+                            const values = state.values.slice();
                             values[index] = undefined;
                             return { values }
                         }
@@ -78,7 +86,7 @@ export module Rs {
                 if (value == originalValue) {
                     value = undefined;
                 }
-                let values = state.values.slice();
+                const values = state.values.slice();
                 values[index] = value;
                 return { values }
             });
@@ -90,7 +98,7 @@ export module Rs {
                 <div className="field">
                     {
                         this.props.inputs.map(({ tag, value }, index) => {
-                            let stateValue = this.state.values[index];
+                            const stateValue = this.state.values[index];
                             return <input
                                 readOnly={tag == undefined}
                                 value={!stateValue ? value : stateValue}

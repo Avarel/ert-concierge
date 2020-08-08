@@ -7,63 +7,63 @@ export type RgbColor = [number, number, number];
 
 namespace PhysicsPayloads {
     export interface Entity {
-        id: string,
-        centroid: Vec2f,
-        points: Vec2f[],
-        color: RgbColor
+        readonly id: string,
+        readonly centroid: Vec2f,
+        readonly points: Vec2f[],
+        readonly color: Readonly<RgbColor>
     }
 
     export interface ToggleColor {
-        type: "TOGGLE_COLOR",
-        id: string,
+        readonly type: "TOGGLE_COLOR",
+        readonly id: string,
     }
 
     export interface ColorUpdate {
-        type: "COLOR_UPDATE",
-        id: string,
-        color: RgbColor
+        readonly type: "COLOR_UPDATE",
+        readonly id: string,
+        readonly color: Readonly<RgbColor>
     }
 
     export interface EntityUpdate {
-        id: string,
-        position: Vec2f,
+        readonly id: string,
+        readonly position: Readonly<Vec2f>,
     }
 
     export interface FetchEntities {
-        type: "FETCH_ENTITIES"
+        readonly type: "FETCH_ENTITIES"
     }
 
     export interface FetchPositions {
-        type: "FETCH_POSITIONS"
+        readonly type: "FETCH_POSITIONS"
     }
 
     export interface EntityDump {
-        type: "ENTITY_DUMP",
-        entities: Entity[]
+        readonly type: "ENTITY_DUMP",
+        readonly entities: ReadonlyArray<Entity>
     }
 
     export interface EntityNew {
-        type: "ENTITY_NEW",
-        entity: Entity
+        readonly type: "ENTITY_NEW",
+        readonly entity: Entity
     }
 
     export interface EntityDelete {
-        type: "ENTITY_DELETE",
-        ids: string[],
+        readonly type: "ENTITY_DELETE",
+        readonly ids: ReadonlyArray<string>,
     }
 
     export interface PositionDump {
-        type: "POSITION_DUMP"
-        updates: EntityUpdate[]
+        readonly type: "POSITION_DUMP"
+        readonly updates: ReadonlyArray<EntityUpdate>
     }
 
     export interface TouchEntity {
-        type: "TOUCH_ENTITY",
-        id: string,
+        readonly type: "TOUCH_ENTITY",
+        readonly id: string,
     }
 
     export interface SpawnEntity {
-        type: "SPAWN_ENTITY"
+        readonly type: "SPAWN_ENTITY"
     }
 
     export type Payload = EntityDump | PositionDump

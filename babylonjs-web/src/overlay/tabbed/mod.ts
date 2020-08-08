@@ -1,5 +1,5 @@
 import "./style.scss";
-import TabbedReact from "./react";
+import TabbedComponent from "./components";
 import React from "react";
 import ReactDOM from "react-dom";
 
@@ -15,17 +15,18 @@ export module Tabbed {
         ) { }
 
         get isActive(): boolean {
-            return this.instance.component?.activeId == this.id;
+            return this.instance.activeId == this.id;
         }
 
         get htmlElement(): HTMLDivElement | null {
             this.jsxContent = undefined;
+            this.instance.renderToDOM();
             return this.ref.current;
         }
 
         set reactContent(content: JSX.Element) {
             this.jsxContent = content;
-            this.instance.render();
+            this.instance.renderToDOM();
         }
 
         toProps() {
@@ -39,9 +40,9 @@ export module Tabbed {
     }
 
     export class Instance {
-        private readonly element: HTMLElement;
+        private readonly element?: HTMLElement;
         private readonly tabsMap: Map<string, Tab> = new Map();
-        component?: TabbedReact.Component;
+        private component?: TabbedComponent;
 
         constructor(
             selectorOrElement: string | HTMLElement,
@@ -64,10 +65,14 @@ export module Tabbed {
             return this.tabsMap;
         }
 
+        get activeId(): string | undefined {
+            return this.component?.activeId;
+        }
+
         addTab(id: string, label: string): Tab {
             const tab = new Tab(this, id, label);
             this.tabsMap.set(id, tab);
-            this.render();
+            this.renderToDOM();
             return tab;
         }
 
@@ -80,20 +85,23 @@ export module Tabbed {
             if (this.component?.activeId == id) {
                 this.component.activeId = undefined;
             }
-            this.render();
+            this.renderToDOM();
             return result;
         }
 
-        render() {
-            this.component = ReactDOM.render(
-                React.createElement(TabbedReact.Component, {
-                    tabs: Array.from(this.tabsMap.values(), tab => tab.toProps()),
-                    contentHeight: this.contentHeight,
-                    reverseHeader: this.reverseHeader,
-                    initShow: this.initShow
-                }),
-                this.element
-            )
+        private render() {
+            return React.createElement(TabbedComponent, {
+                tabs: Array.from(this.tabsMap.values(), tab => tab.toProps()),
+                contentHeight: this.contentHeight,
+                reverseHeader: this.reverseHeader,
+                initShow: this.initShow
+            });
+        }
+
+        renderToDOM() {
+            if (this.element) {
+                this.component = ReactDOM.render(this.render(), this.element)
+            }
         }
     }
 }

@@ -39,7 +39,7 @@ export class RendererView {
     arcRotateCamera() {
         let camera = new BABYLON.ArcRotateCamera("ArcCamera", Math.PI, Math.PI, 15, BABYLON.Vector3.Zero(), this.scene);
         camera.setPosition(new BABYLON.Vector3(0, 5, 15));
-        camera.speed = 0.25;                 // KEYS:
+        camera.speed = 0.25;                // KEYS:
         camera.keysUp.push(87, 38);         // W, UP
         camera.keysDown.push(83, 40)        // D, DOWN
         camera.keysLeft.push(65, 37);       // A, LEFT

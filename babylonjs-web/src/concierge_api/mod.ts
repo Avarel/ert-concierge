@@ -1,20 +1,32 @@
-import { Uuid, GenericPayload } from "./payloads";
-import { RawHandler } from "./handlers";
+import { Uuid, Payload } from "./payloads";
+import { RawHandler, ServiceEventHandler } from "./handlers";
+
+interface EventAwaitPoint {
+    readonly seq: number,
+    readonly timeoutHandle: number,
+    readonly callback: (payload: Readonly<Payload.Any<any>>) => void
+}
 
 /**
  * Central connector to the concierge.
  */
-export class Client {
+export default class Client {
     private socket?: WebSocket;
     private version?: string;
     private secret?: string;
     private seq: number = -1;
 
+    private readonly handlers: RawHandler[] = [];
+    private readonly waiters: Map<number, EventAwaitPoint> = new Map();
+
     reconnectInterval: number = 10000;
     uuid!: Uuid;
-    private handlers: RawHandler[] = [];
 
-    constructor(readonly name: string, readonly url: string, public reconnect: boolean = false) {}
+    constructor(
+        readonly name: string,
+        readonly url: string,
+        public reconnect: boolean = false
+    ) { }
 
     connect(version: string, secret?: string) {
         console.info("Trying to connect to ", this.url);
@@ -27,15 +39,25 @@ export class Client {
         this.socket.onclose = event => this.onClose(event);
     }
 
-    sendJSON(payload: GenericPayload<any>): number {
+    sendPayload(
+        payload: Readonly<Payload.Any<any>>,
+        callback?: (payload: Readonly<Payload.Any<any>>) => void
+    ): number {
         if (this.socket == undefined) {
             throw new Error("Socket is not connected")
         }
-        // console.log("SEND", JSON.stringify(payload));
         this.socket.send(JSON.stringify(payload));
-        let tmp = this.seq;
+        const seq = this.seq;
         this.seq += 1;
-        return tmp;
+
+        if (callback) {
+            const timeoutHandle = window.setTimeout(() => {
+                this.waiters.delete(seq);
+            }, 5000);
+            this.waiters.set(seq, { seq, timeoutHandle, callback });
+        }
+
+        return seq;
     }
 
     close(code?: number, reason?: string, reconnect: boolean = true) {
@@ -51,13 +73,13 @@ export class Client {
             this.secret = undefined;
         }
     }
-    
+
     addHandler(handler: RawHandler) {
         this.handlers.push(handler);
     }
 
     removeHandler(handler: RawHandler) {
-        for(let i = 0; i < this.handlers.length; i++) {
+        for (let i = 0; i < this.handlers.length; i++) {
             if (this.handlers[i] === handler) {
                 this.handlers.splice(i, 1);
                 i -= 1;
@@ -75,14 +97,14 @@ export class Client {
     }
 
     private onOpen(event: Event) {
-        for (let handler of this.handlers) {
+        for (const handler of this.handlers) {
             handler.onOpen?.(event);
         }
         if (this.version == undefined) {
             throw new Error("Version is undefined")
         }
         console.log("Identifying with version", this.version);
-        this.sendJSON({
+        this.sendPayload({
             type: "IDENTIFY",
             name: this.name,
             version: this.version,
@@ -92,7 +114,7 @@ export class Client {
     }
 
     private onClose(event: CloseEvent) {
-        for (let handler of this.handlers) {
+        for (const handler of this.handlers) {
             handler.onClose?.(event);
         }
         console.warn(event.code, event.reason);
@@ -100,28 +122,42 @@ export class Client {
     }
 
     private onReceive(event: MessageEvent) {
-        let data = JSON.parse(event.data) as object;
-        if (data.hasOwnProperty("type")) {
-            let payload = data as GenericPayload<any>;
+        const data = JSON.parse(event.data);
+        // Hopeful check that it has a type field.
+        if (typeof data == "object" && data.hasOwnProperty("type")) {
+            const payload = data as Payload.Any<any>;
 
+            // Special case hello.
             if (payload.type == "HELLO") {
                 console.log("Assigned uuid", payload.uuid);
                 this.uuid = payload.uuid;
                 this.seq = 0;
             }
 
-            for (let handler of this.handlers) {
+            // Listen for any await points.
+            const seq = payload.seq;
+            if (seq != undefined) {
+                const awaitPoint = this.waiters.get(seq);
+                if (awaitPoint) {
+                    this.waiters.delete(seq);
+                    window.clearTimeout(awaitPoint.timeoutHandle);
+                    awaitPoint.callback(payload);
+                }
+            }
+
+            // Pass to all handlers.
+            for (const handler of this.handlers) {
                 handler.onReceive?.(payload);
             }
         }
     }
 
     private onError(event: Event) {
-        for (let handler of this.handlers) {
+        for (const handler of this.handlers) {
             handler.onError?.(event);
         }
         console.log(event);
     }
 }
 
-export default Client;
+export { Uuid, Payload, RawHandler, ServiceEventHandler };

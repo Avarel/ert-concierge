@@ -1,32 +1,5 @@
-/**
- * rightDrawerUI.addTab("about", "About", tab => {
-        tab.addHeader(header => {
-            header.add("h2", "ERT Concierge / BabylonJS Front-end");
-            header.add("p", "SURF 2020 / OVRAS");
-        });
-        tab.addBody(body => {
-            body.addBox(box => {
-                box.add("h2", "An Tran");
-                box.add("p", "Intern");
-            });
-            body.addBox(box => {
-                box.add("h2", "Santiago Lombeyda");
-                box.add("p", "Mentor");
-            });
-            body.addBox(box => {
-                box.add("h2", "Front-end");
-                box.add("p", "Pug/SCSS/TypeScript + Webpack");
-            });
-            body.addBox(box => {
-                box.add("h2", "Back-end");
-                box.add("p", "Rust");
-            });
-        });
-    });
- */
-
 import React from "react";
-import Rs from "../overlay/rstyle/react";
+import Rs from "../overlay/rstyle/components";
 
 export function About() {
     return <div className="rstyled full">

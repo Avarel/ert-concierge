@@ -1,9 +1,9 @@
-import Rs from "../../overlay/rstyle/react";
+import Rs from "../../overlay/rstyle/components";
 import React from "react";
-import { GroupPayload } from "../../concierge_api/payloads";
+import { Payload } from "../../concierge_api/mod";
 import { ServicesHandler } from "./services_handler";
 
-interface GroupComponentProps extends GroupPayload {
+interface GroupComponentProps extends Payload.Info.Group {
     readonly isService: boolean,
     readonly handler: ServicesHandler
 }
@@ -40,7 +40,7 @@ class GroupComponent extends React.PureComponent<GroupComponentProps> {
 interface GroupsTabComponentProps {
     readonly handler: ServicesHandler,
     readonly services: ReadonlySet<string>
-    readonly groups: ReadonlyArray<GroupPayload>
+    readonly groups: ReadonlyArray<Payload.Info.Group>
 }
 export class ServicesTabComponent extends React.Component<GroupsTabComponentProps> {
     render() {

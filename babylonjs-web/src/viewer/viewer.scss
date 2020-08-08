@@ -25,6 +25,7 @@ body {
         @content;
     }
 }
+
 .float-window {
     z-index: 100;
     position: fixed;

@@ -1,10 +1,8 @@
-import * as ConciergeAPI from "../../../concierge_api/mod";
+import Client, { Payload, ServiceEventHandler } from "../../../concierge_api/mod";
 import { Vector2, Color3, ExecuteCodeAction, Vector3, Scene, PolygonMeshBuilder, StandardMaterial, ActionManager, Mesh } from "babylonjs";
 import { RendererView } from "../../renderer";
-import { ServiceEventHandler } from "../../../concierge_api/handlers";
-import { Payload } from "../../../concierge_api/payloads";
 import { Vec2f, RgbColor, PhysicsPayload } from "./payloads";
-import { PhysicsComponent } from "./controller";
+import { PhysicsComponent } from "./components";
 import React from "react";
 import { Tabbed } from "../../../overlay/mod";
 
@@ -30,9 +28,9 @@ class PolygonShape {
     }
 
     static createPolygon(centroid: Vector3, points: Vector2[], scene: Scene, color: Color3, scale: number = 1): PolygonShape {
-        let corners = points.map((v) => v.scaleInPlace(scale));
-        let poly_tri = new PolygonMeshBuilder("polytri", corners, scene);
-        let mesh = poly_tri.build(undefined, 50 * scale);
+        const corners = points.map((v) => v.scaleInPlace(scale));
+        const poly_tri = new PolygonMeshBuilder("polytri", corners, scene);
+        const mesh = poly_tri.build(undefined, 50 * scale);
         mesh.position.y += 50 * scale;
 
         var mat = new StandardMaterial("myMaterial", scene);
@@ -49,7 +47,7 @@ class PolygonShape {
     }
 
     moveTo(point: Readonly<Vector3>) {
-        let translate = point.subtract(this.centroid);
+        const translate = point.subtract(this.centroid);
 
         this.mesh.position.addInPlace(translate);
         this.centroid.set(point.x, point.y, point.z);
@@ -69,15 +67,15 @@ export class RustPhysicsService extends ServiceEventHandler {
     private tab: Tabbed.Tab | undefined;
 
     constructor(
-        client: ConciergeAPI.Client,
+        client: Client,
         private readonly renderer: RendererView,
         private tabbedComponent?: Tabbed.Instance
     ) {
         super(client, RustPhysicsService.GROUP);
     }
 
-    sendToSim(data: PhysicsPayload) {
-        this.client.sendJSON({
+    sendToSim(data: Readonly<PhysicsPayload>) {
+        this.client.sendPayload({
             type: "MESSAGE",
             target: {
                 type: "NAME",
@@ -87,11 +85,15 @@ export class RustPhysicsService extends ServiceEventHandler {
         });
     }
 
-    onMessage(message: Payload.Message<PhysicsPayload>) {
-        if (message.origin!.name != RustPhysicsService.NAME) {
-            return;
+    onReceive(payload: Readonly<Payload.Any<any>>) {
+        if (payload.type == "MESSAGE") {
+            if (payload.origin!.name != RustPhysicsService.NAME) {
+                return;
+            }
+            this.processPhysicsPayload(payload.data);
+        } else {
+            super.onReceive(payload);
         }
-        this.processPhysicsPayload(message.data);
     }
 
     onSubscribe() {
@@ -123,11 +125,8 @@ export class RustPhysicsService extends ServiceEventHandler {
     }
 
     clearShapes() {
-        for (let key of this.shapes.keys()) {
-            if (this.shapes.has(key)) {
-                let shape = this.shapes.get(key)!;
-                shape.dispose();
-            }
+        for (const shape of this.shapes.values()) {
+            shape.dispose();
         }
         this.shapes.clear();
     }
@@ -142,10 +141,10 @@ export class RustPhysicsService extends ServiceEventHandler {
     }
 
     private createShape(id: string, centroid: Vec2f, points: ReadonlyArray<Vec2f>, color: Readonly<RgbColor>) {
-        let centroidv = vec2f2vector2(centroid);
-        let pointsv = points.map(vec2f2vector2);
-        let color3 = tuple2color3(color);
-        let shape = this.createPolygon(id, centroidv, pointsv, color3);
+        const centroidv = vec2f2vector2(centroid);
+        const pointsv = points.map(vec2f2vector2);
+        const color3 = tuple2color3(color);
+        const shape = this.createPolygon(id, centroidv, pointsv, color3);
         shape.mesh.actionManager!.registerAction(
             new ExecuteCodeAction(
                 BABYLON.ActionManager.OnPickTrigger,
@@ -161,7 +160,7 @@ export class RustPhysicsService extends ServiceEventHandler {
     }
 
     private removeShape(id: string) {
-        let shape = this.shapes.get(id);
+        const shape = this.shapes.get(id);
         if (shape) {
             shape.dispose();
             this.shapes.delete(id);
@@ -169,15 +168,15 @@ export class RustPhysicsService extends ServiceEventHandler {
     }
 
     private updateShape(id: string, centroid: Vec2f) {
-        let shape = this.shapes.get(id);
+        const shape = this.shapes.get(id);
         if (shape) {
-            let vector2 = vec2f2vector2(centroid);
+            const vector2 = vec2f2vector2(centroid);
             shape.moveTo(new Vector3(vector2.x, 0, vector2.y).scaleInPlace(this.visualScale));
         }
     }
 
     private updateColor(id: string, color: Readonly<RgbColor>) {
-        let shape = this.shapes.get(id);
+        const shape = this.shapes.get(id);
         if (shape) {
             shape.setColor(tuple2color3(color));
         }
@@ -186,11 +185,11 @@ export class RustPhysicsService extends ServiceEventHandler {
     private processPhysicsPayload(payload: Readonly<PhysicsPayload>) {
         switch (payload.type) {
             case "ENTITY_NEW":
-                let entity = payload.entity;
+                const entity = payload.entity;
                 this.createShape(entity.id, entity.centroid, entity.points, entity.color);
                 break;
             case "ENTITY_DELETE":
-                for (let id of payload.ids) {
+                for (const id of payload.ids) {
                     this.removeShape(id);
                 }
                 break;
@@ -198,13 +197,13 @@ export class RustPhysicsService extends ServiceEventHandler {
                 // console.log("RECV", JSON.stringify(payload));
                 console.log("Dumping entities!");
                 this.clearShapes();
-                for (let entity of payload.entities) {
+                for (const entity of payload.entities) {
                     this.createShape(entity.id, entity.centroid, entity.points, entity.color);
                 }
                 break;
             case "POSITION_DUMP":
                 // console.log("RECV", JSON.stringify(payload));
-                for (let update of payload.updates) {
+                for (const update of payload.updates) {
                     this.updateShape(update.id, update.position);
                 }
                 break;

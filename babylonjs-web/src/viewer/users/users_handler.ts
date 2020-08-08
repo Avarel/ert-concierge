@@ -1,54 +1,54 @@
 import { IconSidebar } from "../../overlay/mod";
-import { EventHandler } from "../../concierge_api/handlers";
-import Client from "../../concierge_api/mod";
-import Payload, { ClientPayload } from "../../concierge_api/payloads";
+import Client, { RawHandler, Payload } from "../../concierge_api/mod";
 import React from "react";
 import Tabbed from "../../overlay/tabbed/mod";
-import { UsersTabComponent } from "./react";
+import { UsersTabComponent } from "./components";
 
-export class ClientsHandler extends EventHandler {
+export class ClientsHandler implements RawHandler {
     private static readonly TAB_ID = "clients";
     private tab?: Tabbed.Tab;
-    users: ClientPayload[] = [];
+    users: Payload.Info.Client[] = [];
 
     constructor(
         private readonly client: Client,
         private readonly ui: IconSidebar.Instance,
         private readonly tabComponent: Tabbed.Instance,
     ) {
-        super();
         this.tab = this.tabComponent.addTab(ClientsHandler.TAB_ID, "Clients");
         this.render();
     }
 
-    onClose(event: CloseEvent) {
+    onClose(_: CloseEvent) {
         this.ui.clear();
         this.tabComponent.removeTab(ClientsHandler.TAB_ID);
         this.tab = undefined;
         this.clear();
     }
 
-    onHello(hello: Payload.Hello) {
-        this.client.sendJSON({
-            type: "CLIENT_FETCH_ALL"
-        });
-        this.render();
-    }
-
-    onClientFetchAllResult(data: Payload.ClientFetchAllResult) {
-        this.clear();
-        for (let client of data.clients) {
-            this.addClient(client);
-        }
-    }
-
-    onStatus(status: Payload.Status) {
-        switch (status.code) {
-            case "CLIENT_JOINED":
-                this.addClient(status);
+    onReceive(payload: Readonly<Payload.Any<any>>) {
+        switch (payload.type) {
+            case "HELLO":
+                this.client.sendPayload({
+                    type: "CLIENT_FETCH_ALL"
+                }, payload => {
+                    if (payload.type == "CLIENT_FETCH_ALL_RESULT") {
+                        this.clear();
+                        for (const client of payload.clients) {
+                            this.addClient(client);
+                        }
+                    }
+                });
+                this.render();
                 break;
-            case "CLIENT_LEFT":
-                this.removeUser(status.uuid);
+            case "STATUS":
+                switch (payload.code) {
+                    case "CLIENT_JOINED":
+                        this.addClient(payload);
+                        break;
+                    case "CLIENT_LEFT":
+                        this.removeUser(payload.uuid);
+                        break;
+                }
                 break;
         }
     }
@@ -57,7 +57,7 @@ export class ClientsHandler extends EventHandler {
         this.users.length = 0;
     }
 
-    addClient(client: ClientPayload) {
+    addClient(client: Payload.Info.Client) {
         this.ui.addIcon(client.uuid, client.nickname || client.name);
         this.users.push(client);
         this.render()

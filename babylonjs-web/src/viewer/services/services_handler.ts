@@ -1,21 +1,18 @@
-import { EventHandler, ServiceEventHandler } from "../../concierge_api/handlers";
-import Client from "../../concierge_api/mod";
-import Payload, { GroupPayload } from "../../concierge_api/payloads";
+import Client, { Payload, RawHandler, ServiceEventHandler } from "../../concierge_api/mod";
 import React from "react";
 import Tabbed from "../../overlay/tabbed/mod";
-import { ServicesTabComponent } from "./react";
+import { ServicesTabComponent } from "./components";
 
-export class ServicesHandler extends EventHandler {
+export class ServicesHandler implements RawHandler {
     private static readonly TAB_ID = "services";
     private tab?: Tabbed.Tab;
-    private groups: GroupPayload[] = [];
+    private groups: Payload.Info.Group[] = [];
     private services: Map<string, ServiceEventHandler> = new Map();
 
     constructor(
         private readonly client: Client,
         private readonly tabComponent: Tabbed.Instance,
     ) {
-        super();
         this.render();
     }
 
@@ -25,41 +22,47 @@ export class ServicesHandler extends EventHandler {
         this.groups.length = 0;
     }
 
-    onHello(_: Payload.Hello) {
-        this.tab = this.tabComponent.addTab(ServicesHandler.TAB_ID, "Services");
-        this.client.sendJSON({
-            type: "GROUP_FETCH_ALL"
-        });
-        this.render();
-    }
-
-    onGroupFetchAllResult(groupList: Payload.GroupFetchAllResult) {
-        this.groups.length = 0;
-        for (const group of groupList.groups) {
-            this.addGroup(group);
-        }
-    }
-
-    onGroupFetchResult(result: Payload.GroupFetchResult) {
-        this.removeGroup(result.name);
-        this.addGroup(result);
-    }
-
-    onStatus(status: Payload.Status) {
-        switch (status.code) {
-            case "GROUP_CREATED":
-                this.client.sendJSON({
-                    type: "GROUP_FETCH",
-                    name: status.name
+    onReceive(payload: Readonly<Payload.Any<any>>) {
+        switch (payload.type) {
+            case "HELLO":
+                this.tab = this.tabComponent.addTab(ServicesHandler.TAB_ID, "Services");
+                this.client.sendPayload({
+                    type: "GROUP_FETCH_ALL"
+                }, payload => {
+                    if (payload.type == "GROUP_FETCH_ALL_RESULT") {
+                        this.clear();
+                        for (const group of payload.groups) {
+                            this.addGroup(group);
+                        }
+                    }
                 });
+                this.render();
                 break;
-            case "GROUP_DELETED":
-                this.removeGroup(status.name);
+            case "STATUS":
+                switch (payload.code) {
+                    case "GROUP_CREATED":
+                        this.client.sendPayload({
+                            type: "GROUP_FETCH",
+                            name: payload.name
+                        }, payload => {
+                            if (payload.type == "GROUP_FETCH_RESULT") {
+                                this.addGroup(payload);
+                            }
+                        });
+                        break;
+                    case "GROUP_DELETED":
+                        this.removeGroup(payload.name);
+                        break;
+                }
                 break;
         }
     }
 
-    private addGroup(group: GroupPayload) {
+    private clear() {
+        this.groups.length = 0;
+    }
+
+    private addGroup(group: Payload.Info.Group) {
         this.groups.push(group);
         this.render()
     }
@@ -92,7 +95,7 @@ export class ServicesHandler extends EventHandler {
         if (service) {
             service.subscribe();
         } {
-            this.client.sendJSON({
+            this.client.sendPayload({
                 type: "SELF_SUBSCRIBE",
                 name
             });
@@ -104,7 +107,7 @@ export class ServicesHandler extends EventHandler {
         if (service) {
             service.unsubscribe();
         } {
-            this.client.sendJSON({
+            this.client.sendPayload({
                 type: "SELF_UNSUBSCRIBE",
                 name
             });

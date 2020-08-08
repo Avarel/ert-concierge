@@ -1,9 +1,7 @@
 import { SystemData, SystemObject } from "./payloads";
-
 import { PlanetaryService } from "./mod";
-import Rs from "../../../overlay/rstyle/react";
+import Rs from "../../../overlay/rstyle/components";
 import React from "react";
-import ReactDOM from "react-dom";
 
 interface RenderingInfoState {
     fps: number | string,
@@ -157,11 +155,11 @@ class PlanetaryStateComponent extends React.Component<PlanetaryComponentProps> {
     render() {
         return <Rs.Card>
             <Rs.Row id="icons">
-                <i className="fa fa-fast-backward" onClick={this.fb}/>
-                <i className="fa fa-pause" onClick={this.pause}/>
-                <i className="fa fa-play" onClick={this.play}/>
-                <i className="fa fa-step-forward" onClick={this.sf}/>
-                <i className="fa fa-fast-forward" onClick={this.ff}/>
+                <i className="fa fa-fast-backward" onClick={this.fb} />
+                <i className="fa fa-pause" onClick={this.pause} />
+                <i className="fa fa-play" onClick={this.play} />
+                <i className="fa fa-step-forward" onClick={this.sf} />
+                <i className="fa fa-fast-forward" onClick={this.ff} />
             </Rs.Row>
         </Rs.Card>;
     }

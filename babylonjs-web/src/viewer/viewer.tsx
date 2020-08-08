@@ -1,6 +1,6 @@
 import "./viewer.scss";
 
-import * as ConciergeAPI from "../concierge_api/mod";
+import Client from "../concierge_api/mod";
 import { RustPhysicsService } from "./service_impls/physics_service/mod";
 import { ChatService } from "./service_impls/chat_service";
 import { PlanetaryService } from "./service_impls/planetary_service/mod";
@@ -36,14 +36,14 @@ export namespace Viewer {
         const viewManager = new Views.Instance("#views");
 
         let view = viewManager.addView("main");
-        viewManager.render();
+        viewManager.renderToDOM();
         let canvas = document.createElement("canvas");
         view.htmlElement!.appendChild(canvas);
 
         // Setup the BABYLON renderer
         let renderer = new Renderer();
 
-        let client = new ConciergeAPI.Client(name, serverURL, true);
+        let client = new Client(name, serverURL, true);
 
         let rendererView = renderer.createView(canvas);
         rendererView.universalCamera();

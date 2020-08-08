@@ -1,85 +1,84 @@
-
 export interface SystemData {
-    gravityConstant: number,
-    scale: number,
-    timeScale: number,
-    bodyScale: number,
-    centralBodyScale: number,
-    elasticity: number,
-    bodyCount: number,
-    centralBodyName: string,
-    handMass: number,
-    boundary: number
+    readonly gravityConstant: number,
+    readonly scale: number,
+    readonly timeScale: number,
+    readonly bodyScale: number,
+    readonly centralBodyScale: number,
+    readonly elasticity: number,
+    readonly bodyCount: number,
+    readonly centralBodyName: string,
+    readonly handMass: number,
+    readonly boundary: number
 }
 
 export interface SystemObject {
-    name: string,
-    mass: number,
-    radius: number,
-    location: [number, number, number],
-    color: [number, number, number],
-    orbitRadius: number,
-    orbitSpeed: number,
-    direction: [number, number, number]
+    readonly name: string,
+    readonly mass: number,
+    readonly radius: number,
+    readonly location: [number, number, number],
+    readonly color: [number, number, number],
+    readonly orbitRadius: number,
+    readonly orbitSpeed: number,
+    readonly direction: [number, number, number]
 }
 
 export interface SystemObjsDump {
-    type: "SYSTEM_OBJS_DUMP"
-    objects: SystemObject[]
+    readonly type: "SYSTEM_OBJS_DUMP"
+    readonly objects: ReadonlyArray<SystemObject>
 }
 
 export interface SystemDataDump {
-    type: "SYSTEM_DATA_DUMP",
-    data: SystemData
+    readonly type: "SYSTEM_DATA_DUMP",
+    readonly data: Readonly<SystemData>
 }
 
 export interface SystemRemovePlanets {
-    type: "SYSTEM_REMOVE_PLANETS",
-    ids: string[]
+    readonly type: "SYSTEM_REMOVE_PLANETS",
+    readonly ids: ReadonlyArray<string>
 }
 
 export interface SystemClear {
-    type: "SYSTEM_CLEAR"
+    readonly type: "SYSTEM_CLEAR"
 }
 
 export interface FetchSystemData {
-    type: "FETCH_SYSTEM_DATA"
+    readonly type: "FETCH_SYSTEM_DATA"
 }
 
 export interface FetchSystemObjs {
-    type: "FETCH_SYSTEM_OBJS"
+    readonly type: "FETCH_SYSTEM_OBJS"
 }
 
 export interface Play {
-    type: "PLAY"
+    readonly type: "PLAY"
 }
 
 export interface Pause {
-    type: "PAUSE"
+    readonly type: "PAUSE"
 }
 
 export interface FastForward {
-    type: "FAST_FORWARD"
+    readonly type: "FAST_FORWARD"
 }
 
 export interface StepForward {
-    type: "STEP_FORWARD"
+    readonly type: "STEP_FORWARD"
 }
 
 export interface FastBackward {
-    type: "FAST_BACKWARD"
+    readonly type: "FAST_BACKWARD"
 }
 
 export interface LoadSystem {
-    type: "LOAD_SYSTEM",
-    url: string
+    readonly type: "LOAD_SYSTEM",
+    readonly url: string
 }
 
 export interface UpdateData {
-    type: "UPDATE_DATA",
-    target: string,
-    field: string,
-    value: any
+    readonly type: "UPDATE_DATA",
+    readonly target: string,
+    readonly field: string,
+    readonly value: any
 }
 
 export type PlanetaryPayload = SystemObjsDump | SystemDataDump | SystemClear | SystemRemovePlanets

@@ -2,22 +2,24 @@ import "./style.scss";
 
 import { Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, StandardMaterial, ActionManager, MeshBuilder, Mesh, IAction, TrailMesh } from "babylonjs";
 import { RendererView } from "../../renderer";
-import { ServiceEventHandler } from "../../../concierge_api/handlers";
-import { Client } from "../../../concierge_api/mod";
-import { Payload } from "../../../concierge_api/payloads";
+import Client, { Payload, ServiceEventHandler } from "../../../concierge_api/mod";
 import { SystemObject, SystemData, PlanetaryPayload } from "./payloads";
 import React from "react";
-import { PlanetaryComponent } from "./controller";
+import { PlanetaryComponent } from "./components";
 import { Tabbed } from "../../../overlay/mod";
 
 class Planet {
-    enterAction?: IAction;
-    exitAction?: IAction;
-    clickAction?: IAction;
+    private enterAction?: IAction;
+    private exitAction?: IAction;
+    private clickAction?: IAction;
     data!: SystemObject;
 
-    private constructor(public id: string, public centroid: Vector3, public mesh: Mesh, public trailMesh?: TrailMesh) {
-    }
+    private constructor(
+        public readonly id: string,
+        private centroid: Vector3,
+        public mesh: Mesh,
+        public trailMesh?: TrailMesh
+    ) { }
 
     static create(id: string, centroid: Vector3, radius: number, scene: Scene, color: Color3, scale: number = 1): Planet {
         let mesh = MeshBuilder.CreateSphere("mySphere", { diameter: radius * 2 * scale }, scene);
@@ -75,7 +77,7 @@ class Planet {
 
     unlit() {
         (this.mesh.material as StandardMaterial).emissiveColor = Color3.Black();
-        
+
     }
 
     lit() {
@@ -122,7 +124,7 @@ export class PlanetaryService extends ServiceEventHandler {
 
     private readonly visualScale: number = 5;
     private tab?: Tabbed.Tab;
-    
+
     planetLock?: string;
     hoveredPlanets: Set<string> = new Set();
     litPlanet?: string;
@@ -136,15 +138,19 @@ export class PlanetaryService extends ServiceEventHandler {
         this.planets = new Map();
     }
 
-    onMessage(message: Payload.Message<PlanetaryPayload>) {
-        if (message.origin!.name != PlanetaryService.NAME) {
-            return;
+    onReceive(payload: Readonly<Payload.Any<any>>) {
+        if (payload.type == "MESSAGE") {
+            if (payload.origin!.name != PlanetaryService.NAME) {
+                return;
+            }
+            this.processPlanetsPayload(payload.data);
+        } else {
+            super.onReceive(payload);
         }
-        this.processPlanetsPayload(message.data);
     }
 
     sendToSim(data: PlanetaryPayload) {
-        this.client.sendJSON({
+        this.client.sendPayload({
             type: "MESSAGE",
             target: {
                 type: "NAME",
@@ -201,7 +207,6 @@ export class PlanetaryService extends ServiceEventHandler {
             headers,
             body: formData,
         });
-
 
         switch (response.status) {
             case 200:
