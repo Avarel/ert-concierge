@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 /// A client payload.
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ClientPayload<'a> {
+pub struct ClientInfo<'a> {
     /// Client name.
     #[serde(borrow)]
     pub name: Cow<'a, str>,
@@ -18,9 +18,19 @@ pub struct ClientPayload<'a> {
     pub tags: Vec<Cow<'a, str>>,
 }
 
-impl ClientPayload<'_> {
-    pub fn owned(&self) -> ClientPayload<'static> {
-        ClientPayload {
+impl<'a> ClientInfo<'a> {
+    /// Convert the client payload into an origin payload.
+    pub fn to_origin(self) -> OriginInfo<'a> {
+        OriginInfo {
+            client: self,
+            group: None,
+        }
+    }
+
+    /// Uncouple the information from the original borrowed lifetime
+    /// and return a struct that has fully owned references.
+    pub fn owned(&self) -> ClientInfo<'static> {
+        ClientInfo {
             name: Cow::Owned(self.name.to_string()),
             nickname: self.nickname.as_deref().map(str::to_string).map(Cow::Owned),
             uuid: self.uuid,
@@ -29,23 +39,26 @@ impl ClientPayload<'_> {
     }
 }
 
+/// A service payload.
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct GroupPayload<'a> {
-    /// Group name.
+pub struct ServiceInfo<'a> {
+    /// Service name.
     #[serde(borrow)]
     pub name: Cow<'a, str>,
-    /// Group name.
+    /// Service name.
     #[serde(borrow)]
     pub nickname: Option<Cow<'a, str>>,
-    /// Uuid of the group's owner.
+    /// Uuid of the service's owner.
     pub owner_uuid: Uuid,
     /// Subscribers
     pub subscribers: Vec<Uuid>,
 }
 
-impl GroupPayload<'_> {
-    pub fn owned(&self) -> GroupPayload<'static> {
-        GroupPayload {
+impl ServiceInfo<'_> {
+    /// Uncouple the information from the original borrowed lifetime
+    /// and return a struct that has fully owned references.
+    pub fn owned(&self) -> ServiceInfo<'static> {
+        ServiceInfo {
             name: Cow::Owned(self.name.to_string()),
             nickname: self.nickname.as_deref().map(str::to_string).map(Cow::Owned),
             owner_uuid: self.owner_uuid,
@@ -54,31 +67,21 @@ impl GroupPayload<'_> {
     }
 }
 
-impl<'a> ClientPayload<'a> {
-    /// Convert the client payload into an origin payload.
-    pub fn to_origin(self) -> Origin<'a> {
-        Origin {
-            client: self,
-            group: None,
-        }
-    }
-}
-
 /// An origin receipt for certain payloads.
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Origin<'a> {
+pub struct OriginInfo<'a> {
     #[serde(flatten)]
-    pub client: ClientPayload<'a>,
+    pub client: ClientInfo<'a>,
     /// Only available on MESSAGE payloads.
     /// This indicates the group that the message
     /// was originally sent to.
     #[serde(borrow)]
-    pub group: Option<GroupPayload<'a>>,
+    pub group: Option<ServiceInfo<'a>>,
 }
 
-impl<'a> Origin<'a> {
+impl<'a> OriginInfo<'a> {
     /// Attaches a group to the origin.
-    pub fn with_group(mut self, group_payload: GroupPayload<'a>) -> Origin<'a> {
+    pub fn with_service(mut self, group_payload: ServiceInfo<'a>) -> OriginInfo<'a> {
         self.group = Some(group_payload);
         self
     }
@@ -93,14 +96,14 @@ pub enum Target<'a> {
     /// Target a client Uuid.
     Uuid { uuid: Uuid },
     /// Target a group name.
-    Group { group: GroupId<'a> },
+    Service { service: ServiceId<'a> },
     /// Target every client connected to the concierge.
     All,
 }
 
-pub type GroupId<'a> = &'a str;
+pub type ServiceId<'a> = &'a str;
 
-/// HACK(Avarel): Serde deserialize bugs up when it sees a RawValue in a tagged
+/// HACK: Serde deserialize bugs up when it sees a RawValue in a tagged
 /// enum, so we have to reconstruct this and try to deserialize this version
 /// first.
 ///
@@ -113,7 +116,7 @@ pub struct PayloadRawMessage<'a> {
     pub r#type: &'a str,
     /// Origin of the message.
     #[serde(skip_deserializing)]
-    pub origin: Option<Origin<'a>>,
+    pub origin: Option<OriginInfo<'a>>,
     /// Target of the message. This can be a single user
     /// (using name or uuid), or a group.
     pub target: Target<'a>,
@@ -133,7 +136,7 @@ impl<'a> PayloadRawMessage<'a> {
         }
     }
 
-    pub fn with_origin(mut self, origin: Origin<'a>) -> Self {
+    pub fn with_origin(mut self, origin: OriginInfo<'a>) -> Self {
         self.origin = Some(origin);
         self
     }
@@ -169,7 +172,7 @@ pub enum Payload<'a, T> {
     Message {
         /// Origin of the message.
         #[serde(borrow)]
-        origin: Option<Origin<'a>>,
+        origin: Option<OriginInfo<'a>>,
         /// Target of the message. This can be a single user
         /// (using name or uuid), or a group.
         target: Target<'a>,
@@ -177,9 +180,9 @@ pub enum Payload<'a, T> {
         data: T,
     },
     /// Subscribe to a group's broadcast.
-    SelfSubscribe { name: GroupId<'a> },
+    SelfSubscribe { name: ServiceId<'a> },
     /// Unsubscribe from a group's broadcast.
-    SelfUnsubscribe { name: GroupId<'a> },
+    SelfUnsubscribe { name: ServiceId<'a> },
     /// This payload asks for the connecting client's
     /// subscriptions.
     SelfFetch,
@@ -188,18 +191,18 @@ pub enum Payload<'a, T> {
     SelfSetSeq { seq: usize },
     /// Create a group such that every subscriber
     /// will receive the message targeted towards that group.
-    GroupCreate {
-        name: GroupId<'a>,
+    ServiceCreate {
+        name: ServiceId<'a>,
         nickname: Option<&'a str>,
     },
     /// Delete a group. This operation only succeeds if
     /// the client is the group's owner.
-    GroupDelete { name: GroupId<'a> },
+    ServiceDelete { name: ServiceId<'a> },
     /// Fetch general group information.
-    GroupFetch { name: GroupId<'a> },
+    ServiceFetch { name: ServiceId<'a> },
     /// This payload asks for all of the groups
     /// registered with the concierge.
-    GroupFetchAll,
+    ServiceFetchAll,
     /// This payload asks for all of the clients
     /// connected to the concierge.
     ClientFetchAll,
@@ -209,25 +212,25 @@ pub enum Payload<'a, T> {
     /// the server's version.
     Hello { uuid: Uuid, version: &'a str },
     /// General group information.
-    GroupFetchResult {
+    ServiceFetchResult {
         #[serde(flatten)]
-        group: GroupPayload<'a>,
+        service: ServiceInfo<'a>,
     },
     /// This payload lists all of the groups registered with the concierge.
-    GroupFetchAllResult {
+    ServiceFetchAllResult {
         #[serde(borrow)]
-        groups: Vec<GroupPayload<'a>>,
+        services: Vec<ServiceInfo<'a>>,
     },
     /// This payload lists all of the clients registered with the concierge.
     ClientFetchAllResult {
         #[serde(borrow)]
-        clients: Vec<ClientPayload<'a>>,
+        clients: Vec<ClientInfo<'a>>,
     },
     /// This payload lists all of the connecting client's subscriptions.
     SelfFetchResult {
         #[serde(flatten)]
-        client: ClientPayload<'a>,
-        subscriptions: Vec<GroupPayload<'a>>,
+        client: ClientInfo<'a>,
+        subscriptions: Vec<ServiceInfo<'a>>,
     },
     /// Status payload sent by the concierge. May happen for various reasons
     /// such as error response.

@@ -1,17 +1,10 @@
-#![deny(clippy::correctness)]
-#![warn(clippy::style)]
-#![warn(clippy::complexity)]
-#![warn(clippy::perf)]
-#![warn(clippy::cargo)]
-
-mod clients;
 mod concierge;
 
 // Only compile this module for tests.
 #[cfg(test)]
 mod tests;
 
-use concierge::{Concierge, FsError, Group};
+use concierge::{Concierge, FsError, service::Service};
 use log::{debug, info};
 use semver::VersionReq;
 use std::{net::SocketAddr, sync::Arc};
@@ -21,8 +14,8 @@ use warp::{http::Method, hyper::header, multipart::FormData, path::Tail, Filter}
 
 // isten on every available network interface
 pub const SOCKET_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 64209);
-pub const VERSION: &str = "0.1.1";
-pub const MIN_VERSION: &str = "^0.1.0";
+pub const VERSION: &str = "0.2.0";
+pub const MIN_VERSION: &str = "^0.2.0";
 pub const SECRET: Option<&str> = None;
 pub const SUBPROTOCOL: &str = "ert-concierge";
 
@@ -53,9 +46,9 @@ async fn setup() {
 
     // Create a chat group
     let chat_name = "chat".to_owned();
-    concierge.groups.write().await.insert(
+    concierge.services.write().await.insert(
         chat_name.to_owned(),
-        Group::new(chat_name, Some("Chat Channel".to_string()), Uuid::nil()),
+        Service::new(chat_name, Some("Chat Channel".to_string()), Uuid::nil()),
     );
 
     serve(concierge).await

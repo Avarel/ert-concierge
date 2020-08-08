@@ -1,35 +1,104 @@
 import { Uuid, Payload } from "./payloads";
 import { RawHandler, ServiceEventHandler } from "./handlers";
 
-interface EventAwaitPoint {
+/**
+ * A waiting point for the client. When an payload with the specific
+ * sequence number is returned from the client that matches this waiting
+ * point's sequence number, the callback will be executed, the timeoutHandle
+ * will be cancelled, and the waiting point will be discarded.
+ */
+interface EventWaiterPoint {
     readonly seq: number,
     readonly timeoutHandle: number,
     readonly callback: (payload: Readonly<Payload.Any<any>>) => void
 }
 
 /**
- * Central connector to the concierge.
+ * Implementation of a client to the ERT Concierge.
  */
 export default class Client {
+    /** 
+     * Websocket connection. This is present when the client is attempting
+     * to connect to or is already connected to the central server.
+     * A new instance is spun up on new connection attempts.
+     */
     private socket?: WebSocket;
+    /**
+     * The version of the client that communicates to the central
+     * server. The string should generally follow semantic versioning.
+     */
     private version?: string;
+    /** 
+     * The passphrase required to connect to the central
+     * server if the server is configured with a secret requirement.
+     */
     private secret?: string;
+    /**
+     * The sequence number that the client keeps track of.
+     * The sequence number corresponds to the n-th TEXT socket message
+     * sent through the socket connection. This helps the central server
+     * respond with results to specific requests. This is used extensively
+     * in the callback (waiters) API.
+     * 
+     * The sequence number of the client on the server can be reset with a
+     * specific payload type (SELF_SET_SEQ).
+     */
     private seq: number = -1;
 
+    /**
+     * The handlers that listen to events and messages emitted through the
+     * socket connection. Every handler gets a reference to the same message.
+     */
     private readonly handlers: RawHandler[] = [];
-    private readonly waiters: Map<number, EventAwaitPoint> = new Map();
 
+    /**
+     * Keeps track of event callbacks registered with specific sequence numbers.
+     * We use a map for fast lookup. Sequence numbers should not conflict since
+     * they are always incremented per payload. If they do conflict, then abuse
+     * of SELF_SET_SEQ is likely. Such programs are incredibly degenerate, and
+     * we do not care to support it.
+     */
+    private readonly waiters: Map<number, EventWaiterPoint> = new Map();
+
+    /**
+     * Reconnect interval in milliseconds. This dictates the delay in which
+     * the client attempts to reconnect after a disconnection.
+     */
     reconnectInterval: number = 10000;
-    uuid!: Uuid;
+    
+    /**
+     * UUID assigned to the client upon sending the identification payload.
+     */
+    _uuid!: Uuid;
+    get uuid(): Uuid {
+        return this._uuid;
+    }
 
+    /**
+     * Construct a new client.
+     * 
+     * @param name Name of the client. Must be alphanumeric/underscores only.
+     * @param url The url of the central server.
+     * @param nickname The nickname of the client. Can be any valid UTF-8 string.
+     * @param reconnect Should the client reconnect in case of a disconnect?
+     */
     constructor(
         readonly name: string,
         readonly url: string,
+        readonly nickname?: string,
         public reconnect: boolean = false
     ) { }
 
+    /**
+     * Connect to the central server.
+     * 
+     * @param version Version of the client. Should generally follow semantic
+     *                versioning.
+     * @param secret  Secret passphrase, in case the server is configured to
+     *                require it.
+     */
     connect(version: string, secret?: string) {
-        console.info("Trying to connect to ", this.url);
+        console.info("Client: Trying to connect to ", this.url);
         this.version = version;
         this.secret = secret;
         this.socket = new WebSocket(this.url, "ert-concierge");
@@ -39,6 +108,14 @@ export default class Client {
         this.socket.onclose = event => this.onClose(event);
     }
 
+    /**
+     * Send a payload to the server.
+     * 
+     * @param payload  A payload following the documented JSON format.
+     * @param callback A callback can be provided for when the server
+     *                 responds to this specific payload. 
+     * @returns The sequence number associated with the sent payload.
+     */
     sendPayload(
         payload: Readonly<Payload.Any<any>>,
         callback?: (payload: Readonly<Payload.Any<any>>) => void
@@ -60,6 +137,13 @@ export default class Client {
         return seq;
     }
 
+    /**
+     * Close the socket connection and inform the server.
+     * 
+     * @param code Close code.
+     * @param reason Close reason.
+     * @param reconnect Should you reconnect after closing?
+     */
     close(code?: number, reason?: string, reconnect: boolean = true) {
         if (this.socket == undefined) {
             throw new Error("Socket is not connected")
@@ -74,10 +158,22 @@ export default class Client {
         }
     }
 
+    /**
+     * Add an event handler.
+     * 
+     * @param handler An event handler.
+     * @see RawHandler
+     */
     addHandler(handler: RawHandler) {
         this.handlers.push(handler);
     }
 
+    /**
+     * Remove an event handler by its reference.
+     * 
+     * @param handler An event handler.
+     * @see RawHandler
+     */
     removeHandler(handler: RawHandler) {
         for (let i = 0; i < this.handlers.length; i++) {
             if (this.handlers[i] === handler) {
@@ -87,9 +183,16 @@ export default class Client {
         }
     }
 
+    /**
+     * Remove all event handlers.
+     */
+    clearHandlers() {
+        this.handlers.length = 0;
+    }
+
     private tryReconnect() {
         if (this.reconnect) {
-            console.warn("Connection closed, reconnecting in", this.reconnectInterval, "ms")
+            console.warn("Client: Connection closed, reconnecting in", this.reconnectInterval, "ms")
             setTimeout(() => {
                 this.connect(this.version!, this.secret);
             }, this.reconnectInterval);
@@ -103,7 +206,7 @@ export default class Client {
         if (this.version == undefined) {
             throw new Error("Version is undefined")
         }
-        console.log("Identifying with version", this.version);
+        console.log("Client: Identifying with version", this.version);
         this.sendPayload({
             type: "IDENTIFY",
             name: this.name,
@@ -127,10 +230,10 @@ export default class Client {
         if (typeof data == "object" && data.hasOwnProperty("type")) {
             const payload = data as Payload.Any<any>;
 
-            // Special case hello.
+            // Special case HELLO.
             if (payload.type == "HELLO") {
                 console.log("Assigned uuid", payload.uuid);
-                this.uuid = payload.uuid;
+                this._uuid = payload.uuid;
                 this.seq = 0;
             }
 
@@ -139,6 +242,7 @@ export default class Client {
             if (seq != undefined) {
                 const awaitPoint = this.waiters.get(seq);
                 if (awaitPoint) {
+                    // Execute the callback and delete the waiter.
                     this.waiters.delete(seq);
                     window.clearTimeout(awaitPoint.timeoutHandle);
                     awaitPoint.callback(payload);

@@ -6,7 +6,7 @@ import { ServicesTabComponent } from "./components";
 export class ServicesHandler implements RawHandler {
     private static readonly TAB_ID = "services";
     private tab?: Tabbed.Tab;
-    private groups: Payload.Info.Group[] = [];
+    private groups: Payload.Info.Service[] = [];
     private services: Map<string, ServiceEventHandler> = new Map();
 
     constructor(
@@ -27,11 +27,11 @@ export class ServicesHandler implements RawHandler {
             case "HELLO":
                 this.tab = this.tabComponent.addTab(ServicesHandler.TAB_ID, "Services");
                 this.client.sendPayload({
-                    type: "GROUP_FETCH_ALL"
+                    type: "SERVICE_FETCH_ALL"
                 }, payload => {
-                    if (payload.type == "GROUP_FETCH_ALL_RESULT") {
+                    if (payload.type == "SERVICE_FETCH_ALL_RESULT") {
                         this.clear();
-                        for (const group of payload.groups) {
+                        for (const group of payload.services) {
                             this.addGroup(group);
                         }
                     }
@@ -40,17 +40,17 @@ export class ServicesHandler implements RawHandler {
                 break;
             case "STATUS":
                 switch (payload.code) {
-                    case "GROUP_CREATED":
+                    case "SERVICE_CREATED":
                         this.client.sendPayload({
-                            type: "GROUP_FETCH",
+                            type: "SERVICE_FETCH",
                             name: payload.name
                         }, payload => {
-                            if (payload.type == "GROUP_FETCH_RESULT") {
+                            if (payload.type == "SERVICE_FETCH_RESULT") {
                                 this.addGroup(payload);
                             }
                         });
                         break;
-                    case "GROUP_DELETED":
+                    case "SERVICE_DELETED":
                         this.removeGroup(payload.name);
                         break;
                 }
@@ -62,7 +62,7 @@ export class ServicesHandler implements RawHandler {
         this.groups.length = 0;
     }
 
-    private addGroup(group: Payload.Info.Group) {
+    private addGroup(group: Payload.Info.Service) {
         this.groups.push(group);
         this.render()
     }
@@ -78,7 +78,7 @@ export class ServicesHandler implements RawHandler {
     }
 
     addService(handler: ServiceEventHandler) {
-        this.services.set(handler.group, handler);
+        this.services.set(handler.serviceName, handler);
         this.client.addHandler(handler);
     }
 

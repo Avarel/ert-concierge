@@ -1,6 +1,6 @@
 [package]
 name = "ert_concierge"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["An Tran <avarelpm@gmail.com>"]
 edition = "2018"
 
@@ -40,7 +40,7 @@ concierge_api_rs = { path = "./concierge_api_rs" }
 [dev-dependencies]
 anyhow = "1.0"
 url = "2.1.1"
-tokio-tungstenite = "0.10"
+tokio-tungstenite = "0.11"
 reqwest = { version = "0.10", features = ["stream"] }
 
 [profile.release]

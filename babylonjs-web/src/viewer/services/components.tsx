@@ -3,7 +3,7 @@ import React from "react";
 import { Payload } from "../../concierge_api/mod";
 import { ServicesHandler } from "./services_handler";
 
-interface GroupComponentProps extends Payload.Info.Group {
+interface GroupComponentProps extends Payload.Info.Service {
     readonly isService: boolean,
     readonly handler: ServicesHandler
 }
@@ -40,7 +40,7 @@ class GroupComponent extends React.PureComponent<GroupComponentProps> {
 interface GroupsTabComponentProps {
     readonly handler: ServicesHandler,
     readonly services: ReadonlySet<string>
-    readonly groups: ReadonlyArray<Payload.Info.Group>
+    readonly groups: ReadonlyArray<Payload.Info.Service>
 }
 export class ServicesTabComponent extends React.Component<GroupsTabComponentProps> {
     render() {

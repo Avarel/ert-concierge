@@ -1,7 +1,8 @@
 # Websocket Payloads
 
 Packets sent from the client to the Gateway API are encapsulated within a
-gateway payload object and must have the proper `type` operation set.
+gateway payload object and must have the proper `type` operation set. The working
+definition of the payloads can be found in the [API directory](./concierge_api_rs/).
 
 ### Example
 ```typescript
@@ -34,9 +35,9 @@ this period will also immediately drop the connection with either:
 
 Successful identification will result in a `HELLO` payload being sent to the client, along with a UUID that acts as the [file server](./FILESYSTEM.md) key.
 
-Clients can use `MESSAGE` payloads to send data to specific targets or entire groups. If a message is sent to a group, then it will be broadcasted to every client subscribed to the group.
+Clients can use `MESSAGE` payloads to send data to specific targets or entire services. If a message is sent to a service, then it will be broadcasted to every client subscribed to the service.
 
-The group must first be created using `CREATE_GROUP` before anyone can subscribe to it. The client that created the group is the only client that can delete the group with `DELETE_GROUP`. The group will also be automatically deleted if the owning client leaves the concierge.
+The service must first be created using `CREATE_SERVICE` before anyone can subscribe to it. The client that created the service is the only client that can delete the service with `DELETE_SERVICE`. The service will also be automatically deleted if the owning client leaves the concierge.
 
 ## Identify
 
@@ -78,10 +79,13 @@ added (overriden by the concierge).
 
 The `target` field must follow one of three possible variants, which are demonstrated
 below. The `NAME` and `UUID` target types will directly pass the message to a single
-target client. The `GROUP` target type will broadcast the message to all of the
-group's subscribers.
+target client. The `data` field is transmitted verbatim.
 
-The `data` field is transmitted verbatim.
+### Service Target
+The `SERIVCE` target type is special. If the owner of a service sends a message to
+the service, then it will be broadcasted for everyone subscribed to the service. On the
+other hand, subscribers of a service sending a message to the service will only send
+the message to the owner of the service.
 
 ### Structure
 
@@ -93,7 +97,7 @@ The `data` field is transmitted verbatim.
         "nickname": string,
         "uuid": string,
         "tags": string[],
-        "group": {
+        "service": {
             "name": string,
             "nickname": string,
             "owner_uuid": string,
@@ -102,7 +106,7 @@ The `data` field is transmitted verbatim.
     } | undefined,
     "target": { "type": "NAME", "name": string }
             | { "type": "UUID", "uuid": string }
-            | { "type": "GROUP", "group": string },
+            | { "type": "SERVICE", "name": string },
             | { "type": "ALL" },
     "data": any
 }
@@ -151,9 +155,8 @@ The user `brendan` will receive this on their end. Notice that they have an `ori
 
 ## Self Subscribe
 
-Subscribe to a group's broadcasts. The group must exist before anyone can subscribe
-to it (created using `CREATE_GROUP` payload). All messages sent to the group
-will be broadcasted using the `MESSAGE` payload to the subscribers.
+Subscribe to a service's broadcasts. The service must exist before anyone can subscribe
+to it (created using `SERVICE_CREATE` payload).
 
 ### Structure
 
@@ -175,7 +178,7 @@ will be broadcasted using the `MESSAGE` payload to the subscribers.
 
 ## Self Unsubscribe
 
-Unsubscribe from a group's broadcasts.
+Unsubscribe from a service's broadcasts.
 
 ### Structure
 
@@ -219,15 +222,15 @@ counter back in sync with the client.
 }
 ```
 
-## Group Create
+## Service Create
 
-Subscribe to a group's broadcast.
+Create a new service channel on the central server.
 
 ### Structure
 
 ```typescript
 {
-    "type": "GROUP_CREATE",
+    "type": "SERVICE_CREATE",
     "name": string,
     "nickname": string | undefined,
 }
@@ -237,22 +240,22 @@ Subscribe to a group's broadcast.
 
 ```json
 {
-    "type": "GROUP_CREATE",
+    "type": "SERVICE_CREATE",
     "name": "simulation1_data",
     "nickname": "The First Simulation"
 }
 ```
 
-## Group Delete
+## Service Delete
 
-Unsubscribe from a group's broadcast. The client that created the group using `CREATE_GROUP` payload is the only client that can delete the group. The group
-is also automatically deleted if the owning client disconnects from the concierge.
+Delete a service channel on the central server. The client that owns the service 
+is the only client that can delete the service. The service is also automatically deleted if the owning client disconnects from the concierge.
 
 ### Structure
 
 ```typescript
 {
-    "type": "GROUP_DELETE",
+    "type": "SERVICE_DELETE",
     "name": string
 }
 ```
@@ -261,20 +264,20 @@ is also automatically deleted if the owning client disconnects from the concierg
 
 ```json
 {
-    "type": "GROUP_DELETE",
+    "type": "SERVICE_DELETE",
     "name": "simulation1_data"
 }
 ```
 
-## Fetch Group Information
+## Service Fetch Information
 
-This payload asks for all the clients of the group specified in the data field.
+This payload asks for all the clients of the service specified in the data field.
 
 ### Structure
 
 ```typescript
 {
-    "type": "GROUP_FETCH",
+    "type": "SERVICE_FETCH",
     "name": string
 }
 ```
@@ -283,25 +286,25 @@ This payload asks for all the clients of the group specified in the data field.
 
 ```json
 {
-    "type": "GROUP_FETCH",
+    "type": "SERVICE_FETCH",
     "name": "users"
 }
 ```
 
-## Fetch All Groups
+## Service Fetch All
 
-This payload asks for all of the groups
+This payload asks for all of the services
 registered with the concierge.
 
 ### Structure
 
 ```typescript
 {
-    "type": "GROUP_FETCH_ALL"
+    "type": "SERVICE_FETCH_ALL"
 }
 ```
 
-## Fetch All Clients
+## Client Fetch All
 
 This payload asks for all of the clients
 connected to the concierge.
@@ -351,7 +354,7 @@ that acts as a file server key and the version of the server.
 }
 ```
 
-## Group Fetch Result
+## Service Fetch Result
 
 Returns all the client names as an array of strings.
 
@@ -359,7 +362,7 @@ Returns all the client names as an array of strings.
 
 ```typescript
 {
-    "type": "GROUP_FETCH_RESULT",
+    "type": "SERVICE_FETCH_RESULT",
     "name": string,
     "nickname": string,
     "owner_uuid": string,
@@ -372,7 +375,7 @@ Returns all the client names as an array of strings.
 
 ```json
 {
-    "type": "GROUP_FETCH_RESULT",
+    "type": "SERVICE_FETCH_RESULT",
     "name": "simulation1_data",
     "nickname": "The First Simulation",
     "owner_uuid": "...",
@@ -381,16 +384,16 @@ Returns all the client names as an array of strings.
 }
 ```
 
-## Group Fetch All Result
+## Service Fetch All Result
 
-This payload lists all of the groups registered with the concierge.
+This payload lists all of the services registered with the concierge.
 
 ### Structure
 
 ```typescript
 {
-    "type": "GROUP_FETCH_ALL_RESULT",
-    "groups": {
+    "type": "SERVICE_FETCH_ALL_RESULT",
+    "services": {
         "name": string,
         "nickname": string,
         "owner_uuid": string,
@@ -404,8 +407,8 @@ This payload lists all of the groups registered with the concierge.
 
 ```json
 {
-    "type": "GROUP_FETCH_ALL_RESULT",
-    "groups": [
+    "type": "SERVICE_FETCH_ALL_RESULT",
+    "services": [
         {
             "name": "simulation1_data",
             "nickname": "The First Simulation",
@@ -534,30 +537,30 @@ such as error response or responses to certain commands.
 -   `MESSAGE_SENT`
     -   Fired in response to `MESSAGE`.
 -   `SUBSCRIBED`, `NOT_SUBSCRIBED`, `ALREADY_SUBSCRIBED`
-    -   `name: string`: The name of the group already created.
-    -   `nickname: string | undefined`: THe nickname of the group.
-    -   `owner_uuid: string`: The UUID of the group's owner.
+    -   `name: string`: The name of the service already created.
+    -   `nickname: string | undefined`: THe nickname of the service.
+    -   `owner_uuid: string`: The UUID of the service's owner.
     -   `subscribers: string[]`: The UUIDs of the subscribers.
 -   `UNSUBSCRIBED`
-    -   Fired in response to `UNSUBSCRIBE`, `GROUP_DELETE`, and the group being deleted because the owner of the group left the concierge.
-    -   **May not have a `seq` field** if the client did not send a `UNSUBSCRIBE` payload (due to the group being deleted by the owner, etc).
-    -   `name: string`: The name of the group already created.
-    -   `nickname: string | undefined`: THe nickname of the group.
-    -   `owner_uuid: string`: The UUID of the group's owner.
+    -   Fired in response to `UNSUBSCRIBE`, `SERVICE_DELETE`, and the service being deleted because the owner of the service left the concierge.
+    -   **May not have a `seq` field** if the client did not send a `UNSUBSCRIBE` payload (due to the service being deleted by the owner, etc).
+    -   `name: string`: The name of the service already created.
+    -   `nickname: string | undefined`: THe nickname of the service.
+    -   `owner_uuid: string`: The UUID of the service's owner.
     -   `subscribers: string[]`: The UUIDs of the subscribers.
--   `GROUP_CREATED`
-    -   Fired in response to `GROUP_CREATE`.
-    -   **May not have a `seq` field** if the client did not send a `GROUP_CREATE` payload (fired as a status when someone else creates a group).
-    -   `name: string`: The name of the group already created.
-    -   `nickname: string | undefined`: THe nickname of the group.
-    -   `owner_uuid: string`: The UUID of the group's owner.
+-   `SERVICE_CREATED`
+    -   Fired in response to `SERVICE_CREATE`.
+    -   **May not have a `seq` field** if the client did not send a `SERVICE_CREATE` payload (fired as a status when someone else creates a service).
+    -   `name: string`: The name of the service already created.
+    -   `nickname: string | undefined`: THe nickname of the service.
+    -   `owner_uuid: string`: The UUID of the service's owner.
     -   `subscribers: string[]`: The UUIDs of the subscribers.
--   `GROUP_DELETED`
-    -   Fired in response to `GROUP_DELETE`.
-    -   **May not have a `seq` field** if the client did not send a `GROUP_DELETE` payload (fired as a status when someone else deletes a group).
-    -   `name: string`: The name of the group already created.
-    -   `nickname: string | undefined`: THe nickname of the group.
-    -   `owner_uuid: string`: The UUID of the group's owner.
+-   `SERVICE_DELETED`
+    -   Fired in response to `SERVICE_DELETE`.
+    -   **May not have a `seq` field** if the client did not send a `SERVICE_DELETE` payload (fired as a status when someone else deletes a service).
+    -   `name: string`: The name of the service already created.
+    -   `nickname: string | undefined`: THe nickname of the service.
+    -   `owner_uuid: string`: The UUID of the service's owner.
     -   `subscribers: string[]`: The UUIDs of the subscribers.
 
 -   `BAD`
@@ -566,11 +569,11 @@ such as error response or responses to certain commands.
 -   `PROTOCOL`
     -   Fired when server fails to decode, or fails to deserialize data to an accepted format.
     -   `desc: string`: Reason that the server failed to understand the payload.
--   `GROUP_ALREADY_CREATED`
-    -   Fired in response to `GROUP_CREATE`.
-    -   `name: string`: The name of the group already created.
-    -   `nickname: string | undefined`: THe nickname of the group.
-    -   `owner_uuid: string`: The UUID of the group's owner.
+-   `SERVICE_ALREADY_CREATED`
+    -   Fired in response to `SERVICE_CREATE`.
+    -   `name: string`: The name of the service already created.
+    -   `nickname: string | undefined`: THe nickname of the service.
+    -   `owner_uuid: string`: The UUID of the service's owner.
     -   `subscribers: string[]`: The UUIDs of the subscribers.
 -   `NO_SUCH_NAME`
     -   In response to `MESSAGE`.
@@ -580,7 +583,7 @@ such as error response or responses to certain commands.
     -   In response to `MESSAGE`.
     -   Fired when the `target` fields points to a UUID, but the uuid is not recognized.
     -   `uuid: string`: The UUID unrecognized by the server.
--   `NO_SUCH_GROUP`
-    -   In response to `MESSAGE`, `GROUP_DELETE`, `SUBSCRIBE`, `UNSUBSCRIBE`.
-    -   Fired when the `target` fields point to a group, but the group is not present in the concierge.
-    -   `group: string`: The group unrecognized by the server.
+-   `NO_SUCH_SERVICE`
+    -   In response to `MESSAGE`, `SERVICE_DELETE`, `SUBSCRIBE`, `UNSUBSCRIBE`.
+    -   Fired when the `target` fields point to a service, but the service is not present in the concierge.
+    -   `service: string`: The service unrecognized by the server.

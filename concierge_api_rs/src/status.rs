@@ -1,4 +1,4 @@
-use crate::payload::{ClientPayload, GroupId, GroupPayload};
+use crate::payload::{ClientInfo, ServiceId, ServiceInfo};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -10,13 +10,13 @@ pub enum StatusPayload<'a> {
     /// emitted to newly joining clients.
     ClientJoined {
         #[serde(flatten)]
-        client: ClientPayload<'a>,
+        client: ClientInfo<'a>,
     },
-    /// A payload broadcasted whenever a new client leaves. This is not
+    /// A payload broadcasted whenever a client leaves. This is not
     /// emitted to leaving clients.
     ClientLeft {
         #[serde(flatten)]
-        client: ClientPayload<'a>,
+        client: ClientInfo<'a>,
     },
     /// Generic OK.
     Ok,
@@ -25,38 +25,58 @@ pub enum StatusPayload<'a> {
     /// Indicates that the client is now subscribed to a group.
     SelfSubscribed { 
         #[serde(flatten)]
-        group: GroupPayload<'a>
+        service: ServiceInfo<'a>
     },
     /// Indicates that the client is already subscribed to a group.
     SelfAlreadySubscribed { 
         #[serde(flatten)]
-        group: GroupPayload<'a>
+        service: ServiceInfo<'a>
     },
     /// Indicates that the client is not subscribed to a group.
     SelfNotSubscribed { 
         #[serde(flatten)]
-        group: GroupPayload<'a>
+        service: ServiceInfo<'a>
     },
     /// Indicates that the client is no longer subscribed to a group.
     /// May not be attached with a sequence number if the client did not send
     /// an UNSUBSCRIBE payload to unsubscribe from this group.
     SelfUnsubscribed { 
         #[serde(flatten)]
-        group: GroupPayload<'a>
+        service: ServiceInfo<'a>
     },
     /// Indicates that a new group has been created.
     /// May not be attached with a sequence number if the client did not send
     /// a CREATE_GROUP payload to create this group.
-    GroupCreated { 
+    ServiceCreated { 
         #[serde(flatten)]
-        group: GroupPayload<'a>
+        service: ServiceInfo<'a>
+    },
+    /// Indicates that the group has already been created.
+    /// This is sent in response to GROUP_CREATE payload.
+    ServiceAlreadyCreated { 
+        #[serde(flatten)]
+        service: ServiceInfo<'a>
     },
     /// Indicates that a group has been deleted.
     /// May not be attached with a sequence number if the client did not send
     /// a DELETE_GROUP payload to delete this group.
-    GroupDeleted { 
+    ServiceDeleted { 
         #[serde(flatten)]
-        group: GroupPayload<'a>
+        service: ServiceInfo<'a>
+    },
+    /// A payload broadcasted to the service when a new client subscribes
+    /// to the service.
+    ServiceClientSubscribed {
+        #[serde(flatten)]
+        client: ClientInfo<'a>,
+        service: ServiceInfo<'a>
+    },
+    /// A payload broadcasted to the service when a client unsubscribes
+    /// from the service.
+    ServiceClientUnsubscribed {
+        #[serde(flatten)]
+        client: ClientInfo<'a>,
+        service: ServiceInfo<'a>
     },
     /// Generic BAD payload.
     Bad,
@@ -69,24 +89,18 @@ pub enum StatusPayload<'a> {
     /// Indicates that the concierge has failed to decode the payload
     /// due to some reason (reported by serde).
     Protocol { desc: &'a str },
-    /// Indicates that the group has already been created.
-    /// This is sent in response to GROUP_CREATE payload.
-    GroupAlreadyCreated { 
-        #[serde(flatten)]
-        group: GroupPayload<'a>
-    },
     /// Indicates that no such name exists in the namespace of the conciergee.
     NoSuchName { name: &'a str },
     /// Indicates that the Uuid is unrecognized by the concierge.
     NoSuchUuid { uuid: Uuid },
     /// Indicates that the group name is not registered with the concierge.
-    NoSuchGroup { name: GroupId<'a> },
+    NoSuchService { name: ServiceId<'a> },
 }
 
 /// Utility methods to create good statuses.
 pub mod ok {
     use super::StatusPayload;
-    use crate::{payload::GroupPayload, JsonPayload};
+    use crate::{payload::{ClientInfo, ServiceInfo}, JsonPayload};
 
     #[allow(dead_code)]
     pub const fn ok() -> JsonPayload<'static> {
@@ -101,27 +115,45 @@ pub mod ok {
         }
     }
 
-    pub fn subscribed(group: GroupPayload<'_>) -> JsonPayload {
+    pub fn self_subscribed(service: ServiceInfo<'_>) -> JsonPayload {
         JsonPayload::Status {
-            data: StatusPayload::SelfSubscribed { group },
+            data: StatusPayload::SelfSubscribed { service },
         }
     }
 
-    pub const fn unsubscribed(group: GroupPayload<'_>) -> JsonPayload {
+    pub const fn self_unsubscribed(service: ServiceInfo<'_>) -> JsonPayload {
         JsonPayload::Status {
-            data: StatusPayload::SelfUnsubscribed { group },
+            data: StatusPayload::SelfUnsubscribed { service },
         }
     }
 
-    pub const fn created_group(group: GroupPayload<'_>) -> JsonPayload {
+    pub const fn service_created(service: ServiceInfo<'_>) -> JsonPayload {
         JsonPayload::Status {
-            data: StatusPayload::GroupCreated { group },
+            data: StatusPayload::ServiceCreated { service },
         }
     }
 
-    pub const fn deleted_group(group: GroupPayload<'_>) -> JsonPayload {
+    pub const fn service_deleted(service: ServiceInfo<'_>) -> JsonPayload {
         JsonPayload::Status {
-            data: StatusPayload::GroupDeleted { group },
+            data: StatusPayload::ServiceDeleted { service },
+        }
+    }
+
+    pub const fn service_client_subscribed<'a>(client: ClientInfo<'a>, service: ServiceInfo<'a>) -> JsonPayload<'a> {
+        JsonPayload::Status {
+            data: StatusPayload::ServiceClientSubscribed { 
+                client, 
+                service 
+            }
+        }
+    }
+
+    pub const fn service_client_unsubscribed<'a>(client: ClientInfo<'a>, service: ServiceInfo<'a>) -> JsonPayload<'a> {
+        JsonPayload::Status {
+            data: StatusPayload::ServiceClientUnsubscribed { 
+                client, 
+                service 
+            }
         }
     }
 }
@@ -129,7 +161,7 @@ pub mod ok {
 /// Utility methods to create bad statuses.
 pub mod err {
     use super::StatusPayload;
-    use crate::{payload::GroupPayload, JsonPayload};
+    use crate::{payload::ServiceInfo, JsonPayload};
     use uuid::Uuid;
 
     #[allow(dead_code)]
@@ -157,21 +189,21 @@ pub mod err {
         }
     }
 
-    pub const fn group_already_created(group: GroupPayload<'_>) -> JsonPayload {
+    pub const fn group_already_created(service: ServiceInfo<'_>) -> JsonPayload {
         JsonPayload::Status {
-            data: StatusPayload::GroupAlreadyCreated { group },
+            data: StatusPayload::ServiceAlreadyCreated { service },
         }
     }
 
-    pub fn already_subscribed(group: GroupPayload<'_>) -> JsonPayload {
+    pub fn self_already_subscribed(service: ServiceInfo<'_>) -> JsonPayload {
         JsonPayload::Status {
-            data: StatusPayload::SelfAlreadySubscribed { group },
+            data: StatusPayload::SelfAlreadySubscribed { service },
         }
     }
 
-    pub const fn not_subscribed(group: GroupPayload<'_>) -> JsonPayload {
+    pub const fn self_not_subscribed(service: ServiceInfo<'_>) -> JsonPayload {
         JsonPayload::Status {
-            data: StatusPayload::SelfNotSubscribed { group },
+            data: StatusPayload::SelfNotSubscribed { service },
         }
     }
 
@@ -189,7 +221,7 @@ pub mod err {
 
     pub const fn no_such_group(name: &str) -> JsonPayload {
         JsonPayload::Status {
-            data: StatusPayload::NoSuchGroup { name },
+            data: StatusPayload::NoSuchService { name },
         }
     }
 }

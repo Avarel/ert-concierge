@@ -43,7 +43,7 @@ export namespace Viewer {
         // Setup the BABYLON renderer
         let renderer = new Renderer();
 
-        let client = new Client(name, serverURL, true);
+        let client = new Client(name, serverURL, undefined, true);
 
         let rendererView = renderer.createView(canvas);
         rendererView.universalCamera();
@@ -61,7 +61,7 @@ export namespace Viewer {
 
         renderer.start();
 
-        client.connect("0.1.1");
+        client.connect("0.2.0");
     }
 }
 

@@ -1,7 +1,7 @@
 use crate::physics_payload::{EntityDump, EntityUpdate, Payload, PhysicsPayload};
 use anyhow::Result;
 use concierge_api_rs::{
-    payload::{ClientPayload, Origin, Target},
+    payload::{ClientInfo, OriginInfo, Target},
     status::StatusPayload,
 };
 use cs3_physics::{
@@ -36,8 +36,8 @@ use url::Url;
 
 pub const MS_SEND_INTERVAL: u64 = 20;
 
-pub const GROUP_TARGET: Target = Target::Group {
-    group: crate::PHYSICS_ENGINE_GROUP,
+pub const GROUP_TARGET: Target = Target::Service {
+    service: crate::PHYSICS_ENGINE_GROUP,
 };
 
 fn color_from_string_hash(string: &str) -> (u8, u8, u8) {
@@ -83,7 +83,7 @@ pub async fn init_bot(running: Arc<AtomicBool>, world: Arc<RwLock<World>>) -> Re
     if let Some(Ok(Message::Text(string))) = ws.next().await {
         if let Payload::Hello { .. } = serde_json::from_str(&string).unwrap() {
             ws.send(Message::text(
-                serde_json::to_string(&Payload::GroupCreate {
+                serde_json::to_string(&Payload::ServiceCreate {
                     name: crate::PHYSICS_ENGINE_GROUP,
                     nickname: Some("Physics Engine Channel")
                 })
@@ -128,8 +128,8 @@ pub async fn send_loop(
         let _ = tx.send(Message::text(
             serde_json::to_string(&Payload::Message {
                 origin: None,
-                target: Target::Group {
-                    group: crate::PHYSICS_ENGINE_GROUP,
+                target: Target::Service {
+                    service: crate::PHYSICS_ENGINE_GROUP,
                 },
                 data: PhysicsPayload::PositionDump { updates },
             })
@@ -150,7 +150,7 @@ pub async fn recv_loop<T>(
             match serde_json::from_str::<Payload>(string) {
                 Ok(Payload::Message {
                     data,
-                    origin: Some(Origin { client, .. }),
+                    origin: Some(OriginInfo { client, .. }),
                     ..
                 }) => {
                     handle_message(data, client, &world, &tx).await;
@@ -199,7 +199,7 @@ pub async fn recv_loop<T>(
 
 async fn handle_message(
     data: PhysicsPayload<'_>,
-    client: ClientPayload<'_>,
+    client: ClientInfo<'_>,
     world: &RwLock<World>,
     tx: &UnboundedSender<Message>,
 ) {

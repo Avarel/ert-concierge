@@ -13,7 +13,7 @@ import requests
 from types import FrameType
 from typing import Any, Dict, cast
 from vector import Vector
-from concierge_api import GroupCreate, Identify, Message, Payload, TargetGroup, TargetUuid, Target
+from concierge_api import ServiceCreate, Identify, Message, Payload, TargetService, TargetUuid, Target
 from system_serializer import system_data_to_object
 
 # Default to localhost if no cmdline argument is provided
@@ -40,7 +40,7 @@ dt = 0.01  # timestep of the simulation
 simulation_interval = 0.01  # delays between each step
 pause_check_interval = 0.1  # delays when the simulation is paused
 
-group_target = TargetGroup(group_name)
+group_target = TargetService(group_name)
 
 
 async def concierge_bot():
@@ -59,7 +59,7 @@ async def concierge_bot():
         print(f"My uuid is {uuid}. The server version is {server_version}.")
 
         print("Creating group.")
-        await socket.send(GroupCreate(group_name, "Planetary Simulation Channel").to_json())
+        await socket.send(ServiceCreate(group_name, "Planetary Simulation Channel").to_json())
 
         print("Starting simulation.")
 

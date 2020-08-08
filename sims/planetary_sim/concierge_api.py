@@ -29,7 +29,7 @@ class DiscriminatedSerialize(Serialize):
         return self.make_object({})
 
 
-class ClientPayload(Serialize):
+class ClientInfo(Serialize):
     def __init__(self, name: str, nickname: Optional[str], uuid: str, tags: Optional[List[str]] = None):
         self.name = name
         self.nickname = nickname
@@ -37,8 +37,8 @@ class ClientPayload(Serialize):
         self.tags = tags
 
     @staticmethod
-    def from_object(obj: object_type) -> ClientPayload:
-        return ClientPayload(obj["name"], obj.get("nickname"), obj["uuid"], obj.get("tags"))
+    def from_object(obj: object_type) -> ClientInfo:
+        return ClientInfo(obj["name"], obj.get("nickname"), obj["uuid"], obj.get("tags"))
 
     def to_object(self) -> object_type:
         return {
@@ -49,7 +49,7 @@ class ClientPayload(Serialize):
         }
 
 
-class GroupPayload(Serialize):
+class ServiceInfo(Serialize):
     def __init__(self, name: str, nickname: Optional[str], owner_uuid: str, subscribers: List[str]):
         self.name = name
         self.nickname = nickname
@@ -57,8 +57,8 @@ class GroupPayload(Serialize):
         self.subscribers = subscribers
 
     @staticmethod
-    def from_object(obj: object_type) -> GroupPayload:
-        return GroupPayload(obj["name"], obj.get("nickname"), obj["owner_uuid"], obj["subscribers"])
+    def from_object(obj: object_type) -> ServiceInfo:
+        return ServiceInfo(obj["name"], obj.get("nickname"), obj["owner_uuid"], obj["subscribers"])
 
     def to_object(self) -> object_type:
         return {
@@ -69,21 +69,21 @@ class GroupPayload(Serialize):
         }
 
 
-class Origin(ClientPayload):
-    def __init__(self, client: ClientPayload, group: Optional[GroupPayload]):
+class Origin(ClientInfo):
+    def __init__(self, client: ClientInfo, service: Optional[ServiceInfo]):
         super().__init__(client.name, client.nickname, client.uuid, client.tags)
-        self.group = group
+        self.service = service
 
     @staticmethod
     def from_object(obj: object_type) -> Origin:
         return Origin(
-            ClientPayload.from_object(obj),
-            GroupPayload.from_object(
-                obj["group"]) if "group" in obj and obj["group"] != None else None
+            ClientInfo.from_object(obj),
+            ServiceInfo.from_object(
+                obj["service"]) if "service" in obj and obj["service"] != None else None
         )
 
     def to_object(self) -> object_type:
-        return dict(super().to_object(), **{"group": self.group})
+        return dict(super().to_object(), **{"service": self.service})
 
 
 class Target(DiscriminatedSerialize):
@@ -105,9 +105,9 @@ class TargetAll(Target):
         super().__init__("ALL")
 
 
-class TargetGroup(Target):
-    def __init__(self, group_name: str):
-        super().__init__("GROUP", ("group", group_name))
+class TargetService(Target):
+    def __init__(self, service_name: str):
+        super().__init__("SERVICE", ("name", service_name))
 
 
 class TargetUuid(Target):
@@ -130,16 +130,16 @@ class Payload(DiscriminatedSerialize):
             "MESSAGE": Message,
             "IDENTIFY": Identify,
             "HELLO": Hello,
-            "GROUP_CREATE": GroupCreate,
-            "GROUP_DELETE": GroupDelete,
+            "SERVICE_CREATE": ServiceCreate,
+            "SERVICE_DELETE": ServiceDelete,
             "SELF_SUBSCRIBE": SelfSubscribe,
             "SELF_UNSUCSCRIBE": SelfUnsubscribe,
             "STATUS": GenericStatus,
-            "GROUP_FETCH_ALL": GroupFetchAll,
+            "SERVICE_FETCH_ALL": ServiceFetchAll,
             "CLIENT_FETCH_ALL": ClientFetchAll,
             "SELF_FETCH": SelfFetch,
-            "GROUP_FETCH_RESULT": GroupFetchResult,
-            "GROUP_FETCH_ALL_RESULT": GroupFetchAllResult,
+            "SERVICE_FETCH_RESULT": ServiceFetchResult,
+            "SERVICE_FETCH_ALL_RESULT": ServiceFetchAllResult,
             "CLIENT_FETCH_ALL_RESULT": ClientFetchAllResult,
             "SELF_FETCH_RESULT": SelfFetchResult
         }
@@ -191,15 +191,15 @@ class Message(Payload):
         })
 
 
-class GroupCreate(Payload):
+class ServiceCreate(Payload):
     def __init__(self, name: str, nickname: Optional[str] = None):
-        super().__init__("GROUP_CREATE")
+        super().__init__("SERVICE_CREATE")
         self.name = name
         self.nickname = nickname
 
     @staticmethod
-    def from_object(obj: object_type) -> GroupCreate:
-        return GroupCreate(obj["name"], obj.get("nickname"))
+    def from_object(obj: object_type) -> ServiceCreate:
+        return ServiceCreate(obj["name"], obj.get("nickname"))
 
     def to_object(self) -> object_type:
         return self.make_object({
@@ -208,15 +208,15 @@ class GroupCreate(Payload):
         })
 
 
-class GroupDelete(Payload):
+class ServiceDelete(Payload):
     def __init__(self, name: str):
-        super().__init__("GROUP_DELETE")
+        super().__init__("SERVICE_DELETE")
         self.name = name
 
     @staticmethod
-    def from_object(obj: object_type) -> Optional[GroupDelete]:
+    def from_object(obj: object_type) -> Optional[ServiceDelete]:
         if obj.get("name") != None:
-            return GroupDelete(obj["name"])
+            return ServiceDelete(obj["name"])
         return None
 
     def to_object(self) -> object_type:
@@ -255,9 +255,9 @@ class SelfUnsubscribe(Payload):
         })
 
 
-class GroupFetchAll(Payload):
+class ServiceFetchAll(Payload):
     def __init__(self):
-        super().__init__("GROUP_FETCH_ALL")
+        super().__init__("SERVICE_FETCH_ALL")
 
 
 class ClientFetchAll(Payload):
@@ -281,42 +281,42 @@ class Hello(Payload):
         return Hello(obj["uuid"], obj["version"])
 
 
-class GroupFetchResult(Payload):
-    def __init__(self, group: GroupPayload):
-        super().__init__("GROUP_SUBSCRIBERS")
-        self.group = group
+class ServiceFetchResult(Payload):
+    def __init__(self, services: ServiceInfo):
+        super().__init__("SERVICE_FETCH_RESULT")
+        self.services = services
 
     @staticmethod
-    def from_object(obj: object_type) -> GroupFetchResult:
-        return GroupFetchResult(GroupPayload.from_object(obj))
+    def from_object(obj: object_type) -> ServiceFetchResult:
+        return ServiceFetchResult(ServiceInfo.from_object(obj))
 
     def to_object(self) -> object_type:
-        return self.group.to_object()
+        return self.services.to_object()
 
 
-class GroupFetchAllResult(Payload):
-    def __init__(self, groups: List[GroupPayload]):
-        super().__init__("GROUP_FETCH_ALL_RESULT")
-        self.groups = groups
+class ServiceFetchAllResult(Payload):
+    def __init__(self, services: List[ServiceInfo]):
+        super().__init__("SERVICE_FETCH_ALL_RESULT")
+        self.services = services
 
     @staticmethod
-    def from_object(obj: object_type) -> GroupFetchAllResult:
-        return GroupFetchAllResult(list(map(GroupPayload.from_object, obj["subscriptions"])))
+    def from_object(obj: object_type) -> ServiceFetchAllResult:
+        return ServiceFetchAllResult(list(map(ServiceInfo.from_object, obj["services"])))
 
     def to_object(self) -> object_type:
         return self.make_object({
-            "groups": list(map(GroupPayload.to_object, self.groups))
+            "services": list(map(ServiceInfo.to_object, self.services))
         })
 
 
 class ClientFetchAllResult(Payload):
-    def __init__(self, clients: List[ClientPayload]):
+    def __init__(self, clients: List[ClientInfo]):
         super().__init__("CLIENT_FETCH_ALL_RESULT")
         self.clients = clients
 
     @staticmethod
     def from_object(obj: object_type) -> ClientFetchAllResult:
-        return ClientFetchAllResult(list(map(ClientPayload.from_object, obj["clients"])))
+        return ClientFetchAllResult(list(map(ClientInfo.from_object, obj["clients"])))
 
     def to_object(self) -> object_type:
         return self.make_object({
@@ -325,14 +325,14 @@ class ClientFetchAllResult(Payload):
 
 
 class SelfFetchResult(Payload):
-    def __init__(self, client: ClientPayload, subscriptions: List[GroupPayload]):
+    def __init__(self, client: ClientInfo, subscriptions: List[ServiceInfo]):
         super().__init__("SELF_FETCH_RESULT")
         self.client = client
         self.subscriptions = subscriptions
 
     @staticmethod
     def from_object(obj: object_type) -> SelfFetchResult:
-        return SelfFetchResult(ClientPayload.from_object(obj), list(map(GroupPayload.from_object, obj["subscriptions"])))
+        return SelfFetchResult(ClientInfo.from_object(obj), list(map(ServiceInfo.from_object, obj["subscriptions"])))
 
     def to_object(self) -> object_type:
         return dict(super().to_object(), **{

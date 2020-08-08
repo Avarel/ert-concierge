@@ -5,21 +5,46 @@ import Client, { Payload } from "./mod";
  * directly to this handler.
  */
 export interface RawHandler {
+    /** Handles socket open events. */
     onOpen?(event: Event): void;
+    /** Handles socket close events. */
     onClose?(event: CloseEvent): void;
+    /**
+     * Handles socket text events that are assumed to be valid
+     * payloads.
+     */
     onReceive(payload: Readonly<Payload.Any<any>>): void;
+    /** Handle socket error events/ */
     onError?(event: Event): void;
 }
 
 /**
- * Utility class that automatically handles subscription to a specific group.
+ * Utility class that correctly handles subscription and unsubscription from
+ * a service group. This class is to be implemented by service handlers.
+ * 
+ * Multiple service event handlers of the same service is not supported
+ * as of the moment, and will likely lead to unwanted behavior.
  */
 export abstract class ServiceEventHandler implements RawHandler {
     private _subscribed: boolean = false;
+    /** Is this handler subscribed to its service group. */
+    get subscribed(): boolean {
+        return this._subscribed;
+    }
 
+    /**
+     * Construct a service event handler.
+     * 
+     * @param client The central server client.
+     * @param serviceName The name of the service.
+     * @param autoSubscribe Should the service event handler subscribe 
+     *                      as eagerly as possible? This means that it will
+     *                      try to subscribe immediately when the client
+     *                      first logs on and when the group is created.
+     */
     constructor(
         protected readonly client: Client, 
-        readonly group: string,
+        readonly serviceName: string,
         public autoSubscribe: boolean = true,
     ) { }
 
@@ -29,13 +54,20 @@ export abstract class ServiceEventHandler implements RawHandler {
         }
     }
 
+    /**
+     * This override automatically handles the subscription and unsubscription
+     * process. It is a good idea to call `super.onReceive` for implementors
+     * to benefit from this handler's behavior.
+     * 
+     * @param payload The payload.
+     */
     onReceive(payload: Readonly<Payload.Any<any>>) {
         switch (payload.type) {
             case "HELLO":
                 if (this.autoSubscribe) {
                     this.client.sendPayload({
-                        type: "GROUP_FETCH",
-                        name: this.group
+                        type: "SERVICE_FETCH",
+                        name: this.serviceName
                     }, _ => {
                         this.subscribe();
                     });
@@ -43,19 +75,19 @@ export abstract class ServiceEventHandler implements RawHandler {
                 break;
             case "STATUS":
                 switch (payload.code) {
-                    case "GROUP_DELETED":
-                        if (payload.name == this.group) {
-                            console.info(`Service: "${this.group}" deleted on the server.`);
+                    case "SERVICE_DELETED":
+                        if (payload.name == this.serviceName) {
+                            console.info(`Service: "${this.serviceName}" deleted on the server.`);
                         }
                         break;
-                    case "GROUP_CREATED":
-                        if (payload.name == this.group && this.autoSubscribe) {
+                    case "SERVICE_CREATED":
+                        if (payload.name == this.serviceName && this.autoSubscribe) {
                             this.subscribe();
                         }
                         break;
                     case "SELF_UNSUBSCRIBED":
-                        if (payload.name == this.group) {
-                            console.info(`Service: Unsubscribed to "${this.group}".`);
+                        if (payload.name == this.serviceName && this._subscribed) {
+                            console.info(`Service: Unsubscribed to "${this.serviceName}".`);
                             this._subscribed = false;
                             this.onUnsubscribe();
                         }
@@ -65,27 +97,25 @@ export abstract class ServiceEventHandler implements RawHandler {
         }
     }
 
+    /** Try to subscribe to the service. */
     subscribe() {
         this.client.sendPayload({
             type: "SELF_SUBSCRIBE",
-            name: this.group
+            name: this.serviceName
         }, payload => {
             if (payload.type == "STATUS" && payload.code == "SELF_SUBSCRIBED") {
-                console.info(`Service: Subscribed to "${this.group}".`);
+                console.info(`Service: Subscribed to "${this.serviceName}".`);
                 this._subscribed = true;
                 this.onSubscribe();
             }
         });
     }
 
-    get subscribed(): boolean {
-        return this._subscribed;
-    }
-
+    /** Try to unsubscribe from the service. */
     unsubscribe() {
         this.client.sendPayload({
             type: "SELF_UNSUBSCRIBE",
-            name: this.group
+            name: this.serviceName
         });
     }
 

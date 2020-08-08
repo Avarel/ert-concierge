@@ -3,7 +3,8 @@ import React from "react";
 
 /**
  * I had no idea what to name this style set so I named it Rs, after the
- * file extension for the Rust language.
+ * file extension for the Rust language. It's a fancy Apple-esque style based
+ * on Lombeyda's inputs and mockups.
  */
 export module Rs {
     export class Row extends React.PureComponent<{ light?: boolean } & React.HTMLAttributes<HTMLDivElement>> {

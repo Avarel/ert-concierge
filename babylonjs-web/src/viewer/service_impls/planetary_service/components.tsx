@@ -117,6 +117,9 @@ class PlanetaryUploadComponent extends React.Component<PlanetaryComponentProps> 
         event.preventDefault()
         let formData = new FormData(event.currentTarget);
         // TODO: this must point to the right location!
+        // right now it just rewrites the addressbar url
+        // which means it doesn't work if the central server is hosted
+        // elsewhere!
         let url = new URL(window.location.href);
         url.port = "64209";
         url.protocol

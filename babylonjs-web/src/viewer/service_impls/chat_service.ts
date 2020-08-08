@@ -34,8 +34,8 @@ export class ChatService extends ServiceEventHandler {
         this.client.sendPayload({
             type: "MESSAGE",
             target: {
-                type: "GROUP",
-                group: ChatService.CHAT_GROUP,
+                type: "SERVICE",
+                service: ChatService.CHAT_GROUP,
             },
             data: text
         });
@@ -43,7 +43,7 @@ export class ChatService extends ServiceEventHandler {
 
     onReceive(payload: Payload.Any<any>) {
         if (payload.type == "MESSAGE") {
-            if (!payload.origin || payload.origin.group?.name != ChatService.CHAT_GROUP) {
+            if (!payload.origin || payload.origin.service?.name != ChatService.CHAT_GROUP) {
                 return;
             }
     
