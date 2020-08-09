@@ -2,6 +2,7 @@ import ChatComponent, { EntryProps, StatusProps, MessageProps } from "./componen
 import React from "react";
 import ReactDOM from "react-dom";
 
+/** Basic chat UI. */
 export module Chat {
     interface Entry {
         /** Turn the entry into props for rendering. */
@@ -58,6 +59,7 @@ export module Chat {
         private component?: ChatComponent;
 
         /**
+         * Construct a chat instance.
          * @param selectorOrElement If a string (selector) is provided, it the 
          *          instance will bind to the first element that is 
          *          a descendant of node that matches selectors. Otherwise, it will

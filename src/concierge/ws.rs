@@ -251,10 +251,13 @@ impl SocketConnection {
 
         // Remove the client from all services
         for service in services.values_mut() {
-            service.hook(&self.concierge).broadcast(&ok::service_client_unsubscribed(
-                client.info(),
-                service.info(),
-            )).await?;
+            service
+                .hook(&self.concierge)
+                .broadcast(
+                    &ok::service_client_unsubscribed(client.info(), service.info()),
+                    true,
+                )
+                .await?;
             service.remove_subscriber(client_uuid);
         }
 
@@ -290,14 +293,7 @@ impl SocketConnection {
                 // Try to use the more efficient message format first.
                 // The raw format does not attempt to deserialize the "data" field,
                 // so we save on CPU cycles.
-                if let Ok(
-                    payload
-                    @
-                    PayloadRawMessage {
-                        r#type: "MESSAGE", ..
-                    },
-                ) = serde_json::from_str(string)
-                {
+                if let Ok(payload) = serde_json::from_str(string) {
                     if let Err(err) = self.handle_raw_message(uuid, seq, payload).await {
                         let clients = self.concierge.clients.read().await;
                         let client = clients.get(&uuid).unwrap();
@@ -359,10 +355,10 @@ impl SocketConnection {
                         let service = services.get(name).unwrap();
                         service
                             .hook(&self.concierge)
-                            .broadcast(&ok::service_client_subscribed(
-                                client.info(),
-                                service.info(),
-                            ))
+                            .broadcast(
+                                &ok::service_client_subscribed(client.info(), service.info()),
+                                true,
+                            )
                             .await?;
                         drop(services);
 
@@ -372,7 +368,7 @@ impl SocketConnection {
                     };
                     client.send(&sub_result.seq(seq))?;
                 } else {
-                    client.send(&err::no_such_group(name).seq(seq))?;
+                    client.send(&err::invalid_group(name).seq(seq))?;
                 }
             }
             Payload::SelfUnsubscribe { name } => {
@@ -384,10 +380,10 @@ impl SocketConnection {
                         let service = services.get(name).unwrap();
                         service
                             .hook(&self.concierge)
-                            .broadcast(&ok::service_client_unsubscribed(
-                                client.info(),
-                                service.info(),
-                            ))
+                            .broadcast(
+                                &ok::service_client_unsubscribed(client.info(), service.info()),
+                                true,
+                            )
                             .await?;
                         drop(services);
 
@@ -397,7 +393,7 @@ impl SocketConnection {
                     };
                     client.send(&unsub_result.seq(seq))?;
                 } else {
-                    client.send(&err::no_such_group(name).seq(seq))?;
+                    client.send(&err::invalid_group(name).seq(seq))?;
                 }
             }
             Payload::SelfSetSeq { seq } => {
@@ -413,16 +409,20 @@ impl SocketConnection {
                     self.concierge.broadcast(&created_result).await?;
                     client.send(&created_result.seq(seq))?;
                 } else {
-                    client.send(&err::group_already_created(service_info).seq(seq))?;
+                    client.send(&err::service_already_created(service_info).seq(seq))?;
                 }
             }
             Payload::ServiceDelete { name } => {
-                if let Some(service) = client.hook(&self.concierge).try_remove_service(name).await? {
+                if let Some(service) = client
+                    .hook(&self.concierge)
+                    .try_remove_service(name)
+                    .await?
+                {
                     let delete_result = ok::service_deleted(service.info());
                     self.concierge.broadcast(&delete_result).await?;
                     client.send(&delete_result.seq(seq))?;
                 } else {
-                    client.send(&err::no_such_group(name).seq(seq))?;
+                    client.send(&err::invalid_group(name).seq(seq))?;
                 }
             }
             Payload::ServiceFetch { name } => {
@@ -434,7 +434,7 @@ impl SocketConnection {
                         .seq(seq),
                     )?;
                 } else {
-                    client.send(&err::no_such_group(name).seq(seq))?;
+                    client.send(&err::invalid_group(name).seq(seq))?;
                 }
             }
             Payload::ClientFetchAll => {
@@ -495,7 +495,7 @@ impl SocketConnection {
                     target_client.send(&payload.with_origin(client_info.to_origin()))?;
                     client.send(&ok::message_sent().seq(seq))
                 } else {
-                    client.send(&err::no_such_name(name).seq(seq))
+                    client.send(&err::invalid_name(name).seq(seq))
                 }
             }
             Target::Uuid { uuid } => {
@@ -503,26 +503,24 @@ impl SocketConnection {
                     target_client.send(&payload.with_origin(client_info.to_origin()))?;
                     client.send(&ok::message_sent().seq(seq))
                 } else {
-                    client.send(&err::no_such_uuid(uuid).seq(seq))
+                    client.send(&err::invalid_uuid(uuid).seq(seq))
                 }
             }
-            Target::Service {
-                name: service_name,
-            } => {
+            Target::Service { service: service_name } => {
                 if let Some(service) = self.concierge.services.read().await.get(service_name) {
                     let origin = client_info.to_origin().with_service(service.info());
                     if client_uuid == service.owner_uuid {
                         // Owners are allowed to broadcast to the service.
-                        // They will get an echo of their own message.
+                        // They will not get an echo of their own message.
                         service
                             .hook(&self.concierge)
-                            .broadcast(&payload.with_origin(origin))
+                            .broadcast(&payload.with_origin(origin), false)
                             .await?;
                         client.send(&ok::message_sent().seq(seq))
                     } else if !service.clients.contains(&client_uuid) {
                         // Client must be subscribed in order to send messages to the owner.
                         client.send(&err::bad().seq(seq))
-                    } else if let Some(owner_client) = clients.get(&service.owner_uuid) { 
+                    } else if let Some(owner_client) = clients.get(&service.owner_uuid) {
                         // Other clients sending to the service will only send to the owner.
                         owner_client.send(&payload.with_origin(origin))?;
                         client.send(&ok::message_sent().seq(seq))
@@ -530,12 +528,12 @@ impl SocketConnection {
                         client.send(&err::internal("Group owner does not exist").seq(seq))
                     }
                 } else {
-                    client.send(&err::no_such_group(service_name).seq(seq))
+                    client.send(&err::invalid_group(service_name).seq(seq))
                 }
             }
             Target::ServiceClientUuid {
-                name: service_name,
-                uuid: target_client_uuid
+                service: service_name,
+                uuid: target_client_uuid,
             } => {
                 if let Some(service) = self.concierge.services.read().await.get(service_name) {
                     // Only owners of a service are allowed to use this target.
@@ -546,10 +544,10 @@ impl SocketConnection {
                         target_client.send(&payload.with_origin(origin))?;
                         client.send(&ok::message_sent().seq(seq))
                     } else {
-                        client.send(&err::no_such_uuid(target_client_uuid).seq(seq))
+                        client.send(&err::invalid_uuid(target_client_uuid).seq(seq))
                     }
                 } else {
-                    client.send(&err::no_such_group(service_name).seq(seq))
+                    client.send(&err::invalid_group(service_name).seq(seq))
                 }
             }
             Target::All => {

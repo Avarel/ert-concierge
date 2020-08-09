@@ -90,11 +90,11 @@ pub enum StatusPayload<'a> {
     /// due to some reason (reported by serde).
     Protocol { desc: &'a str },
     /// Indicates that no such name exists in the namespace of the conciergee.
-    NoSuchName { name: &'a str },
+    InvalidName { name: &'a str },
     /// Indicates that the Uuid is unrecognized by the concierge.
-    NoSuchUuid { uuid: Uuid },
-    /// Indicates that the group name is not registered with the concierge.
-    NoSuchService { name: ServiceId<'a> },
+    InvalidUuid { uuid: Uuid },
+    /// Indicates that the service name is not registered with the concierge.
+    InvalidService { name: ServiceId<'a> },
 }
 
 /// Utility methods to create good statuses.
@@ -115,7 +115,7 @@ pub mod ok {
         }
     }
 
-    pub fn self_subscribed(service: ServiceInfo<'_>) -> JsonPayload {
+    pub const fn self_subscribed(service: ServiceInfo<'_>) -> JsonPayload {
         JsonPayload::Status {
             data: StatusPayload::SelfSubscribed { service },
         }
@@ -189,13 +189,13 @@ pub mod err {
         }
     }
 
-    pub const fn group_already_created(service: ServiceInfo<'_>) -> JsonPayload {
+    pub const fn service_already_created(service: ServiceInfo<'_>) -> JsonPayload {
         JsonPayload::Status {
             data: StatusPayload::ServiceAlreadyCreated { service },
         }
     }
 
-    pub fn self_already_subscribed(service: ServiceInfo<'_>) -> JsonPayload {
+    pub const fn self_already_subscribed(service: ServiceInfo<'_>) -> JsonPayload {
         JsonPayload::Status {
             data: StatusPayload::SelfAlreadySubscribed { service },
         }
@@ -207,21 +207,21 @@ pub mod err {
         }
     }
 
-    pub const fn no_such_name(name: &str) -> JsonPayload {
+    pub const fn invalid_name(name: &str) -> JsonPayload {
         JsonPayload::Status {
-            data: StatusPayload::NoSuchName { name },
+            data: StatusPayload::InvalidName { name },
         }
     }
 
-    pub const fn no_such_uuid(uuid: Uuid) -> JsonPayload<'static> {
+    pub const fn invalid_uuid(uuid: Uuid) -> JsonPayload<'static> {
         JsonPayload::Status {
-            data: StatusPayload::NoSuchUuid { uuid },
+            data: StatusPayload::InvalidUuid { uuid },
         }
     }
 
-    pub const fn no_such_group(name: &str) -> JsonPayload {
+    pub const fn invalid_group(name: &str) -> JsonPayload {
         JsonPayload::Status {
-            data: StatusPayload::NoSuchService { name },
+            data: StatusPayload::InvalidService { name },
         }
     }
 }

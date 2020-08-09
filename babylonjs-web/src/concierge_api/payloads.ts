@@ -36,10 +36,10 @@ export module Payload {
                 readonly uuid: Uuid,
             }
             export interface TargetService extends BaseTarget<"SERVICE"> {
-                readonly name: string
+                readonly service: string
             }
             export interface TargetServiceClientUuid extends BaseTarget<"SERVICE_CLIENT_UUID"> {
-                readonly name: string,
+                readonly service: string,
                 readonly uuid: Uuid,
             }
             type TargetAll = BaseTarget<"ALL">;
@@ -122,17 +122,17 @@ export module Payload {
             readonly desc: string
         }
         export type ServiceAlreadyCreated = BaseStatus<"SERVICE_ALREADY_CREATED"> & Info.Service;
-        export interface NoSuchName extends BaseStatus<"NO_SUCH_NAME"> {
+        export interface InvalidName extends BaseStatus<"INVALID_NAME"> {
             readonly name: string
         }
-        export interface NoSuchUuid extends BaseStatus<"NO_SUCH_UUID"> {
+        export interface InvalidUuid extends BaseStatus<"INVALID_UUID"> {
             readonly uuid: Uuid
         }
-        export type NoSuchService = BaseStatus<"NO_SUCH_SERVICE"> & ServiceField;
+        export type InvalidService = BaseStatus<"INVALID_SERVICE"> & ServiceField;
     
         export type Any = Ok | MessageSent | Subscribed | Unsubscribed
             | ServiceCreated | ServiceDeleted | Bad | Unsupported | Protocol
-            | ServiceAlreadyCreated | NoSuchName | NoSuchUuid | NoSuchService
+            | ServiceAlreadyCreated | InvalidName | InvalidUuid | InvalidService
             | ClientJoined | ClientLeft;
     }
     

@@ -91,19 +91,27 @@ impl<'a> OriginInfo<'a> {
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Target<'a> {
-    /// Target a client name.
+    /// Target a client by their name.
     Name { name: &'a str },
-    /// Target a client Uuid.
+    /// Target a client by their uuid.
     Uuid { uuid: Uuid },
-    /// Target a service name.
-    Service { name: ServiceId<'a> },
-    /// Target a client subscriber of a service (OWNER ONLY).
-    ServiceClientUuid { name: ServiceId<'a>, uuid: Uuid },
+    /// Target a service by its name.
+    Service { service: ServiceId<'a> },
+    /// Target a service's subscribing client by their uuid
+    /// This can only be used by a service's owner.
+    ServiceClientUuid { service: ServiceId<'a>, uuid: Uuid },
     /// Target every client connected to the concierge.
     All,
 }
 
 pub type ServiceId<'a> = &'a str;
+
+/// Mimics a constant field for type safe deserialization.
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum PayloadRawType {
+    Message
+}
 
 /// HACK: Serde deserialize bugs up when it sees a RawValue in a tagged
 /// enum, so we have to reconstruct this and try to deserialize this version
@@ -114,8 +122,8 @@ pub type ServiceId<'a> = &'a str;
 /// the data (saving CPU cycles).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PayloadRawMessage<'a> {
-    /// Mimics the "type" tag of Payload. This should always be "MESSAGE".
-    pub r#type: &'a str,
+    /// Mimics the "type" tag of Payload. This should always be PayloadRawType::Message.
+    r#type: PayloadRawType,
     /// Origin of the message.
     #[serde(skip_deserializing)]
     pub origin: Option<OriginInfo<'a>>,
@@ -131,7 +139,7 @@ pub struct PayloadRawMessage<'a> {
 impl<'a> PayloadRawMessage<'a> {
     pub fn new(target: Target<'a>, data: &'a serde_json::value::RawValue) -> Self {
         PayloadRawMessage {
-            r#type: "MESSAGE",
+            r#type: PayloadRawType::Message,
             origin: None,
             target,
             data,

@@ -2,8 +2,7 @@ import Client, { Payload, ServiceEventHandler } from '../../concierge_api/mod';
 import { Chat } from "../../overlay/mod";
 import Tabbed from "../../overlay/tabbed/mod";
 
-export class ChatService extends ServiceEventHandler<string> {
-    private static readonly CHAT_GROUP = "chat";
+export class ChatService extends ServiceEventHandler<{ text: string }> {
     private tab?: Tabbed.Tab;
     private chatInstance?: Chat.Instance;
 
@@ -11,11 +10,11 @@ export class ChatService extends ServiceEventHandler<string> {
         client: Client,
         private readonly tabComponent: Tabbed.Instance
     ) {
-        super(client, ChatService.CHAT_GROUP);
+        super(client, "chat");
     }
 
     onSubscribe() {
-        this.tab = this.tabComponent.addTab(ChatService.CHAT_GROUP, "Chat");
+        this.tab = this.tabComponent.addTab(this.serviceName, "Chat");
         this.chatInstance = new Chat.Instance(undefined, text => this.onEnter(text));
         this.chatInstanceUpdateReact();
     }
@@ -30,39 +29,32 @@ export class ChatService extends ServiceEventHandler<string> {
      * Fired on the input being entered.
      * @param text The text in the UI.
      */
-    onEnter(text: string) {
-        this.client.sendPayload({
-            type: "MESSAGE",
-            target: {
-                type: "SERVICE",
-                name: ChatService.CHAT_GROUP,
-            },
-            data: text
-        });
+    private onEnter(text: string) {
+        this.sendToService({ text });
     }
 
-    onReceive(payload: Payload.Any<any>) {
-        if (payload.type == "MESSAGE") {
-            if (!payload.origin || payload.origin.service?.name != ChatService.CHAT_GROUP) {
-                return;
-            }
+    protected onServiceMessage(payload: { text: string }) {
+        // if (payload.type == "MESSAGE") {
+        //     if (!payload.origin || payload.origin.service?.name != ChatService.CHAT_GROUP) {
+        //         return;
+        //     }
     
-            if (typeof payload.data != "string") {
-                return;
-            }
+        //     if (typeof payload.data != "string") {
+        //         return;
+        //     }
     
-            this.chatInstance?.addMessage(
-                payload.origin.name,
-                payload.data,
-                payload.origin.uuid == this.client.uuid
-            );
-            this.chatInstanceUpdateReact();
-        } else {
-            super.onReceive(payload);
-        }
+        //     this.chatInstance?.addMessage(
+        //         payload.origin.name,
+        //         payload.data,
+        //         payload.origin.uuid == this.client.uuid
+        //     );
+        //     this.chatInstanceUpdateReact();
+        // } else {
+        //     super.onReceive(payload);
+        // }
     }
 
-    onUnsubscribe() {
+    protected onUnsubscribe() {
         this.tabComponent.removeTab("chat");
         this.tab = undefined;
         this.chatInstance = undefined;

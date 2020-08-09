@@ -2,7 +2,9 @@
 mod physics_payload;
 mod service;
 
-pub const PHYSICS_ENGINE_NAME: &str = "physics_engine";
-pub const PHYSICS_ENGINE_GROUP: &str = "physics_engine_out";
+pub const CLIENT_NAME: &str = "physics_engine";
+pub const CLIENT_NICKNAME: &str = "Physics Engine Client";
+pub const SERVICE_NAME: &str = "physics_engine";
+pub const SERVICE_NICKNAME: &str = "Rust Physics Game";
 
 pub use service::init_bot;

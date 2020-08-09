@@ -62,12 +62,13 @@ pub struct ServiceController<'a, 'c: 'a> {
 
 impl ServiceController<'_, '_> {
     /// Broadcast a payload to all connected client of a certain group.
-    pub async fn broadcast(&self, payload: &impl Serialize) -> Result<(), WsError> {
+    pub async fn broadcast(&self, payload: &impl Serialize, to_owner: bool) -> Result<(), WsError> {
         let message = Message::text(serde_json::to_string(&payload)?);
         let clients = self.concierge.clients.read().await;
         self.service
             .clients
             .iter()
+            .filter(|client_uuid| to_owner || **client_uuid != self.service.owner_uuid)
             .filter_map(|client_uuid| clients.get(client_uuid))
             .for_each(|client| {
                 client.send_ws_msg(message.clone()).ok();

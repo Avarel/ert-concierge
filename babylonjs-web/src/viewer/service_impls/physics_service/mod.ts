@@ -59,8 +59,6 @@ class PolygonShape {
 }
 
 export class RustPhysicsService extends ServiceEventHandler<PhysicsPayload> {
-    private static readonly SERVICE_NAME = "physics_engine_out";
-
     private shapes: Map<string, PolygonShape> = new Map();
     private readonly visualScale: number = 1 / 50;
     private tab: Tabbed.Tab | undefined;
@@ -70,47 +68,13 @@ export class RustPhysicsService extends ServiceEventHandler<PhysicsPayload> {
         private readonly renderer: RendererView,
         private tabbedComponent?: Tabbed.Instance
     ) {
-        super(client, RustPhysicsService.SERVICE_NAME);
-    }
-
-    onReceive(payload: Readonly<Payload.Any<any>>) {
-        if (payload.type == "MESSAGE") {
-            if (payload.origin!.service?.name != RustPhysicsService.SERVICE_NAME) {
-                console.log(payload);
-                return;
-            }
-            this.processPhysicsPayload(payload.data);
-        } else {
-            super.onReceive(payload);
-        }
-    }
-
-    onSubscribe() {
-        console.log("Fetching...")
-        this.sendToService({
-            type: "FETCH_ENTITIES"
-        });
-        this.sendToService({
-            type: "SPAWN_ENTITY"
-        });
-        this.tab = this.tabbedComponent?.addTab(RustPhysicsService.SERVICE_NAME, "Rust Physics");
-
-        this.renderTab();
+        super(client, "physics_engine");
     }
 
     renderTab() {
         if (this.tab) {
             this.tab.reactContent = React.createElement(PhysicsComponent, { handler: this });
         }
-    }
-
-    onUnsubscribe() {
-        this.clearShapes();
-        this.destroyTab();
-    }
-
-    destroyTab() {
-        this.tabbedComponent?.removeTab(RustPhysicsService.SERVICE_NAME);
     }
 
     clearShapes() {
@@ -171,7 +135,29 @@ export class RustPhysicsService extends ServiceEventHandler<PhysicsPayload> {
         }
     }
 
-    private processPhysicsPayload(payload: Readonly<PhysicsPayload>) {
+    protected onSubscribe() {
+        console.log("Fetching...")
+        
+        this.sendToService({
+            type: "FETCH_ENTITIES"
+        });
+        this.sendToService({
+            type: "SPAWN_ENTITY"
+        });
+        
+        this.tab = this.tabbedComponent?.addTab(this.serviceName, "Rust Physics");
+
+        this.renderTab();
+    }
+
+    protected onUnsubscribe() {
+        this.clearShapes();
+        this.tabbedComponent?.removeTab(this.serviceName);
+        this.tab = undefined;
+    }
+
+
+    protected onServiceMessage(payload: Readonly<PhysicsPayload>) {
         switch (payload.type) {
             case "ENTITY_NEW":
                 const entity = payload.entity;

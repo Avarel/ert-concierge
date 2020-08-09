@@ -7,7 +7,7 @@ interface PhysicsComponentProp {
 }
 export class PhysicsComponent extends React.Component<PhysicsComponentProp> {
     handleRespawn() {
-        this.props.handler.sendToSim({
+        this.props.handler.sendToService({
             type: "SPAWN_ENTITY"
         });
     }

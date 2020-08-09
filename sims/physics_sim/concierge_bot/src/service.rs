@@ -33,11 +33,12 @@ use tokio::{
 };
 use tokio_tungstenite::tungstenite::Message;
 use url::Url;
+use uuid::Uuid;
 
 pub const MS_SEND_INTERVAL: u64 = 20;
 
-pub const GROUP_TARGET: Target = Target::Service {
-    name: crate::PHYSICS_ENGINE_GROUP,
+const SERVICE_TARGET: Target = Target::Service {
+    service: crate::SERVICE_NAME,
 };
 
 fn color_from_string_hash(string: &str) -> (u8, u8, u8) {
@@ -72,34 +73,39 @@ pub async fn init_bot(running: Arc<AtomicBool>, world: Arc<RwLock<World>>) -> Re
         .expect("Failed to connect");
 
     ws.send(Message::text(serde_json::to_string(&Payload::Identify {
-        name: crate::PHYSICS_ENGINE_NAME,
-        nickname: Some("Physics Engine"),
+        name: crate::CLIENT_NAME,
+        nickname: Some(crate::CLIENT_NICKNAME),
         version: "0.2.0",
         secret: None,
         tags: vec!["simulation"],
     })?))
     .await?;
 
+    let client_uuid: Uuid;
+
     if let Some(Ok(Message::Text(string))) = ws.next().await {
-        if let Payload::Hello { .. } = serde_json::from_str(&string).unwrap() {
+        if let Payload::Hello { uuid, .. } = serde_json::from_str(&string).unwrap() {
             ws.send(Message::text(
                 serde_json::to_string(&Payload::ServiceCreate {
-                    name: crate::PHYSICS_ENGINE_GROUP,
-                    nickname: Some("Physics Engine Channel")
+                    name: crate::SERVICE_NAME,
+                    nickname: Some(crate::SERVICE_NICKNAME)
                 })
                 .unwrap(),
             ))
             .await?;
             ws.send(Message::text(
                 serde_json::to_string(&Payload::SelfSubscribe {
-                    name: crate::PHYSICS_ENGINE_GROUP
+                    name: crate::SERVICE_NAME
                 })
                 .unwrap(),
             ))
             .await?;
+            client_uuid = uuid;
         } else {
             panic!("WS did not receive a hello.")
         }
+    } else {
+        panic!("Received something else besides a text payload!")
     }
 
     let (tx, rx) = unbounded_channel();
@@ -108,7 +114,7 @@ pub async fn init_bot(running: Arc<AtomicBool>, world: Arc<RwLock<World>>) -> Re
     let outgoing_loop = rx.map(Ok).forward(sink);
 
     tokio::spawn(send_loop(world.clone(), running, tx.clone()));
-    tokio::spawn(recv_loop(world, stream, tx));
+    tokio::spawn(recv_loop(client_uuid, world, stream, tx));
     tokio::spawn(outgoing_loop);
     Ok(())
 }
@@ -135,9 +141,7 @@ pub async fn send_loop(
         let _ = tx.send(Message::text(
             serde_json::to_string(&Payload::Message {
                 origin: None,
-                target: Target::Service {
-                    name: crate::PHYSICS_ENGINE_GROUP,
-                },
+                target: SERVICE_TARGET,
                 data: PhysicsPayload::PositionDump { updates },
             })
             .unwrap(),
@@ -148,6 +152,7 @@ pub async fn send_loop(
 }
 
 pub async fn recv_loop<T>(
+    client_uuid: Uuid,
     world: Arc<RwLock<World>>,
     mut stream: impl Stream<Item = Result<Message, T>> + Unpin,
     tx: UnboundedSender<Message>,
@@ -159,19 +164,21 @@ pub async fn recv_loop<T>(
                     data,
                     origin: Some(OriginInfo { client, .. }),
                     ..
-                }) => {
+                }) if client.uuid != client_uuid => {
+                    // Ignore any messages sent by yourself, since you already know them
+                    println!("Client {} sent service message.", client.name);
                     handle_message(data, client, &world, &tx).await;
                 }
                 Ok(Payload::Status {
                     data: StatusPayload::ServiceClientSubscribed { client, service },
                     ..
-                }) if service.name == crate::PHYSICS_ENGINE_GROUP => {
+                }) if service.name == crate::SERVICE_NAME => {
                     println!("Client {} subscribed!", client.name);
                 }
                 Ok(Payload::Status {
                     data: StatusPayload::ServiceClientUnsubscribed { client, service },
                     ..
-                }) if service.name == crate::PHYSICS_ENGINE_GROUP => {
+                }) if service.name == crate::SERVICE_NAME => {
                     println!("Client {} unsubscribed!", client.name);
 
                     let mut world = world.write().await;
@@ -195,7 +202,7 @@ pub async fn recv_loop<T>(
                     tx.send(Message::text(
                         serde_json::to_string(&Payload::Message {
                             origin: None,
-                            target: GROUP_TARGET,
+                            target: SERVICE_TARGET,
                             data: PhysicsPayload::EntityDelete { ids: ids_to_delete },
                         })
                         .unwrap(),
@@ -244,7 +251,7 @@ async fn handle_message(
             tx.send(Message::text(
                 serde_json::to_string(&Payload::Message {
                     origin: None,
-                    target: GROUP_TARGET,
+                    target: SERVICE_TARGET,
                     data: PhysicsPayload::EntityDelete { ids: ids_to_delete },
                 })
                 .unwrap(),
@@ -299,10 +306,11 @@ async fn handle_message(
                     .push(ColliderPair::new(1.0, entity, other_entity));
             }
 
+            println!("Broadcasting new entity info.");
             tx.send(Message::text(
                 serde_json::to_string(&Payload::Message {
                     origin: None,
-                    target: GROUP_TARGET,
+                    target: SERVICE_TARGET,
                     data: PhysicsPayload::EntityNew {
                         entity: EntityDump {
                             id: id.0,
@@ -331,10 +339,11 @@ async fn handle_message(
                 })
                 .collect::<Vec<_>>();
 
+            println!("Sending fetch entities to {}.", client.name);
             let _ = tx.send(Message::text(
                 serde_json::to_string(&Payload::Message {
                     origin: None,
-                    target: Target::ServiceClientUuid { name: crate::PHYSICS_ENGINE_GROUP, uuid: client.uuid },
+                    target: Target::ServiceClientUuid { service: crate::SERVICE_NAME, uuid: client.uuid },
                     data: PhysicsPayload::EntityDump {
                         entities: entities.clone(),
                     },
@@ -359,10 +368,12 @@ async fn handle_message(
                         Rgb(0, 255, 0) => Rgb(0, 0, 255),
                         Rgb(0, 0, 255) | _ => Rgb(255, 0, 0),
                     };
+
+                    println!("Broadcasting color update.");
                     let _ = tx.send(Message::text(
                         serde_json::to_string(&Payload::Message {
                             origin: None,
-                            target: GROUP_TARGET,
+                            target: SERVICE_TARGET,
                             data: PhysicsPayload::ColorUpdate {
                                 id: *id,
                                 color: (color.0, color.1, color.2),
@@ -405,10 +416,11 @@ async fn handle_message(
                         pair.entity.0 != touched_entity && pair.entity.1 != touched_entity
                     });
 
+                    println!("Broadcasting entity deletion.");
                     tx.send(Message::text(
                         serde_json::to_string(&Payload::Message {
                             origin: None,
-                            target: GROUP_TARGET,
+                            target: SERVICE_TARGET,
                             data: PhysicsPayload::EntityDelete { ids: vec![id] },
                         })
                         .unwrap(),
@@ -458,10 +470,11 @@ async fn handle_message(
                                 .push(ColliderPair::new(1.0, entity, other_entity));
                         }
 
+                        println!("Broadcasting new entity clone of entity owned by {}.", client.name);
                         tx.send(Message::text(
                             serde_json::to_string(&Payload::Message {
                                 origin: None,
-                                target: GROUP_TARGET,
+                                target: SERVICE_TARGET,
                                 data: PhysicsPayload::EntityNew {
                                     entity: EntityDump {
                                         id: id.0,

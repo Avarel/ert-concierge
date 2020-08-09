@@ -1,3 +1,12 @@
+# Notes to Future Maintainers:
+#
+# This file is not used. It was an attempt at reimplementing the payload structure
+# defined in the documents. However, I have given up on it because Python has zero
+# good structured AND typed serialization/deserialization libraries. Towards the
+# end of the project, the API evolved at such a rate that I could not possibly
+# keep up updating the Python implementation, the Rust implementation, and the
+# TypeScript implementation at the same time.
+
 from __future__ import annotations
 from abc import ABC, abstractmethod
 import json

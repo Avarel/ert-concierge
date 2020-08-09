@@ -114,9 +114,6 @@ class Planet {
 }
 
 export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
-    private static readonly NAME = "planetary_simulation";
-    private static readonly GROUP = "planetary_simulation_out";
-
     /** Keeps latest batch of sys data */
     sysData?: SystemData;
     /** Map of planets */
@@ -134,28 +131,8 @@ export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
         readonly view: RendererView,
         private tabbedComponent?: Tabbed.Instance
     ) {
-        super(client, PlanetaryService.GROUP);
+        super(client, "planetary_simulation");
         this.planets = new Map();
-    }
-
-    onReceive(payload: Readonly<Payload.Any<any>>) {
-        if (payload.type == "MESSAGE") {
-            if (payload.origin!.name != PlanetaryService.NAME) {
-                return;
-            }
-            this.processPlanetsPayload(payload.data);
-        } else {
-            super.onReceive(payload);
-        }
-    }
-
-    onSubscribe() {
-        this.tab = this.tabbedComponent?.addTab(PlanetaryService.NAME, "Planetary Controls");
-        console.log("Planet simulator client is ready to go!");
-
-        this.sendToService({
-            type: "FETCH_SYSTEM_DATA"
-        });
     }
 
     renderInformation(force: boolean = false) {
@@ -210,8 +187,17 @@ export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
         }
     }
 
-    onUnsubscribe() {
-        this.tabbedComponent?.removeTab(PlanetaryService.NAME);
+    protected onSubscribe() {
+        this.tab = this.tabbedComponent?.addTab(this.serviceName, "Planetary Controls");
+        console.log("Planet simulator client is ready to go!");
+
+        this.sendToService({
+            type: "FETCH_SYSTEM_DATA"
+        });
+    }
+
+    protected onUnsubscribe() {
+        this.tabbedComponent?.removeTab(this.serviceName);
         this.clearShapes();
         console.log("Planet simulator client has disconnected!");
     }
@@ -226,7 +212,7 @@ export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
         }
     }
 
-    private processPlanetsPayload(payload: PlanetaryPayload) {
+    protected onServiceMessage(payload: PlanetaryPayload) {
         switch (payload.type) {
             case "SYSTEM_REMOVE_PLANETS":
                 for (const id of payload.ids) {

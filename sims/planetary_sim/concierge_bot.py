@@ -13,7 +13,7 @@ import requests
 from types import FrameType
 from typing import Any, Dict, cast
 from vector import Vector
-from concierge_api import ServiceCreate, Identify, Message, Payload, TargetService, TargetUuid, Target
+# from concierge_api import ServiceCreate, Identify, Message, Payload, TargetService, TargetUuid, Target
 from system_serializer import system_data_to_object
 
 # Default to localhost if no cmdline argument is provided
@@ -21,9 +21,10 @@ uri = sys.argv[1] if len(sys.argv) >= 2 else "ws://localhost:64209/ws"
 
 # General settings
 name = "planetary_simulation"
-nickname = "Planetary Simulation"
-version = "0.1.1"
-group_name = "planetary_simulation_out"
+nickname = "Planetary Simulation Client"
+version = "0.2.0"
+service_name = "planetary_simulation"
+service_nickname = "Planetary Simulation"
 
 # Runtime settings
 running = True
@@ -40,8 +41,10 @@ dt = 0.01  # timestep of the simulation
 simulation_interval = 0.01  # delays between each step
 pause_check_interval = 0.1  # delays when the simulation is paused
 
-group_target = TargetService(group_name)
-
+service_target = {
+    "type": "SERVICE",
+    "service": service_name
+}
 
 async def concierge_bot():
     """
@@ -50,8 +53,14 @@ async def concierge_bot():
     global uri
     print("Connecting to the concierge.")
     async with websockets.connect(uri, subprotocols="ert-concierge") as socket:
-        global name, nickname, version, group_name, system, uuid
-        await socket.send(Identify(name, nickname, version, tags=["simulation"]).to_json())
+        global uuid
+        await socket.send(json.dumps({
+            "type": "IDENTIFY",
+            "name": name,
+            "nickname": nickname,
+            "version": version,
+            "tags": ["simulation"]
+        }))
         hello = json.loads(await socket.recv())
 
         uuid = hello["uuid"]
@@ -59,7 +68,11 @@ async def concierge_bot():
         print(f"My uuid is {uuid}. The server version is {server_version}.")
 
         print("Creating group.")
-        await socket.send(ServiceCreate(group_name, "Planetary Simulation Channel").to_json())
+        await socket.send(json.dumps({
+            "type": "SERVICE_CREATE",
+            "name": service_name,
+            "nickname": service_nickname
+        }))
 
         print("Starting simulation.")
 
@@ -75,18 +88,18 @@ async def send_loop(socket: websockets.WebSocketClientProtocol):
     A loop to send the simulation state (separate from actually driving the simulation)
     in a set interval.
     """
-    global running, paused, send_interval, group_target
-    await send_system_data(group_target, socket)
+    global running, paused, send_interval, service_target
+    await send_system_data(service_target, socket)
     while running:
         if not paused:
-            await send_system_objs(group_target, socket)
+            await send_system_objs(service_target, socket)
             await asyncio.sleep(send_interval)
         else:
             # less intensive pause check
             await asyncio.sleep(pause_check_interval)
 
 
-async def send_system_data(target: Target, socket: websockets.WebSocketClientProtocol):
+async def send_system_data(target: Dict[str, str], socket: websockets.WebSocketClientProtocol):
     """Send the system data to the target."""
     await send_msg(target, socket, {
         "type": "SYSTEM_DATA_DUMP",
@@ -94,7 +107,7 @@ async def send_system_data(target: Target, socket: websockets.WebSocketClientPro
     })
 
 
-async def send_system_objs(target: Target, socket: websockets.WebSocketClientProtocol):
+async def send_system_objs(target: Dict[str, str], socket: websockets.WebSocketClientProtocol):
     """Send the system objects dump to the target."""
     await send_msg(target, socket, {
         "type": "SYSTEM_OBJS_DUMP",
@@ -102,20 +115,23 @@ async def send_system_objs(target: Target, socket: websockets.WebSocketClientPro
     })
 
 
-async def send_msg(target: Target, socket: websockets.WebSocketClientProtocol, data: Dict[str, Any]):
-    await socket.send(Message(None, target, data).to_json())
-
+async def send_msg(target: Dict[str, str], socket: websockets.WebSocketClientProtocol, data: Dict[str, Any]):
+    await socket.send(json.dumps({
+        "type": "MESSAGE",
+        "target": target,
+        "data": data
+    }))
 
 async def system_loop(socket: websockets.WebSocketClientProtocol):
     """
     This loop drives the system simulation one step forward in an interval.
     """
-    global running, paused, simulation_interval, pause_check_inteval, group_target
+    global running, paused, simulation_interval, pause_check_inteval, service_target
     while running:
         if not paused:
             removed = system.tick_system(dt)
             ids = list(map(lambda b: b.name, removed))
-            await send_msg(group_target, socket, {
+            await send_msg(service_target, socket, {
                 "type": "SYSTEM_REMOVE_PLANETS",
                 "ids": ids
             })
@@ -131,20 +147,18 @@ async def recv_loop(socket: websockets.WebSocketClientProtocol):
     """
 
     async for msg in socket:
-        payload = Payload.from_object(json.loads(msg))
-        if payload != None:
-            if payload.type == "MESSAGE":
-                message = cast(Message, payload)
-                try:
-                    await handle_message(message, socket)
-                except Exception as e:
-                    print("Uncaught exception", e)
+        payload = json.loads(msg)
+        if payload.get("type") == "MESSAGE":
+            try:
+                await handle_message(payload, socket)
+            except Exception as e:
+                print("Uncaught exception", e)
 
 
-async def handle_message(message: Message, socket: websockets.WebSocketClientProtocol):
+async def handle_message(message: Dict[str, Any], socket: websockets.WebSocketClientProtocol):
     """This handles each message from the recv_loop"""
-    global paused, simulation_interval, uuid, system, paused, group_target
-    msg_type = message.data.get("type")
+    global paused, simulation_interval, uuid, system, paused, service_target, service_name
+    msg_type = message["data"].get("type")
     if msg_type == "PAUSE":
         print("Paused")
         paused = True
@@ -156,16 +170,26 @@ async def handle_message(message: Message, socket: websockets.WebSocketClientPro
     elif msg_type == "STEP_FORWARD":
         system.tick_system(dt)
         if paused:
-            await send_system_objs(group_target, socket)
+            await send_system_objs(service_target, socket)
     elif msg_type == "FAST_BACKWARD":
         simulation_interval *= 2
     elif msg_type == "FETCH_SYSTEM_DATA":
-        await send_system_data(TargetUuid(message.origin.uuid), socket)
+        print(message["origin"]["name"], "request to fetch system data.")
+        await send_system_data({
+            "type": "SERVICE_CLIENT_UUID",
+            "service": service_name,
+            "uuid": message["origin"]["uuid"]
+        }, socket)
     elif msg_type == "FETCH_SYSTEM_OBJS":
-        await send_system_objs(TargetUuid(message.origin.uuid), socket)
+        print(message["origin"]["name"], "request to fetch system objects.")
+        await send_system_objs({
+            "type": "SERVICE_CLIENT_UUID",
+            "service": service_name,
+            "uuid": message["origin"]["uuid"]
+        }, socket)
     elif msg_type == "LOAD_SYSTEM":
-        url: str = message.data["url"]
-        print("Recv request to download remote system at", url)
+        url: str = message["data"]["url"]
+        print(message["origin"]["name"], "request to download remote system at", url)
 
         try:
             headers = {'x-fs-key': uuid}
@@ -176,20 +200,20 @@ async def handle_message(message: Message, socket: websockets.WebSocketClientPro
             # load
             system = system_serializer.object_to_system(r.json())
             # send
-            await send_msg(group_target, socket, {
+            await send_msg(service_target, socket, {
                 "type": "SYSTEM_CLEAR",
             })
-            await send_system_data(TargetUuid(message.origin.uuid), socket)
-            await send_system_objs(TargetUuid(message.origin.uuid), socket)
+            await send_system_data(service_target, socket)
+            await send_system_objs(service_target, socket)
             paused = temp
         except Exception as e:
             print("Unable to load remote content:", e)
     elif msg_type == "UPDATE_DATA":
         # obtain fields and update
-        update_target = str(message.data.get("target"))
-        update_field = message.data.get("field")
-        update_value = message.data.get("value")
-        print("Updating data:", update_target, update_field, update_value)
+        update_target = str(message["data"].get("target"))
+        update_field = message["data"].get("field")
+        update_value = message["data"].get("value")
+        print(message["origin"]["name"], "wants to update data:", update_target, update_field, update_value)
         # not the most elegant solution but most adaptable for other data types
         if update_target == "system":
             if update_field == "gravityConstant":
@@ -199,13 +223,13 @@ async def handle_message(message: Message, socket: websockets.WebSocketClientPro
                 # Due to laziness on the client side, I opted to send the system data
                 # which will prompt it to refetch and reset the system visualization.
                 # This is also employed in other locations, sorry for staining your eyes.
-                await send_system_data(group_target, socket)
+                await send_system_data(service_target, socket)
             elif update_field == "bodyScale":
                 system.body_scale = float(str(update_value))
-                await send_system_data(group_target, socket)
+                await send_system_data(service_target, socket)
             elif update_field == "centralBodyScale":
                 system.central_body_scale = float(str(update_value))
-                await send_system_data(group_target, socket)
+                await send_system_data(service_target, socket)
             elif update_field == "elasticity":
                 system.elasticity = float(str(update_value))
             elif update_field == "boundary":
@@ -217,7 +241,7 @@ async def handle_message(message: Message, socket: websockets.WebSocketClientPro
                 body.mass = float(str(update_value))
             elif update_field == "radius":
                 body.setBodyRadius(float(str(update_value)))
-                await send_system_data(group_target, socket)
+                await send_system_data(service_target, socket)
             elif update_field == "orbitRadius":
                 body.setOrbitRadius(float(str(update_value)))
             elif update_field == "orbitSpeed":

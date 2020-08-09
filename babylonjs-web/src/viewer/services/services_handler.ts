@@ -7,7 +7,7 @@ export class ServicesHandler implements RawHandler {
     private static readonly TAB_ID = "services";
     private tab?: Tabbed.Tab;
     private groups: Payload.Info.Service[] = [];
-    private services: Map<string, ServiceEventHandler> = new Map();
+    private services: Map<string, ServiceEventHandler<any>> = new Map();
 
     constructor(
         private readonly client: Client,
@@ -77,15 +77,15 @@ export class ServicesHandler implements RawHandler {
         this.render()
     }
 
-    addService(handler: ServiceEventHandler) {
+    addService(handler: ServiceEventHandler<any>) {
         this.services.set(handler.serviceName, handler);
         this.client.addHandler(handler);
     }
 
-    removeService(group: string) {
-        let handler = this.services.get(group);
+    removeService(serviceName: string) {
+        let handler = this.services.get(serviceName);
         if (handler) {
-            this.services.delete(group);
+            this.services.delete(serviceName);
             this.client.removeHandler(handler);
         }
     }
