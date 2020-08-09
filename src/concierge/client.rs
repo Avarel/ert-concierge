@@ -1,5 +1,5 @@
 use crate::concierge::{Concierge, Service, WsError};
-use concierge_api_rs::payload::{ClientInfo, ServiceInfo};
+use concierge_api_rs::info;
 use serde::Serialize;
 use std::{borrow::Cow, collections::HashSet};
 use tokio::sync::{
@@ -64,7 +64,7 @@ impl Client {
     }
 
     /// Utility method to construct an origin receipt on certain payloads.
-    pub fn info(&self) -> ClientInfo<'_> {
+    pub fn info(&self) -> info::Client<'_> {
         let tags = self
             .tags
             .iter()
@@ -72,7 +72,7 @@ impl Client {
             .map(Cow::Borrowed)
             .collect();
 
-        ClientInfo {
+        info::Client {
             uuid: self.uuid,
             name: Cow::Borrowed(&self.name),
             nickname: self.nickname.as_deref().map(Cow::Borrowed),
@@ -119,7 +119,7 @@ impl ClientController<'_, '_> {
     /// If this function returns `Some`, then it is attached with the group information.
     /// In addition, there is a boolean indicating if the client subscribed to a new group
     /// (`true`) or is already subscribed to the group (`false`).
-    pub async fn subscribe(&self, group_name: &str) -> Option<(ServiceInfo<'static>, bool)> {
+    pub async fn subscribe(&self, group_name: &str) -> Option<(info::Service<'static>, bool)> {
         let mut services = self.concierge.services.write().await;
         if let Some(group) = services.get_mut(group_name) {
             let result = group.add_subscriber(self.client.uuid);
@@ -142,7 +142,7 @@ impl ClientController<'_, '_> {
     /// If this function returns `Some`, then it is attached with the group information.
     /// In addition, there is a boolean indicating if the client unsubscribed from a group
     /// (`true`) or was not subscribed to the group in the first place (`false`).
-    pub async fn unsubscribe(&self, group_name: &str) -> Option<(ServiceInfo<'static>, bool)> {
+    pub async fn unsubscribe(&self, group_name: &str) -> Option<(info::Service<'static>, bool)> {
         let mut services = self.concierge.services.write().await;
         if let Some(group) = services.get_mut(group_name) {
             let result = group.remove_subscriber(self.client.uuid);
@@ -155,7 +155,7 @@ impl ClientController<'_, '_> {
 
     #[allow(dead_code)]
     /// Get all the the client's current subscription list as informational structs.
-    pub async fn subscription_info(&self) -> Vec<ServiceInfo<'static>> {
+    pub async fn subscription_info(&self) -> Vec<info::Service<'static>> {
         let subscriptions = self.client.subscriptions.read().await;
         let services = self.concierge.services.read().await;
         subscriptions
@@ -172,31 +172,34 @@ impl ClientController<'_, '_> {
         &self,
         name: &str,
         nickname: Option<&str>,
-    ) -> Result<(ServiceInfo<'_>, bool), WsError> {
+    ) -> (info::Service<'static>, bool) {
         let mut services = self.concierge.services.write().await;
         if let Some(service) = services.get(name) {
-            Ok((service.info().owned(), false))
+            (service.info().owned(), false)
         } else {
             let service = services.entry(name.to_string()).or_insert(Service::new(
                 name.to_owned(),
                 nickname.map(str::to_string),
                 self.client.uuid,
             ));
-            Ok((service.info().owned(), true))
+            (service.info().owned(), true)
         }
     }
 
     /// Remove a group if a client is the owner of that group.
     /// Returns `true` if the group was removed.
-    pub async fn try_remove_service(&self, group_name: &str) -> Result<Option<Service>, WsError> {
+    pub async fn try_remove_service(&self, group_name: &str) -> Option<Result<Service, info::Service<'static>>> {
         let mut groups = self.concierge.services.write().await;
 
-        if let Some(group) = groups.get(group_name) {
-            if group.owner_uuid == self.client.uuid {
-                return Ok(groups.remove(group_name));
+        if let Some(service) = groups.get(group_name) {
+            if service.owner_uuid == self.client.uuid {
+                // Unwrap safety: we just confirmed that the group exist by that key.
+                return Some(Ok(groups.remove(group_name).unwrap()))
+            } else {
+                return Some(Err(service.info().owned()))
             }
         }
 
-        Ok(None)
+        None
     }
 }

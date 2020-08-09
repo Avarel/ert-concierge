@@ -70,7 +70,7 @@ async def concierge_bot():
         print("Creating group.")
         await socket.send(json.dumps({
             "type": "SERVICE_CREATE",
-            "name": service_name,
+            "service": service_name,
             "nickname": service_nickname
         }))
 

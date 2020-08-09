@@ -10,7 +10,7 @@ import { RawHandler, ServiceEventHandler } from "./handlers";
 interface EventWaiterPoint {
     readonly seq: number,
     readonly timeoutHandle: number,
-    readonly callback: (payload: Readonly<Payload.Any<any>>) => void
+    readonly callback: (payload: Readonly<Payload.Out>) => void
 }
 
 /**
@@ -117,8 +117,8 @@ export default class Client {
      * @returns The sequence number associated with the sent payload.
      */
     sendPayload(
-        payload: Readonly<Payload.Any<any>>,
-        callback?: (payload: Readonly<Payload.Any<any>>) => void
+        payload: Readonly<Payload.In>,
+        callback?: (payload: Readonly<Payload.Out>) => void
     ): number {
         if (this.socket == undefined) {
             throw new Error("Socket is not connected")
@@ -228,7 +228,7 @@ export default class Client {
         const data = JSON.parse(event.data);
         // Hopeful check that it has a type field.
         if (typeof data == "object" && data.hasOwnProperty("type")) {
-            const payload = data as Payload.Any<any>;
+            const payload = data as Payload.Out;
 
             // Special case HELLO.
             if (payload.type == "HELLO") {

@@ -2,11 +2,7 @@
 
 use super::Concierge;
 use super::{client::Client, service::Service};
-use concierge_api_rs::{
-    payload::{Payload, PayloadRawMessage, Target},
-    status::{err, ok, StatusPayload},
-    CloseReason, JsonPayload,
-};
+use concierge_api_rs::{CloseReason, PayloadIn, PayloadMessage, PayloadOut, Target};
 pub use error::WsError;
 use futures::{future, pin_mut, SinkExt, Stream, StreamExt};
 use log::{debug, info, warn};
@@ -88,8 +84,8 @@ impl SocketConnection {
         // Protocol: Expect a payload that identifies the client within 5 seconds.
         if let Ok(Some(Ok(msg))) = timeout(Duration::from_secs(5), socket.next()).await {
             if let Ok(string) = msg.to_str() {
-                match serde_json::from_str::<JsonPayload>(string) {
-                    Ok(JsonPayload::Identify {
+                match serde_json::from_str::<PayloadIn>(string) {
+                    Ok(PayloadIn::Identify {
                         name,
                         nickname,
                         version,
@@ -161,10 +157,8 @@ impl SocketConnection {
         let rx = client.take_rx().unwrap();
 
         self.concierge
-            .broadcast(&JsonPayload::Status {
-                data: StatusPayload::ClientJoined {
-                    client: client.info(),
-                },
+            .broadcast(&PayloadOut::ClientJoined {
+                client: client.info(),
             })
             .await?;
 
@@ -201,7 +195,7 @@ impl SocketConnection {
             .await
             .get(&client_uuid)
             .unwrap()
-            .send(&JsonPayload::Hello {
+            .send(&PayloadOut::Hello {
                 uuid: client_uuid,
                 version: crate::VERSION,
             })?;
@@ -244,7 +238,9 @@ impl SocketConnection {
             // and we just queried it's existence.
             let service = services.remove(&service_name).unwrap();
             self.concierge
-                .broadcast(&ok::service_deleted(service.info()))
+                .broadcast(&PayloadOut::ServiceDeleteResult {
+                    service: service.info(),
+                })
                 .await
                 .ok();
         }
@@ -254,7 +250,10 @@ impl SocketConnection {
             service
                 .hook(&self.concierge)
                 .broadcast(
-                    &ok::service_client_unsubscribed(client.info(), service.info()),
+                    &PayloadOut::ServiceClientUnsubscribed {
+                        client: client.info(),
+                        service: service.info(),
+                    },
                     true,
                 )
                 .await?;
@@ -265,10 +264,8 @@ impl SocketConnection {
 
         // Broadcast client leave to all connecting clients.
         self.concierge
-            .broadcast(&JsonPayload::Status {
-                data: StatusPayload::ClientLeft {
-                    client: client.info(),
-                },
+            .broadcast(&PayloadOut::ClientLeft {
+                client: client.info(),
             })
             .await?;
 
@@ -297,21 +294,27 @@ impl SocketConnection {
                     if let Err(err) = self.handle_raw_message(uuid, seq, payload).await {
                         let clients = self.concierge.clients.read().await;
                         let client = clients.get(&uuid).unwrap();
-                        client.send(&err::internal(&err.to_string()).seq(seq)).ok();
+                        client
+                            .send(&PayloadOut::error_internal(&err.to_string()).seq(seq))
+                            .ok();
                     }
                 } else {
-                    match serde_json::from_str::<JsonPayload>(string) {
+                    match serde_json::from_str::<PayloadIn>(string) {
                         Ok(payload) => {
                             if let Err(err) = self.handle_payload(uuid, &mut seq, payload).await {
                                 let clients = self.concierge.clients.read().await;
                                 let client = clients.get(&uuid).unwrap();
-                                client.send(&err::internal(&err.to_string()).seq(seq)).ok();
+                                client
+                                    .send(&PayloadOut::error_internal(&err.to_string()).seq(seq))
+                                    .ok();
                             }
                         }
                         Err(err) => {
                             let clients = self.concierge.clients.read().await;
                             let client = clients.get(&uuid).unwrap();
-                            client.send(&err::protocol(&err.to_string()).seq(seq)).ok();
+                            client
+                                .send(&PayloadOut::error_protocol(&err.to_string()).seq(seq))
+                                .ok();
                         }
                     }
                 }
@@ -327,131 +330,140 @@ impl SocketConnection {
         &self,
         client_uuid: Uuid,
         seq_ref: &mut usize,
-        payload: JsonPayload<'_>,
+        payload: PayloadIn<'_>,
     ) -> Result<(), WsError> {
         let seq = *seq_ref;
         let clients = self.concierge.clients.read().await;
         let client = clients.get(&client_uuid).unwrap();
 
         match payload {
-            Payload::Message { target, data, .. } => {
-                warn!("Concierge attempted the slow message path!");
-                // WARN: This is a fallback path. It's somewhat important that this path is
-                // never used since it means that the server is deserializing the irrelevant data,
-                // which takes up CPU cycles. If this path runs, it is most likely that the
-                // structure of PayloadRawMessage does not match the structure of Payload::Message.
-                // In that case, you should fix that.
-                drop(clients);
-                let data = serde_json::value::to_raw_value(&data)?;
-                self.handle_raw_message(client_uuid, seq, PayloadRawMessage::new(target, &data))
-                    .await?
-            }
-            Payload::SelfSubscribe { name } => {
-                if let Some((service_info, action)) =
-                    client.hook(&self.concierge).subscribe(name).await
+            PayloadIn::SelfSubscribe {
+                service: service_name,
+            } => {
+                if let Some((service_info, successful)) =
+                    client.hook(&self.concierge).subscribe(service_name).await
                 {
-                    let sub_result = if action {
+                    if successful {
                         let services = self.concierge.services.read().await;
-                        let service = services.get(name).unwrap();
+                        let service = services.get(service_name).unwrap();
                         service
                             .hook(&self.concierge)
                             .broadcast(
-                                &ok::service_client_subscribed(client.info(), service.info()),
+                                &PayloadOut::service_client_subscribed(
+                                    client.info(),
+                                    service.info(),
+                                ),
                                 true,
                             )
                             .await?;
                         drop(services);
-
-                        ok::self_subscribed(service_info)
-                    } else {
-                        err::self_already_subscribed(service_info)
-                    };
-                    client.send(&sub_result.seq(seq))?;
-                } else {
-                    client.send(&err::invalid_group(name).seq(seq))?;
-                }
-            }
-            Payload::SelfUnsubscribe { name } => {
-                if let Some((service_info, action)) =
-                    client.hook(&self.concierge).unsubscribe(name).await
-                {
-                    let unsub_result = if action {
-                        let services = self.concierge.services.read().await;
-                        let service = services.get(name).unwrap();
-                        service
-                            .hook(&self.concierge)
-                            .broadcast(
-                                &ok::service_client_unsubscribed(client.info(), service.info()),
-                                true,
-                            )
-                            .await?;
-                        drop(services);
-
-                        ok::self_unsubscribed(service_info)
-                    } else {
-                        err::self_not_subscribed(service_info)
-                    };
-                    client.send(&unsub_result.seq(seq))?;
-                } else {
-                    client.send(&err::invalid_group(name).seq(seq))?;
-                }
-            }
-            Payload::SelfSetSeq { seq } => {
-                *seq_ref = seq;
-                client.send(&ok::ok().seq(*seq_ref))?;
-            }
-            Payload::ServiceCreate { name, nickname } => {
-                let controller = client.hook(&self.concierge);
-                let (service_info, action) = controller.try_create_service(name, nickname).await?;
-
-                if action {
-                    let created_result = ok::service_created(service_info);
-                    self.concierge.broadcast(&created_result).await?;
-                    client.send(&created_result.seq(seq))?;
-                } else {
-                    client.send(&err::service_already_created(service_info).seq(seq))?;
-                }
-            }
-            Payload::ServiceDelete { name } => {
-                if let Some(service) = client
-                    .hook(&self.concierge)
-                    .try_remove_service(name)
-                    .await?
-                {
-                    let delete_result = ok::service_deleted(service.info());
-                    self.concierge.broadcast(&delete_result).await?;
-                    client.send(&delete_result.seq(seq))?;
-                } else {
-                    client.send(&err::invalid_group(name).seq(seq))?;
-                }
-            }
-            Payload::ServiceFetch { name } => {
-                if let Some(service) = self.concierge.services.read().await.get(name) {
+                    }
                     client.send(
-                        &JsonPayload::ServiceFetchResult {
+                        &PayloadOut::self_subscribe_result(successful, service_info).seq(seq),
+                    )?;
+                } else {
+                    client.send(&PayloadOut::invalid_group(service_name).seq(seq))?;
+                }
+            }
+            PayloadIn::SelfUnsubscribe {
+                service: service_name,
+            } => {
+                if let Some((service_info, successful)) =
+                    client.hook(&self.concierge).unsubscribe(service_name).await
+                {
+                    if successful {
+                        let services = self.concierge.services.read().await;
+                        let service = services.get(service_name).unwrap();
+                        service
+                            .hook(&self.concierge)
+                            .broadcast(
+                                &PayloadOut::service_client_unsubscribed(
+                                    client.info(),
+                                    service.info(),
+                                ),
+                                true,
+                            )
+                            .await?;
+                        drop(services);
+                    }
+                    client.send(
+                        &PayloadOut::self_unsubscribe_result(successful, service_info).seq(seq),
+                    )?;
+                } else {
+                    client.send(&PayloadOut::invalid_group(service_name).seq(seq))?;
+                }
+            }
+            PayloadIn::SelfSetSeq { seq } => {
+                *seq_ref = seq;
+                client.send(&PayloadOut::Ok.seq(*seq_ref))?;
+            }
+            PayloadIn::ServiceCreate {
+                service: service_name,
+                nickname,
+            } => {
+                let controller = client.hook(&self.concierge);
+                let (service_info, successful) =
+                    controller.try_create_service(service_name, nickname).await;
+
+                let created_result = PayloadOut::service_create_result(successful, service_info);
+
+                if successful {
+                    self.concierge.broadcast(&created_result).await?;
+                }
+
+                client.send(&created_result.seq(seq))?;
+            }
+            PayloadIn::ServiceDelete {
+                service: service_name,
+            } => {
+                if let Some(result) = client
+                    .hook(&self.concierge)
+                    .try_remove_service(service_name)
+                    .await
+                {
+                    match result {
+                        Ok(service) => {
+                            let delete_result = PayloadOut::service_delete_result(service.info());
+                            self.concierge.broadcast(&delete_result).await?;
+                            client.send(&delete_result.seq(seq))?;
+                        }
+                        Err(_) => {
+                            client.send(&PayloadOut::Bad)?;
+                        }
+                    }
+                } else {
+                    client.send(&PayloadOut::invalid_group(service_name).seq(seq))?;
+                }
+            }
+            PayloadIn::ServiceFetch {
+                service: service_name,
+            } => {
+                if let Some(service) = self.concierge.services.read().await.get(service_name) {
+                    client.send(
+                        &PayloadOut::ServiceFetchResult {
                             service: service.info(),
                         }
                         .seq(seq),
                     )?;
                 } else {
-                    client.send(&err::invalid_group(name).seq(seq))?;
+                    client.send(&PayloadOut::invalid_group(service_name).seq(seq))?;
                 }
             }
-            Payload::ClientFetchAll => {
+            PayloadIn::ClientFetchAll => {
                 let clients = clients.values().map(Client::info).collect::<Vec<_>>();
-                client.send(&JsonPayload::ClientFetchAllResult { clients }.seq(seq))?;
+                client.send(&PayloadOut::ClientFetchAllResult { clients }.seq(seq))?;
             }
-            Payload::ServiceFetchAll => {
+            PayloadIn::ServiceFetchAll => {
                 let services = self.concierge.services.read().await;
                 let service_infos = services.values().map(Service::info).collect();
                 client.send(
-                    &JsonPayload::ServiceFetchAllResult {
+                    &PayloadOut::ServiceFetchAllResult {
                         services: service_infos,
                     }
                     .seq(seq),
                 )?;
             }
-            Payload::SelfFetch => {
+            PayloadIn::SelfFetch => {
                 let subscriptions = client.subscriptions.read().await;
                 let services = self.concierge.services.read().await;
                 let service_infos = subscriptions
@@ -460,24 +472,24 @@ impl SocketConnection {
                     .map(Service::info)
                     .collect::<Vec<_>>();
                 client.send(
-                    &JsonPayload::SelfFetchResult {
+                    &PayloadOut::SelfFetchResult {
                         client: client.info(),
                         subscriptions: service_infos,
                     }
                     .seq(seq),
                 )?
             }
-            _ => client.send(&err::unsupported().seq(seq))?,
+            _ => client.send(&PayloadOut::ErrorUnsupported.seq(seq))?,
         }
         Ok(())
     }
 
     /// Handles raw message payloads.
-    async fn handle_raw_message(
+    async fn handle_raw_message<'a>(
         &self,
         client_uuid: Uuid,
         seq: usize,
-        payload: PayloadRawMessage<'_>,
+        payload: PayloadMessage<'a, &'a serde_json::value::RawValue>,
     ) -> Result<(), WsError> {
         let clients = self.concierge.clients.read().await;
         let client = clients.get(&client_uuid).unwrap();
@@ -493,20 +505,22 @@ impl SocketConnection {
                     .and_then(|id| clients.get(&id))
                 {
                     target_client.send(&payload.with_origin(client_info.to_origin()))?;
-                    client.send(&ok::message_sent().seq(seq))
+                    client.send(&PayloadOut::Ok.seq(seq))
                 } else {
-                    client.send(&err::invalid_name(name).seq(seq))
+                    client.send(&PayloadOut::invalid_name(name).seq(seq))
                 }
             }
             Target::Uuid { uuid } => {
                 if let Some(target_client) = clients.get(&uuid) {
                     target_client.send(&payload.with_origin(client_info.to_origin()))?;
-                    client.send(&ok::message_sent().seq(seq))
+                    client.send(&PayloadOut::Ok.seq(seq))
                 } else {
-                    client.send(&err::invalid_uuid(uuid).seq(seq))
+                    client.send(&PayloadOut::invalid_uuid(uuid).seq(seq))
                 }
             }
-            Target::Service { service: service_name } => {
+            Target::Service {
+                service: service_name,
+            } => {
                 if let Some(service) = self.concierge.services.read().await.get(service_name) {
                     let origin = client_info.to_origin().with_service(service.info());
                     if client_uuid == service.owner_uuid {
@@ -516,19 +530,21 @@ impl SocketConnection {
                             .hook(&self.concierge)
                             .broadcast(&payload.with_origin(origin), false)
                             .await?;
-                        client.send(&ok::message_sent().seq(seq))
+                        client.send(&PayloadOut::Ok.seq(seq))
                     } else if !service.clients.contains(&client_uuid) {
                         // Client must be subscribed in order to send messages to the owner.
-                        client.send(&err::bad().seq(seq))
+                        client.send(&PayloadOut::Bad.seq(seq))
                     } else if let Some(owner_client) = clients.get(&service.owner_uuid) {
                         // Other clients sending to the service will only send to the owner.
                         owner_client.send(&payload.with_origin(origin))?;
-                        client.send(&ok::message_sent().seq(seq))
+                        client.send(&PayloadOut::Ok.seq(seq))
                     } else {
-                        client.send(&err::internal("Group owner does not exist").seq(seq))
+                        client.send(
+                            &PayloadOut::error_internal("Group owner does not exist").seq(seq),
+                        )
                     }
                 } else {
-                    client.send(&err::invalid_group(service_name).seq(seq))
+                    client.send(&PayloadOut::invalid_group(service_name).seq(seq))
                 }
             }
             Target::ServiceClientUuid {
@@ -538,23 +554,23 @@ impl SocketConnection {
                 if let Some(service) = self.concierge.services.read().await.get(service_name) {
                     // Only owners of a service are allowed to use this target.
                     if client_uuid != service.owner_uuid {
-                        client.send(&err::bad().seq(seq))
+                        client.send(&PayloadOut::Bad.seq(seq))
                     } else if let Some(target_client) = clients.get(&target_client_uuid) {
                         let origin = client_info.to_origin().with_service(service.info());
                         target_client.send(&payload.with_origin(origin))?;
-                        client.send(&ok::message_sent().seq(seq))
+                        client.send(&PayloadOut::Ok.seq(seq))
                     } else {
-                        client.send(&err::invalid_uuid(target_client_uuid).seq(seq))
+                        client.send(&PayloadOut::invalid_uuid(target_client_uuid).seq(seq))
                     }
                 } else {
-                    client.send(&err::invalid_group(service_name).seq(seq))
+                    client.send(&PayloadOut::invalid_group(service_name).seq(seq))
                 }
             }
             Target::All => {
                 self.concierge
                     .broadcast(&payload.with_origin(client_info.to_origin()))
                     .await?;
-                client.send(&ok::message_sent().seq(seq))
+                client.send(&PayloadOut::Ok.seq(seq))
             }
         }
     }

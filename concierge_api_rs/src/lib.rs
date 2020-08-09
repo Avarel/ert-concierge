@@ -1,12 +1,14 @@
 pub mod payload;
-pub mod status;
+pub mod info;
+pub mod message;
 
-use payload::Payload;
-
-/// Payloads where the message data fields are JSON values.
-pub type JsonPayload<'a> = Payload<'a, serde_json::Value>;
+pub use payload::{PayloadIn, PayloadOut};
+pub use message::{PayloadMessage, Target};
+pub use info::{Client, Service, Origin};
 
 use std::borrow::Cow;
+
+pub type ServiceId<'a> = &'a str;
 
 pub struct CloseReason<'a> {
     pub code: u16,

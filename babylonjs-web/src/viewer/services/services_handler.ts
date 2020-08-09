@@ -22,7 +22,7 @@ export class ServicesHandler implements RawHandler {
         this.groups.length = 0;
     }
 
-    onReceive(payload: Readonly<Payload.Any<any>>) {
+    onReceive(payload: Readonly<Payload.Out>) {
         switch (payload.type) {
             case "HELLO":
                 this.tab = this.tabComponent.addTab(ServicesHandler.TAB_ID, "Services");
@@ -38,22 +38,18 @@ export class ServicesHandler implements RawHandler {
                 });
                 this.render();
                 break;
-            case "STATUS":
-                switch (payload.code) {
-                    case "SERVICE_CREATED":
-                        this.client.sendPayload({
-                            type: "SERVICE_FETCH",
-                            name: payload.name
-                        }, payload => {
-                            if (payload.type == "SERVICE_FETCH_RESULT") {
-                                this.addGroup(payload);
-                            }
-                        });
-                        break;
-                    case "SERVICE_DELETED":
-                        this.removeGroup(payload.name);
-                        break;
-                }
+            case "SERVICE_CREATE_RESULT":
+                this.client.sendPayload({
+                    type: "SERVICE_FETCH",
+                    service: payload.service.name
+                }, payload => {
+                    if (payload.type == "SERVICE_FETCH_RESULT") {
+                        this.addGroup(payload.service);
+                    }
+                });
+                break;
+            case "SERVICE_DELETE_RESULT":
+                this.removeGroup(payload.service.name);
                 break;
         }
     }
@@ -97,7 +93,7 @@ export class ServicesHandler implements RawHandler {
         } {
             this.client.sendPayload({
                 type: "SELF_SUBSCRIBE",
-                name
+                service: name
             });
         }
     }
@@ -109,7 +105,7 @@ export class ServicesHandler implements RawHandler {
         } {
             this.client.sendPayload({
                 type: "SELF_UNSUBSCRIBE",
-                name
+                service: name
             });
         }
     }

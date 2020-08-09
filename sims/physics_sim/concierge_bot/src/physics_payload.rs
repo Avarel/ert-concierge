@@ -1,10 +1,10 @@
-use concierge_api_rs::payload::Payload as ConciergePayload;
+use concierge_api_rs::PayloadMessage as GenericPayloadMessage;
 use cs3_physics::{polygon::Polygon, vector::Vec2f};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use std::marker::PhantomData;
 
-pub type Payload<'a> = ConciergePayload<'a, PhysicsPayload<'a>>;
+pub type PayloadMessage<'a> = GenericPayloadMessage<'a, PhysicsPayload<'a>>;
 
 type RgbColor = (u8, u8, u8);
 

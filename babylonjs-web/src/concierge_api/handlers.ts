@@ -13,7 +13,7 @@ export interface RawHandler {
      * Handles socket text events that are assumed to be valid
      * payloads.
      */
-    onReceive(payload: Readonly<Payload.Any<any>>): void;
+    onReceive(payload: Readonly<Payload.Out>): void;
     /** Handle socket error events/ */
     onError?(event: Event): void;
 }
@@ -77,7 +77,7 @@ export abstract class ServiceEventHandler<T> implements RawHandler {
      * 
      * @param payload The payload.
      */
-    onReceive(payload: Readonly<Payload.Any<T>>): void {
+    onReceive(payload: Readonly<Payload.Out>): void {
         switch (payload.type) {
             case "MESSAGE":
                 if (payload.type == "MESSAGE" && payload.origin!.service?.name == this.serviceName) {
@@ -88,35 +88,31 @@ export abstract class ServiceEventHandler<T> implements RawHandler {
                 if (this.autoSubscribe) {
                     this.client.sendPayload({
                         type: "SERVICE_FETCH",
-                        name: this.serviceName
+                        service: this.serviceName
                     }, _ => {
                         this.subscribe();
                     });
                 }
                 break;
-            case "STATUS":
-                switch (payload.code) {
-                    case "SERVICE_DELETED":
-                        if (payload.name == this.serviceName) {
-                            console.info(`Service: "${this.serviceName}" deleted on the server.`);
-                            if (this.__subscribed) {
-                                this.__subscribed = false;
-                                this.onUnsubscribe();
-                            }
-                        }
-                        break;
-                    case "SERVICE_CREATED":
-                        if (payload.name == this.serviceName && this.autoSubscribe) {
-                            this.subscribe();
-                        }
-                        break;
-                    case "SELF_UNSUBSCRIBED":
-                        if (payload.name == this.serviceName && this.__subscribed) {
-                            console.info(`Service: Unsubscribed to "${this.serviceName}".`);
-                            this.__subscribed = false;
-                            this.onUnsubscribe();
-                        }
-                        break;
+            case "SERVICE_DELETE_RESULT":
+                if (payload.service.name == this.serviceName) {
+                    console.info(`Service: "${this.serviceName}" deleted on the server.`);
+                    if (this.__subscribed) {
+                        this.__subscribed = false;
+                        this.onUnsubscribe();
+                    }
+                }
+                break;
+            case "SERVICE_CREATE_RESULT":
+                if (payload.service.name == this.serviceName && this.autoSubscribe) {
+                    this.subscribe();
+                }
+                break;
+            case "SELF_UNSUBSCRIBE_RESULT":
+                if (payload.service.name == this.serviceName && this.__subscribed && payload.successful) {
+                    console.info(`Service: Unsubscribed to "${this.serviceName}".`);
+                    this.__subscribed = false;
+                    this.onUnsubscribe();
                 }
                 break;
         }
@@ -127,9 +123,9 @@ export abstract class ServiceEventHandler<T> implements RawHandler {
     subscribe() {
         this.client.sendPayload({
             type: "SELF_SUBSCRIBE",
-            name: this.serviceName
+            service: this.serviceName
         }, payload => {
-            if (payload.type == "STATUS" && payload.code == "SELF_SUBSCRIBED") {
+            if (payload.type == "SELF_SUBSCRIBE_RESULT" && payload.successful) {
                 console.info(`Service: Subscribed to "${this.serviceName}".`);
                 this.__subscribed = true;
                 this.onSubscribe();
@@ -141,7 +137,7 @@ export abstract class ServiceEventHandler<T> implements RawHandler {
     unsubscribe() {
         this.client.sendPayload({
             type: "SELF_UNSUBSCRIBE",
-            name: this.serviceName
+            service: this.serviceName
         });
     }
 

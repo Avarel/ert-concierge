@@ -1,9 +1,6 @@
-use crate::physics_payload::{EntityDump, EntityUpdate, Payload, PhysicsPayload};
+use crate::physics_payload::{EntityDump, EntityUpdate, PayloadMessage, PhysicsPayload};
 use anyhow::Result;
-use concierge_api_rs::{
-    payload::{ClientInfo, OriginInfo, Target},
-    status::StatusPayload,
-};
+use concierge_api_rs::{PayloadIn, PayloadOut, info, Target};
 use cs3_physics::{
     ecs::{
         colliders::{ColliderList, ColliderPair, Shape},
@@ -22,7 +19,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    time::{UNIX_EPOCH, Duration, SystemTime},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::{
     sync::{
@@ -72,30 +69,32 @@ pub async fn init_bot(running: Arc<AtomicBool>, world: Arc<RwLock<World>>) -> Re
         .await
         .expect("Failed to connect");
 
-    ws.send(Message::text(serde_json::to_string(&Payload::Identify {
-        name: crate::CLIENT_NAME,
-        nickname: Some(crate::CLIENT_NICKNAME),
-        version: "0.2.0",
-        secret: None,
-        tags: vec!["simulation"],
-    })?))
+    ws.send(Message::text(serde_json::to_string(
+        &PayloadIn::Identify {
+            name: crate::CLIENT_NAME,
+            nickname: Some(crate::CLIENT_NICKNAME),
+            version: "0.2.0",
+            secret: None,
+            tags: vec!["simulation"],
+        },
+    )?))
     .await?;
 
     let client_uuid: Uuid;
 
     if let Some(Ok(Message::Text(string))) = ws.next().await {
-        if let Payload::Hello { uuid, .. } = serde_json::from_str(&string).unwrap() {
+        if let PayloadOut::Hello { uuid, .. } = serde_json::from_str(&string).unwrap() {
             ws.send(Message::text(
-                serde_json::to_string(&Payload::ServiceCreate {
-                    name: crate::SERVICE_NAME,
-                    nickname: Some(crate::SERVICE_NICKNAME)
+                serde_json::to_string(&PayloadIn::ServiceCreate {
+                    service: crate::SERVICE_NAME,
+                    nickname: Some(crate::SERVICE_NICKNAME),
                 })
                 .unwrap(),
             ))
             .await?;
             ws.send(Message::text(
-                serde_json::to_string(&Payload::SelfSubscribe {
-                    name: crate::SERVICE_NAME
+                serde_json::to_string(&PayloadIn::SelfSubscribe {
+                    service: crate::SERVICE_NAME,
                 })
                 .unwrap(),
             ))
@@ -139,11 +138,10 @@ pub async fn send_loop(
             .collect::<Vec<_>>();
 
         let _ = tx.send(Message::text(
-            serde_json::to_string(&Payload::Message {
-                origin: None,
-                target: SERVICE_TARGET,
-                data: PhysicsPayload::PositionDump { updates },
-            })
+            serde_json::to_string(&PayloadMessage::new(
+                SERVICE_TARGET,
+                PhysicsPayload::PositionDump { updates },
+            ))
             .unwrap(),
         ));
 
@@ -159,26 +157,28 @@ pub async fn recv_loop<T>(
 ) {
     while let Some(Ok(msg)) = stream.next().await {
         if let Ok(string) = msg.to_text() {
-            match serde_json::from_str::<Payload>(string) {
-                Ok(Payload::Message {
-                    data,
-                    origin: Some(OriginInfo { client, .. }),
-                    ..
-                }) if client.uuid != client_uuid => {
-                    // Ignore any messages sent by yourself, since you already know them
-                    println!("Client {} sent service message.", client.name);
-                    handle_message(data, client, &world, &tx).await;
+            if let Ok(PayloadMessage {
+                data,
+                origin: Some(info::Origin { client, .. }),
+                ..
+            }) = serde_json::from_str(string)
+            {
+                if client.uuid == client_uuid {
+                    return;
                 }
-                Ok(Payload::Status {
-                    data: StatusPayload::ServiceClientSubscribed { client, service },
-                    ..
-                }) if service.name == crate::SERVICE_NAME => {
+                // Ignore any messages sent by yourself, since you already know them
+                println!("Client {} sent service message.", client.name);
+                handle_message(data, client, &world, &tx).await;
+            }
+            match serde_json::from_str::<PayloadOut>(string) {
+                Ok(PayloadOut::ServiceClientSubscribed { client, service })
+                    if service.name == crate::SERVICE_NAME =>
+                {
                     println!("Client {} subscribed!", client.name);
                 }
-                Ok(Payload::Status {
-                    data: StatusPayload::ServiceClientUnsubscribed { client, service },
-                    ..
-                }) if service.name == crate::SERVICE_NAME => {
+                Ok(PayloadOut::ServiceClientUnsubscribed { client, service })
+                    if service.name == crate::SERVICE_NAME =>
+                {
                     println!("Client {} unsubscribed!", client.name);
 
                     let mut world = world.write().await;
@@ -198,19 +198,18 @@ pub async fn recv_loop<T>(
                         .filter_map(|ent| ids.get(*ent))
                         .map(|id| id.0)
                         .collect::<Vec<_>>();
-        
+
                     tx.send(Message::text(
-                        serde_json::to_string(&Payload::Message {
-                            origin: None,
-                            target: SERVICE_TARGET,
-                            data: PhysicsPayload::EntityDelete { ids: ids_to_delete },
-                        })
+                        serde_json::to_string(&PayloadMessage::new(
+                            SERVICE_TARGET,
+                            PhysicsPayload::EntityDelete { ids: ids_to_delete },
+                        ))
                         .unwrap(),
                     ))
                     .unwrap();
-        
+
                     drop(ids);
-        
+
                     world.delete_entities(&to_delete).expect("Delete fail");
                 }
                 Ok(_) | Err(_) => {}
@@ -221,7 +220,7 @@ pub async fn recv_loop<T>(
 
 async fn handle_message(
     data: PhysicsPayload<'_>,
-    client: ClientInfo<'_>,
+    client: info::Client<'_>,
     world: &RwLock<World>,
     tx: &UnboundedSender<Message>,
 ) {
@@ -249,11 +248,10 @@ async fn handle_message(
                 .collect::<Vec<_>>();
 
             tx.send(Message::text(
-                serde_json::to_string(&Payload::Message {
-                    origin: None,
-                    target: SERVICE_TARGET,
-                    data: PhysicsPayload::EntityDelete { ids: ids_to_delete },
-                })
+                serde_json::to_string(&PayloadMessage::new(
+                    SERVICE_TARGET,
+                    PhysicsPayload::EntityDelete { ids: ids_to_delete },
+                ))
                 .unwrap(),
             ))
             .unwrap();
@@ -280,7 +278,7 @@ async fn handle_message(
                 Vec2f::new(0.0, 50.0),
             ]);
             body.translate((x, y).into());
-            let color = color_from_string_hash(&client.name);
+            let color = color_from_string_hash(&client.uuid.to_string());
 
             let id = Id::random();
 
@@ -308,17 +306,16 @@ async fn handle_message(
 
             println!("Broadcasting new entity info.");
             tx.send(Message::text(
-                serde_json::to_string(&Payload::Message {
-                    origin: None,
-                    target: SERVICE_TARGET,
-                    data: PhysicsPayload::EntityNew {
+                serde_json::to_string(&PayloadMessage::new(
+                    SERVICE_TARGET,
+                    PhysicsPayload::EntityNew {
                         entity: EntityDump {
                             id: id.0,
                             polygon: body,
                             color: (color.0, color.1, color.2),
                         },
                     },
-                })
+                ))
                 .unwrap(),
             ))
             .unwrap();
@@ -341,13 +338,15 @@ async fn handle_message(
 
             println!("Sending fetch entities to {}.", client.name);
             let _ = tx.send(Message::text(
-                serde_json::to_string(&Payload::Message {
-                    origin: None,
-                    target: Target::ServiceClientUuid { service: crate::SERVICE_NAME, uuid: client.uuid },
-                    data: PhysicsPayload::EntityDump {
+                serde_json::to_string(&PayloadMessage::new(
+                    Target::ServiceClientUuid {
+                        service: crate::SERVICE_NAME,
+                        uuid: client.uuid,
+                    },
+                    PhysicsPayload::EntityDump {
                         entities: entities.clone(),
                     },
-                })
+                ))
                 .unwrap(),
             ));
         }
@@ -371,14 +370,13 @@ async fn handle_message(
 
                     println!("Broadcasting color update.");
                     let _ = tx.send(Message::text(
-                        serde_json::to_string(&Payload::Message {
-                            origin: None,
-                            target: SERVICE_TARGET,
-                            data: PhysicsPayload::ColorUpdate {
+                        serde_json::to_string(&PayloadMessage::new(
+                            SERVICE_TARGET,
+                            PhysicsPayload::ColorUpdate {
                                 id: *id,
                                 color: (color.0, color.1, color.2),
                             },
-                        })
+                        ))
                         .unwrap(),
                     ));
                 }
@@ -418,11 +416,10 @@ async fn handle_message(
 
                     println!("Broadcasting entity deletion.");
                     tx.send(Message::text(
-                        serde_json::to_string(&Payload::Message {
-                            origin: None,
-                            target: SERVICE_TARGET,
-                            data: PhysicsPayload::EntityDelete { ids: vec![id] },
-                        })
+                        serde_json::to_string(&PayloadMessage::new(
+                            SERVICE_TARGET,
+                            PhysicsPayload::EntityDelete { ids: vec![id] },
+                        ))
                         .unwrap(),
                     ))
                     .unwrap();
@@ -470,19 +467,21 @@ async fn handle_message(
                                 .push(ColliderPair::new(1.0, entity, other_entity));
                         }
 
-                        println!("Broadcasting new entity clone of entity owned by {}.", client.name);
+                        println!(
+                            "Broadcasting new entity clone of entity owned by {}.",
+                            client.name
+                        );
                         tx.send(Message::text(
-                            serde_json::to_string(&Payload::Message {
-                                origin: None,
-                                target: SERVICE_TARGET,
-                                data: PhysicsPayload::EntityNew {
+                            serde_json::to_string(&PayloadMessage::new(
+                                SERVICE_TARGET,
+                                PhysicsPayload::EntityNew {
                                     entity: EntityDump {
                                         id: id.0,
                                         polygon: shape.0,
                                         color: (rgb.0, rgb.1, rgb.2),
                                     },
                                 },
-                            })
+                            ))
                             .unwrap(),
                         ))
                         .unwrap();

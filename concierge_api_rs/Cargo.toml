@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 # Serialization framework
-serde_json = { version = "1.0", features = ["raw_value"] }
+serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 # Universally unique identifiers
 uuid = { version = "0.8.1", features = ["v4", "serde"] }

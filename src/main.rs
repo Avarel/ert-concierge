@@ -1,10 +1,6 @@
 mod concierge;
 
-// Only compile this module for tests.
-#[cfg(test)]
-mod tests;
-
-use concierge::{Concierge, FsError, service::Service};
+use concierge::{Concierge, FsError};
 use log::{debug, info};
 use semver::VersionReq;
 use std::{net::SocketAddr, sync::Arc};
@@ -37,25 +33,14 @@ fn main() {
         .enable_all()
         .build()
         .unwrap();
-    runtime.block_on(setup())
+    runtime.block_on(serve())
 }
 
-async fn setup() {
+async fn serve() {
+    info!("Starting up the server.");
+
     // Wrap the server in an atomic ref-counter, to make it safe to work with in between threads.
     let concierge = Arc::new(Concierge::new());
-
-    // Create a chat group
-    let chat_name = "chat".to_owned();
-    concierge.services.write().await.insert(
-        chat_name.to_owned(),
-        Service::new(chat_name, Some("Chat Channel".to_string()), Uuid::nil()),
-    );
-
-    serve(concierge).await
-}
-
-async fn serve(concierge: Arc<Concierge>) {
-    info!("Starting up the server.");
 
     let addr = SocketAddr::from(SOCKET_ADDR);
 

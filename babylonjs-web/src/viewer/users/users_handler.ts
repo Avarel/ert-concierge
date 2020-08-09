@@ -25,7 +25,7 @@ export class ClientsHandler implements RawHandler {
         this.clear();
     }
 
-    onReceive(payload: Readonly<Payload.Any<any>>) {
+    onReceive(payload: Readonly<Payload.Out>) {
         switch (payload.type) {
             case "HELLO":
                 this.client.sendPayload({
@@ -40,15 +40,11 @@ export class ClientsHandler implements RawHandler {
                 });
                 this.render();
                 break;
-            case "STATUS":
-                switch (payload.code) {
-                    case "CLIENT_JOINED":
-                        this.addClient(payload);
-                        break;
-                    case "CLIENT_LEFT":
-                        this.removeUser(payload.uuid);
-                        break;
-                }
+            case "CLIENT_JOINED":
+                this.addClient(payload.client);
+                break;
+            case "CLIENT_LEFT":
+                this.removeUser(payload.client.uuid);
                 break;
         }
     }

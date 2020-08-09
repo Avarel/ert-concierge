@@ -1,5 +1,5 @@
 use super::{Concierge, WsError};
-use concierge_api_rs::payload::ServiceInfo;
+use concierge_api_rs::info;
 use serde::Serialize;
 use std::{borrow::Cow, collections::HashSet};
 use uuid::Uuid;
@@ -25,8 +25,8 @@ impl Service {
     }
 
     /// Utility method to construct an origin receipt on certain payloads.
-    pub fn info(&self) -> ServiceInfo<'_> {
-        ServiceInfo {
+    pub fn info(&self) -> info::Service<'_> {
+        info::Service {
             name: Cow::Borrowed(&self.name),
             nickname: self.nickname.as_deref().map(Cow::Borrowed),
             owner_uuid: self.owner_uuid,

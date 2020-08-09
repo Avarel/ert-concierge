@@ -3,7 +3,19 @@ export type Uuid = string & { readonly __is_uuid: never };
 
 export module Payload {
     interface ServiceField {
-        readonly name: string
+        readonly service: string
+    }
+
+    interface SuccessfulField {
+        readonly successful: boolean
+    }
+
+    interface HasClientInfo {
+        readonly client: Info.Client
+    }
+
+    interface HasServiceInfo {
+        readonly service: Info.Service
     }
 
     export module Info {
@@ -83,63 +95,58 @@ export module Payload {
         readonly uuid: Uuid,
         readonly version: string
     }
-    export type ServiceFetchResult = Base<"SERVICE_FETCH_RESULT"> & Info.Service;
+    export type ServiceFetchResult = Base<"SERVICE_FETCH_RESULT"> & HasServiceInfo;
     export interface ServiceFetchAllResult extends Base<"SERVICE_FETCH_ALL_RESULT"> {
         readonly services: ReadonlyArray<Info.Service>
     }
     export interface ClientFetchAllResult extends Base<"CLIENT_FETCH_ALL_RESULT"> {
         readonly clients: ReadonlyArray<Info.Client>
     }
-    export interface SelfFetchResult extends Base<"SELF_FETCH_RESULT">, Info.Client {
+    export interface SelfFetchResult extends Base<"SELF_FETCH_RESULT">, HasClientInfo {
         readonly subscriptions: ReadonlyArray<Info.Client>,
     }
 
-    export module Status {
-        /** These statuses may be sequenced. */ 
-        export interface BaseStatus<T extends string> extends Base<"STATUS"> {
-            readonly code: T
-        }
-    
-        export type ClientJoined = BaseStatus<"CLIENT_JOINED"> & Info.Client;
-        export type ClientLeft = BaseStatus<"CLIENT_LEFT"> & Info.Client;
-        export type Ok = BaseStatus<"OK">;
-        export type MessageSent = BaseStatus<"MESSAGE_SENT">;
-        export type Subscribed = BaseStatus<"SELF_SUBSCRIBED"> & Info.Service;
-        export type AlreadySubscribed = BaseStatus<"SELF_ALREADY_SUBSCRIBED"> & Info.Service;
-        export type NotSubscribed = BaseStatus<"SELF_NOT_SUBSCRIBED"> & Info.Service;
-        export type Unsubscribed = BaseStatus<"SELF_UNSUBSCRIBED"> & Info.Service;
-        export type ServiceCreated = BaseStatus<"SERVICE_CREATED">  & Info.Service;
-        export type ServiceDeleted = BaseStatus<"SERVICE_DELETED"> & Info.Service;
-        export interface ServiceClientSubscribed extends BaseStatus<"SERVICE_CLIENT_SUBSCRIBED">, Info.Client {
-            service: Info.Service
-        }
-        export interface ServiceClientUnsubscribed extends BaseStatus<"SERVICE_CLIENT_UNSUBSCRIBED">, Info.Client {
-            service: Info.Service
-        }
-        export type Bad = BaseStatus<"BAD">;
-        export type Unsupported = BaseStatus<"UNSUPPORTED">;
-        export interface Protocol extends BaseStatus<"PROTOCOL"> {
-            readonly desc: string
-        }
-        export type ServiceAlreadyCreated = BaseStatus<"SERVICE_ALREADY_CREATED"> & Info.Service;
-        export interface InvalidName extends BaseStatus<"INVALID_NAME"> {
-            readonly name: string
-        }
-        export interface InvalidUuid extends BaseStatus<"INVALID_UUID"> {
-            readonly uuid: Uuid
-        }
-        export type InvalidService = BaseStatus<"INVALID_SERVICE"> & ServiceField;
-    
-        export type Any = Ok | MessageSent | Subscribed | Unsubscribed
-            | ServiceCreated | ServiceDeleted | Bad | Unsupported | Protocol
-            | ServiceAlreadyCreated | InvalidName | InvalidUuid | InvalidService
-            | ClientJoined | ClientLeft;
+    export type ClientJoined = Base<"CLIENT_JOINED"> & HasClientInfo;
+    export type ClientLeft = Base<"CLIENT_LEFT"> & HasClientInfo;
+    export type Ok = Base<"OK">;
+    export type Subscribed = Base<"SELF_SUBSCRIBE_RESULT"> & HasServiceInfo & SuccessfulField;
+    export type Unsubscribed = Base<"SELF_UNSUBSCRIBE_RESULT"> & HasServiceInfo & SuccessfulField;
+    export type ServiceCreated = Base<"SERVICE_CREATE_RESULT">  & HasServiceInfo & SuccessfulField;
+    export type ServiceDeleted = Base<"SERVICE_DELETE_RESULT"> & HasServiceInfo;
+    export interface ServiceClientSubscribed extends Base<"SERVICE_CLIENT_SUBSCRIBED">, HasClientInfo {
+        service: Info.Service
     }
+    export interface ServiceClientUnsubscribed extends Base<"SERVICE_CLIENT_UNSUBSCRIBED">, HasClientInfo {
+        service: Info.Service
+    }
+    export type Bad = Base<"BAD">;
+    export type ErrorUnsupported = Base<"ERROR_UNSUPPORTED">;
+    export interface ErrorInternal extends Base<"ERROR_INTERNAL"> {
+        readonly desc: string
+    }
+    export interface ErrorProtocol extends Base<"ERROR_PROTOCOL"> {
+        readonly desc: string
+    }
+    export type ServiceAlreadyCreated = Base<"SERVICE_ALREADY_CREATED"> & HasServiceInfo;
+    export interface InvalidName extends Base<"INVALID_NAME"> {
+        readonly name: string
+    }
+    export interface InvalidUuid extends Base<"INVALID_UUID"> {
+        readonly uuid: Uuid
+    }
+    export type InvalidService = Base<"INVALID_SERVICE"> & ServiceField;
+
+    export type Out = Message<any> | Ok | Subscribed | Unsubscribed
+        | ServiceCreated | ServiceDeleted | Bad | ErrorUnsupported | ErrorInternal
+        | ErrorProtocol | ServiceAlreadyCreated | InvalidName | InvalidUuid 
+        | InvalidService | ClientJoined | ClientLeft | Hello | ServiceFetchResult 
+        | ServiceFetchAllResult | ClientFetchAllResult | SelfFetchResult;
     
-    export type Any<M> = Identify | Message<M> | SelfSubscribe | SelfUnsubscribe
+    export type In = Message<any> | Identify | SelfSubscribe | SelfUnsubscribe
         | ServiceCreate | ServiceDelete | ServiceFetch | ClientFetchAll
-        | ServiceFetchAll | SelfFetch | Hello | ServiceFetchResult | ServiceFetchAllResult
-        | ClientFetchAllResult | SelfFetchResult | Status.Any;
+        | ServiceFetchAll | SelfFetch;
+
+    export type Any = In | Out;
 }
 
 export default Payload;
