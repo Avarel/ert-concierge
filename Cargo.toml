@@ -20,7 +20,9 @@ tokio = { version = "0.2", default-features = false, features = ["io-std", "macr
 tokio-util = { version = "0.3", default-features = false, features = ["codec"] }
 sanitize-filename = "0.2"
 # WebSocket implementation
-warp = { version = "0.2", features = ["tls"] }
+actix = "0.9"
+actix-web = "2.0"
+actix-web-actors = "2.0"
 # Ergonomic error handling
 thiserror = "1.0"
 # Serialization framework
@@ -40,6 +42,7 @@ concierge_api_rs = { path = "./concierge_api_rs" }
 [dev-dependencies]
 anyhow = "1.0"
 url = "2.1.1"
+warp = "0.2"
 tokio-tungstenite = "0.11"
 reqwest = { version = "0.10", features = ["stream"] }
 
