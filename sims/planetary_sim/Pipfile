@@ -1,0 +1,14 @@
+[[source]]
+name = "planetary_simulation"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+websockets = "*"
+asyncio = "*"
+requests = "*"
+
+[requires]
+python_version = "3.8"
