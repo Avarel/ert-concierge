@@ -10,32 +10,11 @@ All HTTP requests to the server must have an `x-fs-key` header attached with a `
 * Create a `POST` HTTP request to `./fs/client_name/file.extension`.
     * Sub-folders are allowed, ie. `./fs/client_name/folder/../file.extension`
 * The HTTP request must have an `x-fs-key` header with the UUID associated with `client_name`.
-
-There is two flavors of uploading:
-* Byte stream uploading.
-    * The body should also be an output stream/sink in which the file data gets written to.
-* Multipart uploading.
+* The method of uploading is through multipart forms.
     * This uploading method is often used by browsers and for large files.
     * The concierge only supports uploading one file using multipart at the moment.
 
 Upon success/completion of the data stream, the server will return a `201 CREATED` status code.
-
-### Rust Example (Byte Stream)
-This is an example of uploading afile using Rust, adapted from the [Rust file server client](./examples/fs_client.rs). The rest of the rust examples use 
-
-```rust
-let file = File::open(Path::new(".").join(file_name)).await?;
-
-let stream = FramedRead::new(file, BytesCodec::new());
-let client = reqwest::Client::new();
-let res = client
-    .put(&format!("http://127.0.0.1:8080/fs/{}/{}", name, file_name))
-    .timeout(Duration::from_secs(1))
-    .header("x-fs-key", uuid)
-    .body(Body::wrap_stream(stream))
-    .send()
-    .await?;
-```
 
 ### JS Example (Browser-based Multipart Form)
 ```javascript

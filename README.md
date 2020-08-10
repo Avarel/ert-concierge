@@ -18,7 +18,8 @@ This will `cd` to the front-end directory and build the TypeScript files into mi
 
 ## Running
 ### Front-End
-To access the front-end, you simply compile (see above) and launch the `index.html` file.
+To access the front-end, you simply compile (see above) and launch the `index.html` file. Alternatively,
+the front-end is also mounted at `/babylonjs` when the central server is running.
 ### Central Server
 ```bash
 cargo run --release

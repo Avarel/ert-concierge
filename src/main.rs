@@ -46,15 +46,22 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::Logger::default())
             .service(web::resource("/ws").route(web::get().to(ws::index)))
             .service(
-                web::resource("/fs/{client_name}/{file_name}")
+                web::scope("/fs")
                     .wrap(
                         Cors::new()
                             .allowed_methods(vec!["GET", "POST", "DELETE"])
                             .finish(),
                     )
-                    .route(web::get().to(fs::get))
-                    .route(web::delete().to(fs::delete))
-                    .route(web::post().to(fs::multipart_upload)),
+                    .service(
+                        web::scope("/{client_name}")
+                            .service(
+                                web::resource("/{file_name}")
+                                    .route(web::get().to(fs::get))
+                                    .route(web::delete().to(fs::delete))
+                                    .route(web::post().to(fs::multipart_upload_single)),
+                            )
+                            .route("/", web::post().to(fs::multipart_upload_multi)),
+                    ),
             )
     })
     .bind(SocketAddr::from(SOCKET_ADDR))?
