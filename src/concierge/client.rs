@@ -119,9 +119,9 @@ impl ClientController<'_, '_> {
     /// If this function returns `Some`, then it is attached with the group information.
     /// In addition, there is a boolean indicating if the client subscribed to a new group
     /// (`true`) or is already subscribed to the group (`false`).
-    pub async fn subscribe(&self, group_name: &str) -> Option<(info::Service<'static>, bool)> {
+    pub async fn subscribe(&self, service_name: &str) -> Option<(info::Service<'static>, bool)> {
         let mut services = self.concierge.services.write().await;
-        if let Some(group) = services.get_mut(group_name) {
+        if let Some(group) = services.get_mut(service_name) {
             let result = group.add_subscriber(self.client.uuid);
             self.client
                 .subscriptions
@@ -142,11 +142,11 @@ impl ClientController<'_, '_> {
     /// If this function returns `Some`, then it is attached with the group information.
     /// In addition, there is a boolean indicating if the client unsubscribed from a group
     /// (`true`) or was not subscribed to the group in the first place (`false`).
-    pub async fn unsubscribe(&self, group_name: &str) -> Option<(info::Service<'static>, bool)> {
+    pub async fn unsubscribe(&self, service_name: &str) -> Option<(info::Service<'static>, bool)> {
         let mut services = self.concierge.services.write().await;
-        if let Some(group) = services.get_mut(group_name) {
+        if let Some(group) = services.get_mut(service_name) {
             let result = group.remove_subscriber(self.client.uuid);
-            self.client.subscriptions.write().await.remove(group_name);
+            self.client.subscriptions.write().await.remove(service_name);
             Some((group.info().owned(), result))
         } else {
             None
@@ -167,6 +167,7 @@ impl ClientController<'_, '_> {
     }
 
     /// Create a group if it currently does not exist in the concierge.
+    ///
     /// Returns `true` if the group was created.
     pub async fn try_create_service(
         &self,
@@ -187,16 +188,22 @@ impl ClientController<'_, '_> {
     }
 
     /// Remove a group if a client is the owner of that group.
-    /// Returns `true` if the group was removed.
-    pub async fn try_remove_service(&self, group_name: &str) -> Option<Result<Service, info::Service<'static>>> {
+    ///
+    /// Returns `Some(Ok)` if the group was removed.
+    /// Returns `Some(Err)` if the group was not removed because the
+    ///     client was not the owner of the service's owner.
+    pub async fn try_remove_service(
+        &self,
+        service_name: &str,
+    ) -> Option<Result<Service, info::Service<'static>>> {
         let mut groups = self.concierge.services.write().await;
 
-        if let Some(service) = groups.get(group_name) {
+        if let Some(service) = groups.get(service_name) {
             if service.owner_uuid == self.client.uuid {
                 // Unwrap safety: we just confirmed that the group exist by that key.
-                return Some(Ok(groups.remove(group_name).unwrap()))
+                return Some(Ok(groups.remove(service_name).unwrap()));
             } else {
-                return Some(Err(service.info().owned()))
+                return Some(Err(service.info().owned()));
             }
         }
 
