@@ -1,37 +1,39 @@
 import "./style.scss";
 
-import { Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, StandardMaterial, ActionManager, MeshBuilder, Mesh, IAction, TrailMesh } from "babylonjs";
+import * as BABYLON from 'babylonjs';
 import { RendererView } from "../../renderer";
-import Client, { Payload, ServiceEventHandler } from "../../../concierge_api/mod";
+import Client, { ServiceEventHandler } from "../../../concierge_api/mod";
 import { SystemObject, SystemData, PlanetaryPayload } from "./payloads";
 import React from "react";
 import { PlanetaryComponent } from "./components";
 import { Tabbed } from "../../../overlay/mod";
 
 class Planet {
-    private enterAction?: IAction;
-    private exitAction?: IAction;
-    private clickAction?: IAction;
+    private enterAction?: BABYLON.IAction;
+    private exitAction?: BABYLON.IAction;
+    private clickAction?: BABYLON.IAction;
     data!: SystemObject;
 
     private constructor(
         public readonly id: string,
-        private centroid: Vector3,
-        public mesh: Mesh,
-        public trailMesh?: TrailMesh
+        private centroid: BABYLON.Vector3,
+        public mesh: BABYLON.Mesh,
+        public trailMesh?: BABYLON.TrailMesh
     ) { }
 
-    static create(id: string, centroid: Vector3, radius: number, scene: Scene, color: Color3, scale: number = 1): Planet {
-        let mesh = MeshBuilder.CreateSphere("mySphere", { diameter: radius * 2 * scale }, scene);
+    static create(id: string, centroid: BABYLON.Vector3, radius: number, scene: BABYLON.Scene, color: BABYLON.Color3, scale: number = 1): Planet {
+        let mesh = BABYLON.MeshBuilder.CreateSphere("mySphere", { diameter: radius * 2 * scale }, scene);
         mesh.position = centroid;
 
-        var mat = new StandardMaterial("myMaterial", scene);
+        var mat = new BABYLON.StandardMaterial("myMaterial", scene);
         mat.diffuseColor = color;
         mesh.material = mat;
 
-        mesh.actionManager = new ActionManager(scene);
+        mesh.actionManager = new BABYLON.ActionManager(scene);
+        // mesh.actionManager.registerAction(new BABYLON.SetValueAction(BABYLON.ActionManager.OnPointerOutTrigger, mesh.material, "emissiveColor", mat.emissiveColor));
+        // mesh.actionManager.registerAction(new BABYLON.SetValueAction(BABYLON.ActionManager.OnPointerOverTrigger, mesh.material, "emissiveColor", BABYLON.Color3.Red()));
 
-        let trailMesh = new TrailMesh("trail", mesh, scene, Math.min(0.02, radius * scale), 1000, true);
+        let trailMesh = new BABYLON.TrailMesh("trail", mesh, scene, Math.min(0.02, radius * scale), 1000, true);
 
         return new Planet(id, centroid, mesh, trailMesh);
     }
@@ -44,21 +46,21 @@ class Planet {
 
     hookHover(handler: PlanetaryService) {
         if (this.mesh.actionManager) {
-            this.enterAction = new ExecuteCodeAction(
+            this.enterAction = new BABYLON.ExecuteCodeAction(
                 BABYLON.ActionManager.OnPointerOverTrigger,
                 () => {
                     handler.hoveredPlanets.add(this.id);
                     handler.renderInformation();
                 }
             );
-            this.exitAction = new ExecuteCodeAction(
+            this.exitAction = new BABYLON.ExecuteCodeAction(
                 BABYLON.ActionManager.OnPointerOutTrigger,
                 () => {
                     handler.hoveredPlanets.delete(this.id);
                     handler.renderInformation();
                 }
             );
-            this.clickAction = new ExecuteCodeAction(
+            this.clickAction = new BABYLON.ExecuteCodeAction(
                 BABYLON.ActionManager.OnPickTrigger,
                 () => {
                     if (handler.planetLock == this.id) {
@@ -76,12 +78,12 @@ class Planet {
     }
 
     unlit() {
-        (this.mesh.material as StandardMaterial).emissiveColor = Color3.Black();
+        (this.mesh.material as BABYLON.StandardMaterial).emissiveColor = BABYLON.Color3.Black();
 
     }
 
     lit() {
-        (this.mesh.material as StandardMaterial).emissiveColor = Color3.Red();
+        (this.mesh.material as BABYLON.StandardMaterial).emissiveColor = BABYLON.Color3.Red();
     }
 
     unhookHover() {
@@ -101,11 +103,11 @@ class Planet {
         }
     }
 
-    setColor(color: DeepImmutableObject<Color3>) {
-        (this.mesh.material! as StandardMaterial).diffuseColor! = color;
+    setColor(color: Readonly<BABYLON.Color3>) {
+        (this.mesh.material! as BABYLON.StandardMaterial).diffuseColor! = color;
     }
 
-    moveTo(point: DeepImmutableObject<Vector3>) {
+    moveTo(point: Readonly<BABYLON.Vector3>) {
         let translate = point.subtract(this.centroid);
 
         this.mesh.position.addInPlace(translate);
@@ -237,7 +239,7 @@ export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
                     return;
                 }
                 for (let obj of payload.objects) {
-                    let location = new Vector3(obj.location[0], obj.location[1], obj.location[2])
+                    let location = new BABYLON.Vector3(obj.location[0], obj.location[1], obj.location[2])
                         .scaleInPlace(1 / this.sysData.scale)
                         .scaleInPlace(this.visualScale);
 
@@ -249,7 +251,7 @@ export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
                         if (this.view.scene) {
                             let radius = obj.radius / this.sysData.scale * this.sysData.bodyScale * this.visualScale;
 
-                            let color = Color3.FromArray(obj.color);
+                            let color = BABYLON.Color3.FromArray(obj.color);
                             if (obj.name == this.sysData.centralBodyName) {
                                 console.log("Found central body!")
                                 radius *= this.sysData.centralBodyScale;
