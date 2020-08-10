@@ -1,8 +1,9 @@
 use crate::concierge::{self, Concierge};
 use actix::prelude::*;
 use actix_web_actors::ws::{Message, ProtocolError, WebsocketContext};
-use concierge::IdentifyPackage;
+use concierge::{Disconnect, IdentifyPackage, IncomingMessage};
 use concierge_api_rs::PayloadIn;
+use log::{warn, error};
 use semver::Version;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
@@ -13,29 +14,20 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct WsChatSession {
-    /// unique session id
     pub uuid: Uuid,
-    /// Client must send ping at least once per 10 seconds (CLIENT_TIMEOUT),
-    /// otherwise we drop connection.
     pub last_hb: Instant,
-    /// Chat server
-    pub concierge_addr: Addr<Concierge>,
+    pub c_addr: Addr<Concierge>,
 }
 
 impl Actor for WsChatSession {
     type Context = WebsocketContext<Self>;
 
-    /// Method is called on actor start.
-    /// We register ws session with ChatServer
     fn started(&mut self, ctx: &mut Self::Context) {
-        // we'll start heartbeat process on session start.
         self.hb(ctx);
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
-        // notify chat server
-        self.concierge_addr
-            .do_send(concierge::Disconnect { uuid: self.uuid });
+        self.c_addr.do_send(Disconnect { uuid: self.uuid });
         Running::Stop
     }
 }
@@ -57,120 +49,114 @@ fn verify_name(name: &str) -> bool {
 impl StreamHandler<Result<Message, ProtocolError>> for WsChatSession {
     fn handle(&mut self, msg: Result<Message, ProtocolError>, ctx: &mut Self::Context) {
         let msg = match msg {
-            Err(_) => {
+            Err(err) => {
+                error!("Dropping session: {}", err);
                 ctx.stop();
                 return;
             }
             Ok(msg) => msg,
         };
 
-        match msg {
-            Message::Ping(msg) => {
-                self.last_hb = Instant::now();
-                ctx.pong(&msg);
-            }
-            Message::Pong(_) => {
-                self.last_hb = Instant::now();
-            }
-            Message::Text(text) => {
-                if self.uuid.is_nil() {
-                    match serde_json::from_str::<PayloadIn>(&text) {
-                        Ok(PayloadIn::Identify {
-                            name,
-                            nickname,
-                            version,
-                            secret,
-                            tags,
-                        }) => {
-                            // // name must be alphanumeric
-                            if !verify_name(name) {
-                                ctx.close(None);
-                                ctx.stop();
-                                return;
-                            }
-                            // // check for secret
-                            if secret != crate::SECRET {
-                                ctx.close(None);
-                                ctx.stop();
-                                return;
-                            }
-                            // // check that version matches (might need some work)
-                            if !crate::min_version_req().matches(&Version::parse(version).unwrap())
-                            {
-                                ctx.close(None);
-                                ctx.stop();
-                                return;
-                            }
-                            // // Convert the tags to owned
-                            let tags = tags.iter().map(|s| s.to_string()).collect();
-
-                            self.concierge_addr
-                                .send(IdentifyPackage {
-                                    name: name.to_owned(),
-                                    nickname: nickname.map(ToOwned::to_owned),
-                                    tags,
-                                    addr: ctx.address().recipient(),
-                                })
-                                .into_actor(self)
-                                .then(|res, act, ctx| {
-                                    match res {
-                                        Ok(res) => act.uuid = res,
-                                        _ => ctx.stop(),
-                                    }
-                                    fut::ready(())
-                                })
-                                .wait(ctx);
-                        }
-                        Ok(_) => {
+        if self.uuid.is_nil() {
+            if let Message::Text(text) = msg {
+                match serde_json::from_str::<PayloadIn>(&text) {
+                    Ok(PayloadIn::Identify {
+                        name,
+                        nickname,
+                        version,
+                        secret,
+                        tags,
+                    }) => {
+                        // Check that name is alphanumeric.
+                        if !verify_name(name) {
                             ctx.close(None);
+                            ctx.stop();
+                            return;
                         }
-                        Err(_) => {
+                        // Check for secret if it is set.
+                        if crate::SECRET.is_some() && secret != crate::SECRET {
                             ctx.close(None);
+                            ctx.stop();
+                            return;
                         }
+                        // Check that versioning is allowed.
+                        if !crate::min_version_req().matches(&Version::parse(version).unwrap())
+                        {
+                            ctx.close(None);
+                            ctx.stop();
+                            return;
+                        }
+                        // Convert tags to owned.
+                        let tags = tags.into_iter().map(str::to_owned).collect();
+    
+                        self.c_addr
+                            .send(IdentifyPackage {
+                                name: name.to_owned(),
+                                nickname: nickname.map(ToOwned::to_owned),
+                                tags,
+                                addr: ctx.address().recipient(),
+                            })
+                            .into_actor(self)
+                            .then(|res, act, ctx| {
+                                match res {
+                                    Ok(Some(res)) => act.uuid = res,
+                                    Ok(None) => ctx.stop(),
+                                    _ => ctx.stop(),
+                                }
+                                fut::ready(())
+                            })
+                            .wait(ctx);
                     }
-                } else {
-                    self.concierge_addr.do_send(concierge::IncomingMessage {
+                    Ok(_) => {
+                        ctx.close(None);
+                    }
+                    Err(_) => {
+                        ctx.close(None);
+                    }
+                }
+            } else {
+                ctx.close(None);
+                ctx.stop();
+            }
+        } else {
+            match msg {
+                Message::Ping(msg) => {
+                    self.last_hb = Instant::now();
+                    ctx.pong(&msg);
+                }
+                Message::Pong(_) => {
+                    self.last_hb = Instant::now();
+                }
+                Message::Text(text) => {
+                    self.c_addr.do_send(IncomingMessage {
                         uuid: self.uuid,
                         text,
                     })
                 }
+                Message::Binary(_) => println!("Unexpected binary"),
+                Message::Close(reason) => {
+                    ctx.close(reason);
+                    ctx.stop();
+                }
+                Message::Continuation(_) => {
+                    ctx.stop();
+                }
+                Message::Nop => (),
             }
-            Message::Binary(_) => println!("Unexpected binary"),
-            Message::Close(reason) => {
-                ctx.close(reason);
-                ctx.stop();
-            }
-            Message::Continuation(_) => {
-                ctx.stop();
-            }
-            Message::Nop => (),
         }
     }
 }
 
 impl WsChatSession {
-    /// helper method that sends ping to client every second.
-    ///
-    /// also this method checks heartbeats from client
     fn hb(&self, ctx: &mut WebsocketContext<Self>) {
         ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
-            // check client heartbeats
             if Instant::now().duration_since(act.last_hb) > CLIENT_TIMEOUT {
-                // heartbeat timed out
-                println!("Websocket Client heartbeat failed, disconnecting!");
-
-                // notify chat server
-                act.concierge_addr
-                    .do_send(concierge::Disconnect { uuid: act.uuid });
-
-                // stop actor
+                warn!("WS client {} failed heartbeat. Dropping.", act.uuid);
+                act.c_addr.do_send(Disconnect { uuid: act.uuid });
                 ctx.stop();
-
-                // don't try to send a ping
                 return;
             }
-
-            ctx.ping(b"");
+            ctx.ping(&[]);
         });
     }
 }

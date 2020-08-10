@@ -12,16 +12,14 @@ use serde::Serialize;
 use service::Service;
 use std::{cell::RefCell, collections::HashMap};
 use uuid::Uuid;
+use log::debug;
 
-/// Chat server sends this messages to session
 pub struct OutgoingMessage(pub String);
 impl Message for OutgoingMessage {
     type Result = ();
 }
 
-/// Message for chat server communications
-
-/// New chat session is created
+#[derive(Debug)]
 pub struct IdentifyPackage {
     pub name: String,
     pub nickname: Option<String>,
@@ -29,7 +27,7 @@ pub struct IdentifyPackage {
     pub addr: Recipient<OutgoingMessage>,
 }
 impl Message for IdentifyPackage {
-    type Result = Uuid;
+    type Result = Option<Uuid>;
 }
 
 /// Session is disconnected
@@ -40,31 +38,29 @@ impl Message for Disconnect {
     type Result = ();
 }
 
-/// Send message to specific room
 pub struct IncomingMessage {
-    /// Id of the client session
     pub uuid: Uuid,
-    /// Peer message
     pub text: String,
 }
 impl Message for IncomingMessage {
     type Result = ();
 }
 
-/// `ChatServer` manages chat rooms and responsible for coordinating chat
-/// session. implementation is super primitive
+pub struct QueryUuid {
+    pub uuid: Uuid
+}
+impl Message for QueryUuid {
+    type Result = Option<String>;
+}
+
 pub struct Concierge {
-    /// This is the groups registered in the Concierge.
     pub services: RefCell<HashMap<String, Service>>,
-    /// This is the namespace of the Concierge.
-    /// It uses an RwLock in order to prevent race conditions.
     pub namespace: RefCell<HashMap<String, Uuid>>,
-    /// This is the mapping between UUID and Clients. There
-    /// is no lock since UUID statistically will not collide.
     pub clients: RefCell<HashMap<Uuid, Client>>,
 }
 
 impl Concierge {
+    /// Create a new concierge.
     pub fn new() -> Self {
         Concierge {
             services: RefCell::default(),
@@ -81,7 +77,8 @@ impl Concierge {
         }
     }
 
-    fn handle_raw_message<'a>(
+    /// Handle message payloads.
+    fn handle_message<'a>(
         &self,
         client_uuid: Uuid,
         seq: usize,
@@ -303,24 +300,23 @@ impl Concierge {
     }
 }
 
-/// Make actor from `ChatServer`
 impl Actor for Concierge {
-    /// We are going to use simple Context, we just need ability to communicate
-    /// with other actors.
     type Context = Context<Self>;
 }
 
-/// Handler for Connect message.
-///
-/// Register new session and assign unique id to this session
 impl Handler<IdentifyPackage> for Concierge {
     type Result = MessageResult<IdentifyPackage>;
 
     fn handle(&mut self, msg: IdentifyPackage, _: &mut Context<Self>) -> Self::Result {
-        println!("Someone joined");
+        debug!("Client identifying as {:?}.", msg);
 
-        // register session with random id
+        if self.namespace.get_mut().contains_key(&msg.name) {
+            return MessageResult(None)
+        }
+
         let uuid = Uuid::new_v4();
+        self.namespace.get_mut().insert(msg.name.clone(), uuid);
+        
         let client = Client {
             uuid,
             name: msg.name,
@@ -342,26 +338,58 @@ impl Handler<IdentifyPackage> for Concierge {
 
         self.clients.get_mut().insert(uuid, client);
 
-        // send id back
-        MessageResult(uuid)
+        debug!("Client assigned with id {}", uuid);
+        MessageResult(Some(uuid))
     }
 }
 
-/// Handler for Disconnect message.
 impl Handler<Disconnect> for Concierge {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        println!("Someone disconnected");
+        debug!("{} disconnected.", msg.uuid);
 
         if let Some(client) = self.clients.get_mut().remove(&msg.uuid) {
             self.namespace.get_mut().remove(&client.name);
-            // TODO: do a bunch of other stuff
+
+            // Remove all services owned by this client.
+            let mut services = self.services.borrow_mut();
+            let removing_services = services
+                .iter()
+                .filter(|(_, group)| group.owner_uuid == client.uuid)
+                .map(|(name, _)| name.to_owned())
+                .collect::<Vec<_>>();
+            for service_name in removing_services {
+                // Safety: The service must exist since we have a write lock,
+                // and we just queried it's existence.
+                let service = services.remove(&service_name).unwrap();
+                self.broadcast(&PayloadOut::ServiceDeleteResult {
+                    service: service.info(),
+                });
+            }
+
+            // Remove the client from all services
+            for service in services.values_mut() {
+                service.hook(&self).broadcast(
+                    &PayloadOut::ServiceClientUnsubscribed {
+                        client: client.info(),
+                        service: service.info(),
+                    },
+                    true,
+                );
+                service.remove_subscriber(client.uuid);
+            }
+
+            drop(services);
+
+            // Broadcast client leave to all connecting clients.
+            self.broadcast(&PayloadOut::ClientLeft {
+                client: client.info(),
+            });
         }
     }
 }
 
-/// Handler for Message message.
 impl Handler<IncomingMessage> for Concierge {
     type Result = ();
 
@@ -371,7 +399,7 @@ impl Handler<IncomingMessage> for Concierge {
         let seq = self.clients.get_mut().get(&uuid).unwrap().seq;
 
         if let Ok(payload) = serde_json::from_str(&text) {
-            self.handle_raw_message(uuid, seq, payload);
+            self.handle_message(uuid, seq, payload);
         } else {
             match serde_json::from_str::<PayloadIn>(&text) {
                 Ok(payload) => {
@@ -388,5 +416,13 @@ impl Handler<IncomingMessage> for Concierge {
         }
 
         self.clients.get_mut().get_mut(&uuid).unwrap().seq += 1;
+    }
+}
+
+impl Handler<QueryUuid> for Concierge {
+    type Result = Option<String>;
+
+    fn handle(&mut self, msg: QueryUuid, _: &mut Context<Self>) -> Self::Result {
+        self.clients.get_mut().get(&msg.uuid).map(|c| c.name.to_string())
     }
 }

@@ -3,7 +3,6 @@ use std::{time::Duration, path::Path};
 use tokio_util::codec::{BytesCodec, FramedRead};
 use futures::StreamExt;
 use tokio::{fs::{OpenOptions, File}, io::{AsyncWriteExt, AsyncBufReadExt, BufReader}};
-use bytes::buf::Buf;
 use reqwest::{header, Body};
 
 pub const FS_KEY_HEADER: &str = "x-fs-key";
@@ -86,7 +85,7 @@ async fn download(uuid: &str, name: &str, file_name: &str) -> Result<()> {
     // Write the file as the data stream is coming through
     while let Some(chunk) = stream.next().await {
         let chunk = chunk?;
-        file.write_all(chunk.bytes()).await?;
+        file.write_all(&chunk).await?;
     }
     file.flush().await?;
 
