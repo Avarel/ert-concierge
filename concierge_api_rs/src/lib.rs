@@ -25,6 +25,7 @@ impl<'a> CloseReason<'a> {
     pub const BAD_SECRET: CloseReason<'static> = CloseReason::new_const(4006, "Secret mismatch");
     pub const BAD_VERSION: CloseReason<'static> = CloseReason::new_const(4007, "Version mismatch");
     pub const BAD_AUTH: CloseReason<'static> = CloseReason::new_const(4008, "Name must be alphanumeric");
+    pub const HB_FAILED: CloseReason<'static> = CloseReason::new_const(4009, "Heartbeat failed");
     
     const fn new_const(code: u16, reason: &'static str) -> Self {
         Self { code, reason: Cow::Borrowed(reason) }
@@ -36,5 +37,9 @@ impl<'a> CloseReason<'a> {
 
     pub fn with_reason(&self, reason: impl Into<Cow<'a, str>>) -> Self {
         Self::new(self.code, reason)
+    }
+
+    pub fn as_tuple(self) -> (u16, Cow<'a, str>) {
+        (self.code, self.reason)
     }
 }

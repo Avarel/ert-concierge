@@ -2,6 +2,10 @@ import Client, { Payload, ServiceEventHandler } from '../../concierge_api/mod';
 import { Chat } from "../../overlay/mod";
 import Tabbed from "../../overlay/tabbed/mod";
 
+interface ChatPayload {
+    
+}
+
 export class ChatService extends ServiceEventHandler<{ text: string }> {
     private tab?: Tabbed.Tab;
     private chatInstance?: Chat.Instance;

@@ -8,7 +8,7 @@ import React from "react";
 import { PlanetaryComponent } from "./components";
 import { Tabbed } from "../../../overlay/mod";
 
-class Planet {
+class PlanetObject {
     private enterAction?: IAction;
     private exitAction?: IAction;
     private clickAction?: IAction;
@@ -21,7 +21,7 @@ class Planet {
         public trailMesh?: TrailMesh
     ) { }
 
-    static create(id: string, centroid: Vector3, radius: number, scene: Scene, color: Color3, scale: number = 1): Planet {
+    static create(id: string, centroid: Vector3, radius: number, scene: Scene, color: Color3, scale: number = 1): PlanetObject {
         let mesh = MeshBuilder.CreateSphere("mySphere", { diameter: radius * 2 * scale }, scene);
         mesh.position = centroid;
 
@@ -33,7 +33,7 @@ class Planet {
 
         let trailMesh = new TrailMesh("trail", mesh, scene, Math.min(0.02, radius * scale), 1000, true);
 
-        return new Planet(id, centroid, mesh, trailMesh);
+        return new PlanetObject(id, centroid, mesh, trailMesh);
     }
 
     dispose() {
@@ -117,7 +117,7 @@ export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
     /** Keeps latest batch of sys data */
     sysData?: SystemData;
     /** Map of planets */
-    planets: Map<string, Planet>;
+    planets: Map<string, PlanetObject>;
 
     private readonly visualScale: number = 5;
     private tab?: Tabbed.Tab;
@@ -142,7 +142,7 @@ export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
             }
             this.litPlanet = undefined;
         } else {
-            let planet: Planet | undefined;
+            let planet: PlanetObject | undefined;
             if (this.planetLock) {
                 planet = this.planets.get(this.planetLock);
             } else {
@@ -256,7 +256,7 @@ export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
                                 location.scaleInPlace(this.sysData.centralBodyScale);
                             }
 
-                            let planet = Planet.create(
+                            let planet = PlanetObject.create(
                                 obj.name,
                                 location,
                                 radius,

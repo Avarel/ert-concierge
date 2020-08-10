@@ -18,7 +18,7 @@ function tuple2color3(tuple: Readonly<RgbColor>): Color3 {
     return new Color3(clamp(tuple[0]), clamp(tuple[1]), clamp(tuple[2]))
 }
 
-class PolygonShape {
+class PolygonObject {
     centroid: Vector3;
     mesh: Mesh;
 
@@ -27,7 +27,7 @@ class PolygonShape {
         this.mesh = mesh;
     }
 
-    static createPolygon(centroid: Vector3, points: Vector2[], scene: Scene, color: Color3, scale: number = 1): PolygonShape {
+    static create(centroid: Vector3, points: Vector2[], scene: Scene, color: Color3, scale: number = 1): PolygonObject {
         const corners = points.map((v) => v.scaleInPlace(scale));
         const poly_tri = new PolygonMeshBuilder("polytri", corners, scene);
         const mesh = poly_tri.build(undefined, 50 * scale);
@@ -39,7 +39,7 @@ class PolygonShape {
 
         mesh.actionManager = new ActionManager(scene);
 
-        return new PolygonShape(centroid.scaleInPlace(scale), mesh);
+        return new PolygonObject(centroid.scaleInPlace(scale), mesh);
     }
 
     setColor(color: Readonly<Color3>) {
@@ -59,7 +59,7 @@ class PolygonShape {
 }
 
 export class RustPhysicsService extends ServiceEventHandler<PhysicsPayload> {
-    private shapes: Map<string, PolygonShape> = new Map();
+    private shapes: Map<string, PolygonObject> = new Map();
     private readonly visualScale: number = 1 / 50;
     private tab: Tabbed.Tab | undefined;
 
@@ -84,9 +84,9 @@ export class RustPhysicsService extends ServiceEventHandler<PhysicsPayload> {
         this.shapes.clear();
     }
 
-    createPolygon(id: string, centroid: Vector2, points: Vector2[], color: Color3): PolygonShape {
+    createPolygon(id: string, centroid: Vector2, points: Vector2[], color: Color3): PolygonObject {
         if (this.renderer.scene) {
-            let shape = PolygonShape.createPolygon(new Vector3(centroid.x, 0, centroid.y), points, this.renderer.scene, color, this.visualScale);
+            let shape = PolygonObject.create(new Vector3(centroid.x, 0, centroid.y), points, this.renderer.scene, color, this.visualScale);
             this.shapes.set(id, shape);
             return shape;
         }
@@ -169,7 +169,6 @@ export class RustPhysicsService extends ServiceEventHandler<PhysicsPayload> {
                 }
                 break;
             case "ENTITY_DUMP":
-                // console.log("RECV", JSON.stringify(payload));
                 console.log("Dumping entities!");
                 this.clearShapes();
                 for (const entity of payload.entities) {
@@ -177,17 +176,14 @@ export class RustPhysicsService extends ServiceEventHandler<PhysicsPayload> {
                 }
                 break;
             case "POSITION_DUMP":
-                // console.log("RECV", JSON.stringify(payload));
                 for (const update of payload.updates) {
                     this.updateShape(update.id, update.position);
                 }
                 break;
             case "COLOR_UPDATE":
-                // console.log("RECV", JSON.stringify(payload));
                 this.updateColor(payload.id, payload.color);
                 break;
             default:
-                // console.log("RECV", JSON.stringify(payload));
                 break;
         }
     }

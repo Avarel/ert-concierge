@@ -93,9 +93,7 @@ export module IconSidebar {
             return icon;
         }
 
-        /**
-         * Clear all icon entries.
-         */
+        /** Clear all icon entries. */
         clear() {
             this.iconsMap.clear();
             this.renderToDOM();
@@ -119,7 +117,7 @@ export module IconSidebar {
             return result;
         }
 
-        /** Return JSX element of this instance. */        
+        /** Return JSX element of this instance. */
         render() {
             return React.createElement(IconSidebarComponent, {
                 icons: Array.from(this.iconsMap.values(), icon => icon.toProps()),

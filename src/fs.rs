@@ -11,8 +11,7 @@ use actix_web::{
 };
 use futures::{StreamExt, TryStreamExt};
 use std::io::Write;
-use std::{ffi::OsStr, path::PathBuf};
-use uuid::Uuid;
+use std::path::PathBuf;
 
 pub const FS_KEY_HEADER: &str = "x-fs-key";
 
@@ -67,7 +66,7 @@ pub async fn get(
     let query = srv.send(QueryUuid { uuid }).await.unwrap().is_some();
 
     if !query {
-        return Err(FsError::BadAuthorization)?;
+        return Err(FsError::BadAuthorization.into());
     }
 
     let name = &path.0;
@@ -107,7 +106,7 @@ pub async fn multipart_upload(
 
     let client_name = query.ok_or(FsError::BadAuthorization)?;
     if client_name != name {
-        return Err(FsError::Forbidden)?;
+        return Err(FsError::Forbidden.into());
     }
 
     // iterate over multipart stream
@@ -153,7 +152,7 @@ pub async fn delete(
 
     let client_name = query.ok_or(FsError::BadAuthorization)?;
     if &client_name != name {
-        return Err(FsError::Forbidden)?;
+        return Err(FsError::Forbidden.into());
     }
 
     let file_path = base_path(&name).join(tail);

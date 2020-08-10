@@ -1,6 +1,7 @@
 use super::{Concierge, OutgoingMessage, service::Service};
 use actix::prelude::*;
 use std::{borrow::Cow, collections::HashSet, cell::RefCell};
+use actix_web_actors::ws::Message as WsMessage;
 use uuid::Uuid;
 use concierge_api_rs::info;
 use serde::Serialize;
@@ -39,14 +40,18 @@ impl Client {
         }
     }
 
-    /// Send a payload.
+    /// Send a serializable object.
     pub fn send(&self, payload: &impl Serialize) {
-        self.send_ws_msg(serde_json::to_string(payload).expect("Serialization"))
+        self.send_string(&serde_json::to_string(payload).expect("Serialization"))
+    }
+
+    pub fn send_string(&self, string: &str) {
+        self.send_ws_message(WsMessage::Text(string.to_string()));
     }
 
     /// Send a WebSocket message.
-    pub fn send_ws_msg(&self, msg: String) {
-        let _ = self.addr.do_send(OutgoingMessage(msg));
+    pub fn send_ws_message(&self, message: WsMessage) {
+        let _ = self.addr.do_send(OutgoingMessage(message));
     }
 
     pub fn hook<'a, 'c: 'a>(&'a self, concierge: &'c Concierge) -> ClientController<'a, 'c> {
@@ -57,6 +62,11 @@ impl Client {
     }
 }
 
+/// This to isolate pure client behavior from client-server coupled behavior.
+///
+/// ### Note on Lifetimes
+/// 'c the server must live longer than the client 'a,
+/// which seems reasonable.
 pub struct ClientController<'a, 'c: 'a> {
     client: &'a Client,
     concierge: &'c Concierge,
@@ -71,8 +81,8 @@ impl ClientController<'_, '_> {
     /// If this function returns `Some`, then it is attached with the group information.
     /// In addition, there is a boolean indicating if the client subscribed to a new group
     /// (`true`) or is already subscribed to the group (`false`).
-    pub fn subscribe(&self, group_name: &str) -> Option<(info::Service<'static>, bool)> {
-        if let Some(group) = self.concierge.services.borrow_mut().get_mut(group_name) {
+    pub fn subscribe(&self, service_name: &str) -> Option<(info::Service<'static>, bool)> {
+        if let Some(group) = self.concierge.services.borrow_mut().get_mut(service_name) {
             let result = group.add_subscriber(self.client.uuid);
             self.client
                 .subscriptions.borrow_mut()
@@ -91,10 +101,10 @@ impl ClientController<'_, '_> {
     /// If this function returns `Some`, then it is attached with the group information.
     /// In addition, there is a boolean indicating if the client unsubscribed from a group
     /// (`true`) or was not subscribed to the group in the first place (`false`).
-    pub fn unsubscribe(&self, group_name: &str) -> Option<(info::Service<'static>, bool)> {
-        if let Some(group) = self.concierge.services.borrow_mut().get_mut(group_name) {
+    pub fn unsubscribe(&self, service_name: &str) -> Option<(info::Service<'static>, bool)> {
+        if let Some(group) = self.concierge.services.borrow_mut().get_mut(service_name) {
             let result = group.remove_subscriber(self.client.uuid);
-            self.client.subscriptions.borrow_mut().remove(group_name);
+            self.client.subscriptions.borrow_mut().remove(service_name);
             Some((group.info().owned(), result))
         } else {
             None
@@ -115,7 +125,10 @@ impl ClientController<'_, '_> {
     }
 
     /// Create a group if it currently does not exist in the concierge.
-    /// Returns `true` if the group was created.
+    ///
+    /// # Return Result
+    /// * `(_, true)` if the group was created.
+    /// * `(_, false)` if the group was already created.
     pub fn try_create_service(
         &self,
         name: &str,
@@ -125,7 +138,7 @@ impl ClientController<'_, '_> {
         if let Some(service) = services.get(name) {
             (service.info().owned(), false)
         } else {
-            let service = services.entry(name.to_string()).or_insert(Service::new(
+            let service = services.entry(name.to_string()).or_insert_with(|| Service::new(
                 name.to_owned(),
                 nickname.map(str::to_string),
                 self.client.uuid,
@@ -135,13 +148,17 @@ impl ClientController<'_, '_> {
     }
 
     /// Remove a group if a client is the owner of that group.
-    /// Returns `true` if the group was removed.
-    pub fn try_remove_service(&mut self, group_name: &str) -> Option<Result<Service, info::Service<'static>>> {
+    ///
+    /// # Return Result
+    /// * `Some(Ok(_))` if the group was removed.
+    /// * `Some(Err(_))` if the group was not removed since this is not the owner's client.
+    /// * `None` if the group does not exist.
+    pub fn try_remove_service(&mut self, service_name: &str) -> Option<Result<Service, info::Service<'static>>> {
         let mut services = self.concierge.services.borrow_mut();
-        if let Some(service) = services.get(group_name) {
+        if let Some(service) = services.get(service_name) {
             if service.owner_uuid == self.client.uuid {
                 // Unwrap safety: we just confirmed that the group exist by that key.
-                return Some(Ok(services.remove(group_name).unwrap()))
+                return Some(Ok(services.remove(service_name).unwrap()))
             } else {
                 return Some(Err(service.info().owned()))
             }

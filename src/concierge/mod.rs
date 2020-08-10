@@ -6,6 +6,7 @@ mod client;
 mod service;
 
 use actix::prelude::*;
+use actix_web_actors::ws::Message as WsMessage;
 use client::Client;
 use concierge_api_rs::{PayloadIn, PayloadMessage, PayloadOut, Target};
 use serde::Serialize;
@@ -14,7 +15,8 @@ use std::{cell::RefCell, collections::HashMap};
 use uuid::Uuid;
 use log::debug;
 
-pub struct OutgoingMessage(pub String);
+#[derive(Debug)]
+pub struct OutgoingMessage(pub WsMessage);
 impl Message for OutgoingMessage {
     type Result = ();
 }
@@ -30,7 +32,7 @@ impl Message for IdentifyPackage {
     type Result = Option<Uuid>;
 }
 
-/// Session is disconnected
+#[derive(Debug)]
 pub struct Disconnect {
     pub uuid: Uuid,
 }
@@ -38,6 +40,7 @@ impl Message for Disconnect {
     type Result = ();
 }
 
+#[derive(Debug)]
 pub struct IncomingMessage {
     pub uuid: Uuid,
     pub text: String,
@@ -59,6 +62,10 @@ pub struct Concierge {
     pub clients: RefCell<HashMap<Uuid, Client>>,
 }
 
+impl Actor for Concierge {
+    type Context = Context<Self>;
+}
+
 impl Concierge {
     /// Create a new concierge.
     pub fn new() -> Self {
@@ -73,7 +80,7 @@ impl Concierge {
     fn broadcast(&self, payload: &impl Serialize) {
         let string = serde_json::to_string(payload).expect("Serialization error");
         for client in self.clients.borrow().values() {
-            let _ = client.addr.do_send(OutgoingMessage(string.to_owned()));
+            let _ = client.addr.do_send(OutgoingMessage(WsMessage::Text(string.to_owned())));
         }
     }
 
@@ -164,9 +171,10 @@ impl Concierge {
     }
 
     /// Handles incoming JSON payloads.
-    fn handle_payload(&mut self, client_uuid: Uuid, seq: usize, payload: PayloadIn<'_>) {
+    fn handle_payload(&mut self, client_uuid: Uuid, payload: PayloadIn<'_>) {
         let clients = self.clients.borrow();
         let client = clients.get(&client_uuid).unwrap();
+        let seq = client.seq;
         match payload {
             PayloadIn::SelfSubscribe {
                 service: service_name,
@@ -212,7 +220,6 @@ impl Concierge {
                 }
             }
             PayloadIn::SelfSetSeq { seq } => {
-                drop(client);
                 drop(clients);
                 let client = self.clients.get_mut().get_mut(&client_uuid).unwrap();
                 client.seq = seq;
@@ -298,10 +305,6 @@ impl Concierge {
             _ => client.send(&PayloadOut::ErrorUnsupported.seq(seq)),
         }
     }
-}
-
-impl Actor for Concierge {
-    type Context = Context<Self>;
 }
 
 impl Handler<IdentifyPackage> for Concierge {
@@ -401,9 +404,9 @@ impl Handler<IncomingMessage> for Concierge {
         if let Ok(payload) = serde_json::from_str(&text) {
             self.handle_message(uuid, seq, payload);
         } else {
-            match serde_json::from_str::<PayloadIn>(&text) {
+            match serde_json::from_str(&text) {
                 Ok(payload) => {
-                    self.handle_payload(uuid, seq, payload);
+                    self.handle_payload(uuid, payload);
                 }
                 Err(err) => {
                     self.clients

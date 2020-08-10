@@ -52,7 +52,11 @@ impl Service {
     }
 }
 
-/// This to isolate pure client behavior from service-server coupled behavior.
+/// This to isolate pure service behavior from service-server coupled behavior.
+///
+/// ### Note on Lifetimes
+/// 'c the server must live longer than the service 'a,
+/// which seems reasonable.
 pub struct ServiceController<'a, 'c: 'a> {
     service: &'a Service,
     concierge: &'c Concierge,
@@ -61,7 +65,11 @@ pub struct ServiceController<'a, 'c: 'a> {
 impl ServiceController<'_, '_> {
     /// Broadcast a payload to all connected client of a certain group.
     pub fn broadcast(&self, payload: &impl Serialize, to_owner: bool) {
-        let message = serde_json::to_string(&payload).expect("Serialization");
+        let string = serde_json::to_string(&payload).expect("Serialization");
+        self.broadcast_string(&string, to_owner)
+    }
+
+    pub fn broadcast_string(&self, string: &str, to_owner: bool) {
         let clients = self.concierge.clients.borrow();
         self.service
             .clients
@@ -69,7 +77,7 @@ impl ServiceController<'_, '_> {
             .filter(|client_uuid| to_owner || **client_uuid != self.service.owner_uuid)
             .filter_map(|client_uuid| clients.get(client_uuid))
             .for_each(|client| {
-                client.send_ws_msg(message.clone());
+                client.send_string(&string);
             });
     }
 }
