@@ -1,7 +1,7 @@
-use super::Concierge;
+use super::client::Client;
 use concierge_api_rs::info;
 use serde::Serialize;
-use std::{borrow::Cow, collections::HashSet};
+use std::{borrow::Cow, collections::{HashMap, HashSet}};
 use uuid::Uuid;
 
 pub struct Service {
@@ -42,39 +42,19 @@ impl Service {
         self.clients.remove(&uuid)
     }
 
-    /// Create a controller that allows for controls between the service
-    /// and the concierge.
-    pub fn hook<'a, 'b: 'a>(&'a self, concierge: &'b Concierge) -> ServiceController<'_, '_> {
-        ServiceController {
-            service: self,
-            concierge,
-        }
-    }
-}
-
-/// This to isolate pure service behavior from service-server coupled behavior.
-///
-/// ### Note on Lifetimes
-/// 'c the server must live longer than the service 'a,
-/// which seems reasonable.
-pub struct ServiceController<'a, 'c: 'a> {
-    service: &'a Service,
-    concierge: &'c Concierge,
-}
-
-impl ServiceController<'_, '_> {
-    /// Broadcast a payload to all connected client of a certain group.
-    pub fn broadcast(&self, payload: &impl Serialize, to_owner: bool) {
+    /// Broadcast a serialized payload between the intersection of the provided
+    /// client list and the service's client list.
+    pub fn broadcast(&self, clients: &HashMap<Uuid, Client>, payload: &impl Serialize, to_owner: bool) {
         let string = serde_json::to_string(&payload).expect("Serialization");
-        self.broadcast_string(&string, to_owner)
+        self.broadcast_string(clients, &string, to_owner)
     }
 
-    pub fn broadcast_string(&self, string: &str, to_owner: bool) {
-        let clients = self.concierge.clients.borrow();
-        self.service
-            .clients
+    /// Broadcast a string message between the intersection of the provided
+    /// client list and the service's client list.
+    pub fn broadcast_string(&self, clients: &HashMap<Uuid, Client>, string: &str, to_owner: bool) {
+        self.clients
             .iter()
-            .filter(|client_uuid| to_owner || **client_uuid != self.service.owner_uuid)
+            .filter(|client_uuid| to_owner || **client_uuid != self.owner_uuid)
             .filter_map(|client_uuid| clients.get(client_uuid))
             .for_each(|client| {
                 client.send_string(&string);

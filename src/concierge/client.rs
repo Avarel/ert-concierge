@@ -1,11 +1,10 @@
-use super::{service::Service, Concierge, OutgoingMessage};
+use super::{service::Service, OutgoingMessage};
 use actix::prelude::*;
 use actix_web_actors::ws::Message as WsMessage;
 use concierge_api_rs::info;
 use serde::Serialize;
 use std::{
     borrow::Cow,
-    cell::RefCell,
     collections::{HashMap, HashSet},
 };
 use uuid::Uuid;
@@ -23,7 +22,7 @@ pub struct Client {
     pub tags: Vec<String>,
     pub addr: Recipient<OutgoingMessage>,
     /// Groups.
-    pub subscriptions: RefCell<HashSet<String>>,
+    pub subscriptions: HashSet<String>,
 }
 
 impl Client {
@@ -44,11 +43,12 @@ impl Client {
         }
     }
 
-    /// Send a serializable object.
+    /// Send a serialized payload.
     pub fn send(&self, payload: &impl Serialize) {
         self.send_string(&serde_json::to_string(payload).expect("Serialization"))
     }
 
+    /// Send a string message.
     pub fn send_string(&self, string: &str) {
         self.send_ws_message(WsMessage::Text(string.to_string()));
     }
@@ -58,25 +58,6 @@ impl Client {
         let _ = self.addr.do_send(OutgoingMessage(message));
     }
 
-    pub fn hook<'a, 'c: 'a>(&'a self, concierge: &'c Concierge) -> ClientController<'a, 'c> {
-        ClientController {
-            client: self,
-            concierge,
-        }
-    }
-}
-
-/// This to isolate pure client behavior from client-server coupled behavior.
-///
-/// ### Note on Lifetimes
-/// 'c the server must live longer than the client 'a,
-/// which seems reasonable.
-pub struct ClientController<'a, 'c: 'a> {
-    client: &'a Client,
-    concierge: &'c Concierge,
-}
-
-impl ClientController<'_, '_> {
     /// Attempt to subscribe to a group.
     ///
     /// ### Return Result
@@ -85,13 +66,14 @@ impl ClientController<'_, '_> {
     /// If this function returns `Some`, then it is attached with the group information.
     /// In addition, there is a boolean indicating if the client subscribed to a new group
     /// (`true`) or is already subscribed to the group (`false`).
-    pub fn subscribe(&self, service_name: &str) -> Option<(info::Service<'static>, bool)> {
-        if let Some(group) = self.concierge.services.borrow_mut().get_mut(service_name) {
-            let result = group.add_subscriber(self.client.uuid);
-            self.client
-                .subscriptions
-                .borrow_mut()
-                .insert(group.name.to_owned());
+    pub fn subscribe(
+        &mut self,
+        services: &mut HashMap<String, Service>,
+        service_name: &str,
+    ) -> Option<(info::Service<'static>, bool)> {
+        if let Some(group) = services.get_mut(service_name) {
+            let result = group.add_subscriber(self.uuid);
+            self.subscriptions.insert(group.name.to_owned());
             Some((group.info().owned(), result))
         } else {
             None
@@ -109,28 +91,18 @@ impl ClientController<'_, '_> {
     /// If this function returns `Some`, then it is attached with the group information.
     /// In addition, there is a boolean indicating if the client unsubscribed from a group
     /// (`true`) or was not subscribed to the group in the first place (`false`).
-    pub fn unsubscribe(&self, service_name: &str) -> Option<(info::Service<'static>, bool)> {
-        if let Some(group) = self.concierge.services.borrow_mut().get_mut(service_name) {
-            let result = group.remove_subscriber(self.client.uuid);
-            self.client.subscriptions.borrow_mut().remove(service_name);
+    pub fn unsubscribe(
+        &mut self,
+        services: &mut HashMap<String, Service>,
+        service_name: &str,
+    ) -> Option<(info::Service<'static>, bool)> {
+        if let Some(group) = services.get_mut(service_name) {
+            let result = group.remove_subscriber(self.uuid);
+            self.subscriptions.remove(service_name);
             Some((group.info().owned(), result))
         } else {
             None
         }
-    }
-
-    #[allow(dead_code)]
-    /// Get all the the client's current subscription list as informational structs.
-    pub fn subscription_info(&self) -> Vec<info::Service<'static>> {
-        let services = self.concierge.services.borrow();
-        self.client
-            .subscriptions
-            .borrow()
-            .iter()
-            .filter_map(|id| services.get(id))
-            .map(|service| service.info())
-            .map(|service_info| service_info.owned())
-            .collect::<Vec<_>>()
     }
 
     /// Create a group if it currently does not exist in the concierge.
@@ -140,19 +112,15 @@ impl ClientController<'_, '_> {
     /// * `(_, false)` if the group was already created.
     pub fn try_create_service(
         &self,
+        services: &mut HashMap<String, Service>,
         name: &str,
         nickname: Option<&str>,
     ) -> (info::Service<'static>, bool) {
-        let mut services = self.concierge.services.borrow_mut();
         if let Some(service) = services.get(name) {
             (service.info().owned(), false)
         } else {
             let service = services.entry(name.to_string()).or_insert_with(|| {
-                Service::new(
-                    name.to_owned(),
-                    nickname.map(str::to_string),
-                    self.client.uuid,
-                )
+                Service::new(name.to_owned(), nickname.map(str::to_string), self.uuid)
             });
             (service.info().owned(), true)
         }
@@ -165,12 +133,12 @@ impl ClientController<'_, '_> {
     /// * `Some(Err(_))` if the group was not removed since this is not the owner's client.
     /// * `None` if the group does not exist.
     pub fn try_remove_service(
-        &mut self,
+        &self,
+        services: &mut HashMap<String, Service>,
         service_name: &str,
     ) -> Option<Result<Service, info::Service<'static>>> {
-        let mut services = self.concierge.services.borrow_mut();
         if let Some(service) = services.get(service_name) {
-            if service.owner_uuid == self.client.uuid {
+            if service.owner_uuid == self.uuid {
                 // Unwrap safety: we just confirmed that the group exist by that key.
                 return Some(Ok(services.remove(service_name).unwrap()));
             } else {
