@@ -1,5 +1,6 @@
 mod concierge;
 mod ws;
+mod fs;
 
 // Listen on every available network interface
 pub const SOCKET_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 64209);
@@ -14,17 +15,14 @@ pub fn min_version_req() -> VersionReq {
     VersionReq::parse(crate::MIN_VERSION).expect("Valid versioning scheme")
 }
 
-use std::{
-    net::SocketAddr,
-    time::Instant,
-};
+use std::{net::SocketAddr, time::Instant};
 
 use actix::prelude::*;
-use actix_web::{web, middleware, App, Error, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder};
 use concierge::Concierge;
+use semver::VersionReq;
 use uuid::Uuid;
 use ws::WsChatSession;
-use semver::VersionReq;
 
 /// Entry point for our route
 async fn ws_index(
@@ -45,9 +43,13 @@ async fn ws_index(
     )
 }
 
+async fn index() -> impl Responder {
+    "ERT Concierge Root Path"
+}
+
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
-    //     // Setup the logging
+    // Setup the logging
     env_logger::Builder::new()
         .filter_level(log::LevelFilter::Debug)
         .init();
@@ -56,13 +58,10 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .data(server.clone())
-            .service(web::resource("/").route(web::get().to(|| {
-                HttpResponse::Found()
-                    .header("LOCATION", "/static/websocket.html")
-                    .finish()
-            })))
+            .service(web::resource("/").route(web::get().to(index)))
             .wrap(middleware::Logger::default())
             .service(web::resource("/ws").route(web::get().to(ws_index)))
+            .service(web::scope("/fs").route("/{client_name}/{file_name}", web::get().to(fs::get)))
     })
     .bind(SocketAddr::from(SOCKET_ADDR))?
     .run()
@@ -76,7 +75,6 @@ async fn main() -> std::io::Result<()> {
 //     let concierge = Arc::new(Concierge::new());
 
 //     let addr = SocketAddr::from(SOCKET_ADDR);
-
 //     let ws_route = {
 //         let concierge = concierge.clone();
 //         warp::get()
