@@ -1,15 +1,7 @@
 mod concierge;
 mod ws;
 
-// use concierge::{Concierge, FsError};
-// use log::{debug, info};
-// use semver::VersionReq;
-// use std::{net::SocketAddr, sync::Arc};
-use tokio::runtime::Builder;
-// use uuid::Uuid;
-// use warp::{http::Method, hyper::header, multipart::FormData, path::Tail, Filter};
-
-// // isten on every available network interface
+// Listen on every available network interface
 pub const SOCKET_ADDR: ([u8; 4], u16) = ([0, 0, 0, 0], 64209);
 pub const VERSION: &str = "0.2.0";
 pub const MIN_VERSION: &str = "^0.2.0";
@@ -18,31 +10,29 @@ pub const SUBPROTOCOL: &str = "ert-concierge";
 
 pub const FS_KEY_HEADER: &str = "x-fs-key";
 
-// pub fn min_version_req() -> VersionReq {
-//     VersionReq::parse(crate::MIN_VERSION).expect("Valid versioning scheme")
-// }
-
-// use actix::{Actor, StreamHandler};
-// use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
-// use actix_web_actors::ws;
+pub fn min_version_req() -> VersionReq {
+    VersionReq::parse(crate::MIN_VERSION).expect("Valid versioning scheme")
+}
 
 use std::{
     net::SocketAddr,
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use actix::prelude::*;
-use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{web, middleware, App, Error, HttpRequest, HttpResponse, HttpServer};
 use concierge::Concierge;
 use uuid::Uuid;
 use ws::WsChatSession;
+use semver::VersionReq;
 
 /// Entry point for our route
-async fn chat_route(
+async fn ws_index(
     req: HttpRequest,
     stream: web::Payload,
     srv: web::Data<Addr<Concierge>>,
 ) -> Result<HttpResponse, Error> {
+    println!("test");
     actix_web_actors::ws::start_with_protocols(
         WsChatSession {
             uuid: Uuid::nil(),
@@ -55,28 +45,24 @@ async fn chat_route(
     )
 }
 
-fn main() -> std::io::Result<()> {
-    // Setup the logging
+#[actix_rt::main]
+async fn main() -> std::io::Result<()> {
+    //     // Setup the logging
     env_logger::Builder::new()
         .filter_level(log::LevelFilter::Debug)
         .init();
 
-    // Setup the runtime
-    let mut runtime = Builder::new()
-        .threaded_scheduler()
-        .enable_all()
-        .build()
-        .unwrap();
-    runtime.block_on(serve())
-}
-
-async fn serve() -> std::io::Result<()> {
     let server = Concierge::new().start();
-
     HttpServer::new(move || {
         App::new()
             .data(server.clone())
-            .service(web::resource("/ws/").to(chat_route))
+            .service(web::resource("/").route(web::get().to(|| {
+                HttpResponse::Found()
+                    .header("LOCATION", "/static/websocket.html")
+                    .finish()
+            })))
+            .wrap(middleware::Logger::default())
+            .service(web::resource("/ws").route(web::get().to(ws_index)))
     })
     .bind(SocketAddr::from(SOCKET_ADDR))?
     .run()

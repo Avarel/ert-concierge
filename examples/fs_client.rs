@@ -3,7 +3,7 @@ use std::{time::Duration, path::Path};
 use tokio_util::codec::{BytesCodec, FramedRead};
 use futures::StreamExt;
 use tokio::{fs::{OpenOptions, File}, io::{AsyncWriteExt, AsyncBufReadExt, BufReader}};
-use warp::Buf;
+use bytes::buf::Buf;
 use reqwest::{header, Body};
 
 pub const FS_KEY_HEADER: &str = "x-fs-key";

@@ -122,7 +122,6 @@ class PlanetaryUploadComponent extends React.Component<PlanetaryComponentProps> 
         // elsewhere!
         let url = new URL(window.location.href);
         url.port = "64209";
-        url.protocol
         this.props.handler.upload(url, formData);
     }
 

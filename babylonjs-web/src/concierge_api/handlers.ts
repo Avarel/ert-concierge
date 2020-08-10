@@ -43,7 +43,7 @@ export abstract class ServiceEventHandler<T> implements RawHandler {
      *          when the group is created.
      */
     constructor(
-        protected readonly client: Client,
+        readonly client: Client,
         readonly serviceName: string,
         public autoSubscribe: boolean = true,
     ) { }
@@ -89,8 +89,10 @@ export abstract class ServiceEventHandler<T> implements RawHandler {
                     this.client.sendPayload({
                         type: "SERVICE_FETCH",
                         service: this.serviceName
-                    }, _ => {
-                        this.subscribe();
+                    }, payload => {
+                        if (payload.type == "SERVICE_FETCH_RESULT") {
+                            this.subscribe();
+                        }
                     });
                 }
                 break;
