@@ -1,11 +1,7 @@
-use super::{Concierge, WsError};
-use concierge_api_rs::info;
-use serde::Serialize;
-use std::{borrow::Cow, collections::HashSet};
 use uuid::Uuid;
-use warp::ws::Message;
+use std::{borrow::Cow, collections::HashSet};
+use concierge_api_rs::info;
 
-/// A struct containing group information.
 pub struct Service {
     pub name: String,
     pub nickname: Option<String>,
@@ -42,37 +38,5 @@ impl Service {
     /// Remove the client from the group.
     pub fn remove_subscriber(&mut self, uuid: Uuid) -> bool {
         self.clients.remove(&uuid)
-    }
-
-    /// Create a controller that allows for controls between the service
-    /// and the concierge.
-    pub fn hook<'a, 'b: 'a>(&'a self, concierge: &'b Concierge) -> ServiceController<'_, '_> {
-        ServiceController {
-            service: self,
-            concierge,
-        }
-    }
-}
-
-/// This to isolate pure client behavior from service-server coupled behavior.
-pub struct ServiceController<'a, 'c: 'a> {
-    service: &'a Service,
-    concierge: &'c Concierge,
-}
-
-impl ServiceController<'_, '_> {
-    /// Broadcast a payload to all connected client of a certain group.
-    pub async fn broadcast(&self, payload: &impl Serialize, to_owner: bool) -> Result<(), WsError> {
-        let message = Message::text(serde_json::to_string(&payload)?);
-        let clients = self.concierge.clients.read().await;
-        self.service
-            .clients
-            .iter()
-            .filter(|client_uuid| to_owner || **client_uuid != self.service.owner_uuid)
-            .filter_map(|client_uuid| clients.get(client_uuid))
-            .for_each(|client| {
-                client.send_ws_msg(message.clone()).ok();
-            });
-        Ok(())
     }
 }
