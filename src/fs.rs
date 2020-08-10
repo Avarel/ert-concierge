@@ -52,7 +52,7 @@ impl ResponseError for FsError {
     }
 }
 
-fn base_path(name: &str) -> PathBuf {
+pub fn base_path(name: &str) -> PathBuf {
     let mut buf = PathBuf::new();
     buf.push(".");
     buf.push("fs");

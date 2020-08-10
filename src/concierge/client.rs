@@ -1,10 +1,14 @@
-use super::{Concierge, OutgoingMessage, service::Service};
+use super::{service::Service, Concierge, OutgoingMessage};
 use actix::prelude::*;
-use std::{borrow::Cow, collections::HashSet, cell::RefCell};
 use actix_web_actors::ws::Message as WsMessage;
-use uuid::Uuid;
 use concierge_api_rs::info;
 use serde::Serialize;
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+};
+use uuid::Uuid;
 
 /// A struct holding information regarding the client.
 pub struct Client {
@@ -57,7 +61,7 @@ impl Client {
     pub fn hook<'a, 'c: 'a>(&'a self, concierge: &'c Concierge) -> ClientController<'a, 'c> {
         ClientController {
             client: self,
-            concierge
+            concierge,
         }
     }
 }
@@ -85,7 +89,8 @@ impl ClientController<'_, '_> {
         if let Some(group) = self.concierge.services.borrow_mut().get_mut(service_name) {
             let result = group.add_subscriber(self.client.uuid);
             self.client
-                .subscriptions.borrow_mut()
+                .subscriptions
+                .borrow_mut()
                 .insert(group.name.to_owned());
             Some((group.info().owned(), result))
         } else {
@@ -94,6 +99,9 @@ impl ClientController<'_, '_> {
     }
 
     /// Attempt to unsubscribe from a group.
+    ///
+    /// ### Notes
+    /// You must not be borrowing Concierge#services.
     ///
     /// ### Return Result
     /// If this function returns `None`, it means that no such group exists.
@@ -115,7 +123,8 @@ impl ClientController<'_, '_> {
     /// Get all the the client's current subscription list as informational structs.
     pub fn subscription_info(&self) -> Vec<info::Service<'static>> {
         let services = self.concierge.services.borrow();
-        self.client.subscriptions
+        self.client
+            .subscriptions
             .borrow()
             .iter()
             .filter_map(|id| services.get(id))
@@ -138,11 +147,13 @@ impl ClientController<'_, '_> {
         if let Some(service) = services.get(name) {
             (service.info().owned(), false)
         } else {
-            let service = services.entry(name.to_string()).or_insert_with(|| Service::new(
-                name.to_owned(),
-                nickname.map(str::to_string),
-                self.client.uuid,
-            ));
+            let service = services.entry(name.to_string()).or_insert_with(|| {
+                Service::new(
+                    name.to_owned(),
+                    nickname.map(str::to_string),
+                    self.client.uuid,
+                )
+            });
             (service.info().owned(), true)
         }
     }
@@ -153,14 +164,17 @@ impl ClientController<'_, '_> {
     /// * `Some(Ok(_))` if the group was removed.
     /// * `Some(Err(_))` if the group was not removed since this is not the owner's client.
     /// * `None` if the group does not exist.
-    pub fn try_remove_service(&mut self, service_name: &str) -> Option<Result<Service, info::Service<'static>>> {
+    pub fn try_remove_service(
+        &mut self,
+        service_name: &str,
+    ) -> Option<Result<Service, info::Service<'static>>> {
         let mut services = self.concierge.services.borrow_mut();
         if let Some(service) = services.get(service_name) {
             if service.owner_uuid == self.client.uuid {
                 // Unwrap safety: we just confirmed that the group exist by that key.
-                return Some(Ok(services.remove(service_name).unwrap()))
+                return Some(Ok(services.remove(service_name).unwrap()));
             } else {
-                return Some(Err(service.info().owned()))
+                return Some(Err(service.info().owned()));
             }
         }
 

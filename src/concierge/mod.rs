@@ -383,6 +383,8 @@ impl Handler<Disconnect> for Concierge {
                 service.remove_subscriber(client.uuid);
             }
 
+            let _ = std::fs::remove_dir_all(crate::fs::base_path(&client.name));
+
             drop(services);
 
             // Broadcast client leave to all connecting clients.
