@@ -78,16 +78,43 @@ export default class Client {
      * Construct a new client.
      * 
      * @param name Name of the client. Must be alphanumeric/underscores only.
-     * @param url The url of the central server.
+     * @param baseUrl The url of the central server.
      * @param nickname The nickname of the client. Can be any valid UTF-8 string.
      * @param reconnect Should the client reconnect in case of a disconnect?
      */
     constructor(
         readonly name: string,
-        readonly url: string,
+        readonly baseUrl: string,
         readonly nickname?: string,
+        public secure: boolean = false,
         public reconnect: boolean = false
     ) { }
+
+    portOverride?: string;
+    wsUrlOverride?: string;
+    fsUrlOverride?: string;
+
+    /** Get the websocket URL. */
+    get wsUrl(): string {
+        const url = new URL("ws", this.wsUrlOverride ? this.wsUrlOverride : this.baseUrl);
+        url.protocol = this.secure ? "wss" : "ws";
+        if (this.portOverride) {
+            url.port = this.portOverride;
+        }
+        url
+        return url.toString();
+    }
+
+    /** Get a file url based off the base URL supplied to the client. */
+    fileUrl(clientName: string, fileName: string): string {
+        const url = new URL(`fs/${clientName}/${fileName}`, this.fsUrlOverride ? this.fsUrlOverride : this.baseUrl);
+            url.protocol = this.secure ? "https" : "http";
+            if (this.portOverride) {
+                url.port = this.portOverride;
+            }
+            url
+            return url.toString();
+    }
 
     /**
      * Connect to the central server.
@@ -98,10 +125,10 @@ export default class Client {
      *                require it.
      */
     connect(version: string, secret?: string) {
-        console.info("Client: Trying to connect to ", this.url);
+        console.info("Client: Trying to connect to ", this.wsUrl);
         this.version = version;
         this.secret = secret;
-        this.socket = new WebSocket(this.url, "ert-concierge");
+        this.socket = new WebSocket(this.wsUrl, "ert-concierge");
         this.socket.onopen = event => this.onOpen(event);
         this.socket.onmessage = event => this.onReceive(event);
         this.socket.onerror = event => this.onError(event);

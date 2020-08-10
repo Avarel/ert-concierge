@@ -4,6 +4,7 @@ mod ws;
 
 use actix::prelude::*;
 use actix_cors::Cors;
+use actix_files::Files;
 use actix_web::{middleware, web, App, HttpServer, Responder};
 use concierge::Concierge;
 use semver::VersionReq;
@@ -36,6 +37,11 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .data(server.clone())
+            .service(
+                Files::new("/babylonjs", "./babylonjs-web/dist")
+                    .show_files_listing()
+                    .use_last_modified(true),
+            )
             .service(web::resource("/").route(web::get().to(index)))
             .wrap(middleware::Logger::default())
             .service(web::resource("/ws").route(web::get().to(ws::index)))

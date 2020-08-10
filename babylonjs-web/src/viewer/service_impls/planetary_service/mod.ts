@@ -1,117 +1,13 @@
 import "./style.scss";
 
-import { Color3, ExecuteCodeAction, Vector3, DeepImmutableObject, Scene, StandardMaterial, ActionManager, MeshBuilder, Mesh, IAction, TrailMesh } from "babylonjs";
+import * as BABYLON from 'babylonjs';
 import { RendererView } from "../../renderer";
-import Client, { Payload, ServiceEventHandler } from "../../../concierge_api/mod";
-import { SystemObject, SystemData, PlanetaryPayload } from "./payloads";
+import Client, { ServiceEventHandler } from "../../../concierge_api/mod";
+import { SystemData, PlanetaryPayload } from "./payloads";
 import React from "react";
 import { PlanetaryComponent } from "./components";
 import { Tabbed } from "../../../overlay/mod";
-
-class PlanetObject {
-    private enterAction?: IAction;
-    private exitAction?: IAction;
-    private clickAction?: IAction;
-    data!: SystemObject;
-
-    private constructor(
-        public readonly id: string,
-        private centroid: Vector3,
-        public mesh: Mesh,
-        public trailMesh?: TrailMesh
-    ) { }
-
-    static create(id: string, centroid: Vector3, radius: number, scene: Scene, color: Color3, scale: number = 1): PlanetObject {
-        let mesh = MeshBuilder.CreateSphere("mySphere", { diameter: radius * 2 * scale }, scene);
-        mesh.position = centroid;
-
-        var mat = new StandardMaterial("myMaterial", scene);
-        mat.diffuseColor = color;
-        mesh.material = mat;
-
-        mesh.actionManager = new ActionManager(scene);
-
-        let trailMesh = new TrailMesh("trail", mesh, scene, Math.min(0.02, radius * scale), 1000, true);
-
-        return new PlanetObject(id, centroid, mesh, trailMesh);
-    }
-
-    dispose() {
-        this.unhookHover();
-        this.trailMesh?.dispose();
-        this.mesh.dispose();
-    }
-
-    hookHover(handler: PlanetaryService) {
-        if (this.mesh.actionManager) {
-            this.enterAction = new ExecuteCodeAction(
-                BABYLON.ActionManager.OnPointerOverTrigger,
-                () => {
-                    handler.hoveredPlanets.add(this.id);
-                    handler.renderInformation();
-                }
-            );
-            this.exitAction = new ExecuteCodeAction(
-                BABYLON.ActionManager.OnPointerOutTrigger,
-                () => {
-                    handler.hoveredPlanets.delete(this.id);
-                    handler.renderInformation();
-                }
-            );
-            this.clickAction = new ExecuteCodeAction(
-                BABYLON.ActionManager.OnPickTrigger,
-                () => {
-                    if (handler.planetLock == this.id) {
-                        handler.planetLock = undefined;
-                    } else {
-                        handler.planetLock = this.id;
-                    }
-                    handler.renderInformation();
-                }
-            );
-            this.mesh.actionManager.registerAction(this.enterAction);
-            this.mesh.actionManager.registerAction(this.exitAction);
-            this.mesh.actionManager.registerAction(this.clickAction);
-        }
-    }
-
-    unlit() {
-        (this.mesh.material as StandardMaterial).emissiveColor = Color3.Black();
-
-    }
-
-    lit() {
-        (this.mesh.material as StandardMaterial).emissiveColor = Color3.Red();
-    }
-
-    unhookHover() {
-        if (this.mesh.actionManager) {
-            if (this.enterAction) {
-                this.mesh.actionManager.unregisterAction(this.enterAction);
-                this.enterAction = undefined;
-            }
-            if (this.exitAction) {
-                this.mesh.actionManager.unregisterAction(this.exitAction);
-                this.exitAction = undefined;
-            }
-            if (this.clickAction) {
-                this.mesh.actionManager.unregisterAction(this.clickAction);
-                this.clickAction = undefined;
-            }
-        }
-    }
-
-    setColor(color: DeepImmutableObject<Color3>) {
-        (this.mesh.material! as StandardMaterial).diffuseColor! = color;
-    }
-
-    moveTo(point: DeepImmutableObject<Vector3>) {
-        let translate = point.subtract(this.centroid);
-
-        this.mesh.position.addInPlace(translate);
-        this.centroid.set(point.x, point.y, point.z);
-    }
-}
+import { PlanetObject } from "./objects";
 
 export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
     /** Keeps latest batch of sys data */
@@ -133,6 +29,101 @@ export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
     ) {
         super(client, "planetary_simulation");
         this.planets = new Map();
+    }
+
+    protected onSubscribe() {
+        this.tab = this.tabbedComponent?.addTab(this.serviceName, "Planetary Controls");
+        console.log("Planet simulator client is ready to go!");
+
+        this.sendToService({
+            type: "FETCH_SYSTEM_DATA"
+        });
+    }
+
+    protected onUnsubscribe() {
+        this.tabbedComponent?.removeTab(this.serviceName);
+        this.clearShapes();
+        console.log("Planet simulator client has disconnected!");
+    }
+
+    protected onServiceMessage(payload: PlanetaryPayload) {
+        switch (payload.type) {
+            case "SYSTEM_REMOVE_PLANETS":
+                for (const id of payload.ids) {
+                    let planet = this.planets.get(id);
+                    if (planet) {
+                        planet.dispose();
+                        this.planets.delete(id);
+                    }
+                }
+                this.renderInformation();
+                break;
+            case "SYSTEM_DATA_DUMP":
+                this.sysData = payload.data;
+                this.clearShapes();
+                this.sendToService({
+                    type: "FETCH_SYSTEM_OBJS"
+                });
+                this.renderInformation(true);
+                break;
+            case "SYSTEM_OBJS_DUMP":
+                if (this.sysData == undefined) {
+                    return;
+                }
+                for (let obj of payload.objects) {
+                    let location = new BABYLON.Vector3(obj.location[0], obj.location[1], obj.location[2])
+                        .scaleInPlace(1 / this.sysData.scale)
+                        .scaleInPlace(this.visualScale);
+
+                    if (this.planets.has(obj.name)) {
+                        let planet = this.planets.get(obj.name)!;
+                        planet.moveTo(location);
+                        planet.data = obj;
+                    } else {
+                        if (this.view.scene) {
+                            let radius = obj.radius / this.sysData.scale * this.sysData.bodyScale * this.visualScale;
+
+                            let color = BABYLON.Color3.FromArray(obj.color);
+                            if (obj.name == this.sysData.centralBodyName) {
+                                console.log("Found central body!")
+                                radius *= this.sysData.centralBodyScale;
+                                location.scaleInPlace(this.sysData.centralBodyScale);
+                            }
+
+                            let planet = PlanetObject.create(
+                                obj.name,
+                                location,
+                                radius,
+                                this.view.scene,
+                                color
+                            );
+                            planet.hookHover(this);
+                            planet.data = obj;
+
+                            this.planets.set(obj.name, planet);
+                        } else {
+                            throw new Error("Scene not initialized!")
+                        }
+                    }
+                }
+                this.renderInformation();
+                break;
+            case "SYSTEM_CLEAR":
+                console.log("Clearing shapes");
+                this.renderInformation();
+                this.clearShapes();
+                break;
+        }
+    }
+
+    private clearShapes() {
+        for (let key of this.planets.keys()) {
+            const planet = this.planets.get(key)!;
+            if (planet) {
+                planet.dispose();
+                this.planets.delete(key);
+            }
+        }
     }
 
     renderInformation(force: boolean = false) {
@@ -164,11 +155,11 @@ export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
         }
     }
 
-    async upload(baseURL: URL, formData: FormData) {
-        const url = new URL(`/fs/${this.client.name}/system.json`, baseURL);
+    async upload(formData: FormData) {
+        const url = this.client.fileUrl(this.client.name, "system.json");
         const headers = new Headers();
         headers.append("x-fs-key", this.client.uuid);
-        const response = await fetch(url.toString(), {
+        const response = await fetch(url, {
             method: 'POST',
             headers,
             body: formData,
@@ -184,101 +175,6 @@ export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
                 break;
             default:
                 alert("Unexpected response:" + response.status + " " + response.statusText);
-        }
-    }
-
-    protected onSubscribe() {
-        this.tab = this.tabbedComponent?.addTab(this.serviceName, "Planetary Controls");
-        console.log("Planet simulator client is ready to go!");
-
-        this.sendToService({
-            type: "FETCH_SYSTEM_DATA"
-        });
-    }
-
-    protected onUnsubscribe() {
-        this.tabbedComponent?.removeTab(this.serviceName);
-        this.clearShapes();
-        console.log("Planet simulator client has disconnected!");
-    }
-
-    private clearShapes() {
-        for (let key of this.planets.keys()) {
-            const planet = this.planets.get(key)!;
-            if (planet) {
-                planet.dispose();
-                this.planets.delete(key);
-            }
-        }
-    }
-
-    protected onServiceMessage(payload: PlanetaryPayload) {
-        switch (payload.type) {
-            case "SYSTEM_REMOVE_PLANETS":
-                for (const id of payload.ids) {
-                    let planet = this.planets.get(id);
-                    if (planet) {
-                        planet.dispose();
-                        this.planets.delete(id);
-                    }
-                }
-                this.renderInformation();
-                break;
-            case "SYSTEM_DATA_DUMP":
-                this.sysData = payload.data;
-                this.clearShapes();
-                this.sendToService({
-                    type: "FETCH_SYSTEM_OBJS"
-                });
-                this.renderInformation(true);
-                break;
-            case "SYSTEM_OBJS_DUMP":
-                if (this.sysData == undefined) {
-                    return;
-                }
-                for (let obj of payload.objects) {
-                    let location = new Vector3(obj.location[0], obj.location[1], obj.location[2])
-                        .scaleInPlace(1 / this.sysData.scale)
-                        .scaleInPlace(this.visualScale);
-
-                    if (this.planets.has(obj.name)) {
-                        let planet = this.planets.get(obj.name)!;
-                        planet.moveTo(location);
-                        planet.data = obj;
-                    } else {
-                        if (this.view.scene) {
-                            let radius = obj.radius / this.sysData.scale * this.sysData.bodyScale * this.visualScale;
-
-                            let color = Color3.FromArray(obj.color);
-                            if (obj.name == this.sysData.centralBodyName) {
-                                console.log("Found central body!")
-                                radius *= this.sysData.centralBodyScale;
-                                location.scaleInPlace(this.sysData.centralBodyScale);
-                            }
-
-                            let planet = PlanetObject.create(
-                                obj.name,
-                                location,
-                                radius,
-                                this.view.scene,
-                                color
-                            );
-                            planet.hookHover(this);
-                            planet.data = obj;
-
-                            this.planets.set(obj.name, planet);
-                        } else {
-                            throw new Error("Scene not initialized!")
-                        }
-                    }
-                }
-                this.renderInformation();
-                break;
-            case "SYSTEM_CLEAR":
-                console.log("Clearing shapes");
-                this.renderInformation();
-                this.clearShapes();
-                break;
         }
     }
 }
