@@ -20,6 +20,10 @@ export class PolygonObject {
         mesh.material = mat;
 
         mesh.actionManager = new BABYLON.ActionManager(scene);
+        mesh.actionManager.registerAction(new BABYLON.SetValueAction(BABYLON.ActionManager.OnPointerOutTrigger, mesh.material, "emissiveColor", mat.emissiveColor));
+        mesh.actionManager.registerAction(new BABYLON.SetValueAction(BABYLON.ActionManager.OnPointerOverTrigger, mesh.material, "emissiveColor", BABYLON.Color3.White()));
+        mesh.actionManager.registerAction(new BABYLON.InterpolateValueAction(BABYLON.ActionManager.OnPointerOutTrigger, mesh, "position.y", mesh.position.y, 150));
+        mesh.actionManager.registerAction(new BABYLON.InterpolateValueAction(BABYLON.ActionManager.OnPointerOverTrigger, mesh, "position.y", 60 * scale, 150));
 
         return new PolygonObject(centroid.scaleInPlace(scale), mesh);
     }

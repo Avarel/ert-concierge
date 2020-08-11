@@ -9,7 +9,7 @@ use actix::prelude::*;
 use actix_web_actors::ws::Message as WsMessage;
 use client::Client;
 use concierge_api_rs::{PayloadIn, PayloadMessage, PayloadOut, Target};
-use log::debug;
+use log::{debug, info, trace};
 use serde::Serialize;
 use service::Service;
 use std::collections::{HashMap, HashSet};
@@ -76,13 +76,18 @@ impl Concierge {
         }
     }
 
-    /// Send message to all users in the room
+    /// Send a serialized payload message to all clients.
     fn broadcast(&self, payload: &impl Serialize) {
         let string = serde_json::to_string(payload).expect("Serialization error");
+        self.broadcast_string(&string)
+    }
+
+    /// Send a message to all clients.
+    fn broadcast_string(&self, string: &str) {
         for client in self.clients.values() {
             let _ = client
                 .addr
-                .do_send(OutgoingMessage(WsMessage::Text(string.to_owned())));
+                .do_send(OutgoingMessage(WsMessage::Text(string.to_string())));
         }
     }
 
@@ -93,23 +98,24 @@ impl Concierge {
         seq: usize,
         payload: PayloadMessage<'a, &'a serde_json::value::RawValue>,
     ) {
-        let clients = &self.clients;
-        let client = clients.get(&client_uuid).unwrap();
-        let client_info = client.info();
+        let client = self.clients.get(&client_uuid).unwrap();
+        let client_origin = client.info().to_origin();
         match payload.target {
             Target::Name { name } => {
-                if let Some(target_client) =
-                    self.namespace.get(name).and_then(|id| clients.get(&id))
+                if let Some(target_client) = self
+                    .namespace
+                    .get(name)
+                    .and_then(|id| self.clients.get(&id))
                 {
-                    target_client.send(&payload.with_origin(client_info.to_origin()));
+                    target_client.send(&payload.with_origin(client_origin));
                     client.send(&PayloadOut::Ok.seq(seq))
                 } else {
                     client.send(&PayloadOut::invalid_name(name).seq(seq))
                 }
             }
             Target::Uuid { uuid } => {
-                if let Some(target_client) = clients.get(&uuid) {
-                    target_client.send(&payload.with_origin(client_info.to_origin()));
+                if let Some(target_client) = self.clients.get(&uuid) {
+                    target_client.send(&payload.with_origin(client_origin));
                     client.send(&PayloadOut::Ok.seq(seq))
                 } else {
                     client.send(&PayloadOut::invalid_uuid(uuid).seq(seq))
@@ -119,16 +125,16 @@ impl Concierge {
                 service: service_name,
             } => {
                 if let Some(service) = self.services.get(service_name) {
-                    let origin = client_info.to_origin().with_service(service.info());
+                    let origin = client_origin.with_service(service.info());
                     if client_uuid == service.owner_uuid {
                         // Owners are allowed to broadcast to the service.
                         // They will not get an echo of their own message.
-                        service.broadcast(clients, &payload.with_origin(origin), false);
+                        service.broadcast(&self.clients, &payload.with_origin(origin), false);
                         client.send(&PayloadOut::Ok.seq(seq))
                     } else if !service.clients.contains(&client_uuid) {
                         // Client must be subscribed in order to send messages to the owner.
                         client.send(&PayloadOut::Bad.seq(seq))
-                    } else if let Some(owner_client) = clients.get(&service.owner_uuid) {
+                    } else if let Some(owner_client) = self.clients.get(&service.owner_uuid) {
                         // Other clients sending to the service will only send to the owner.
                         owner_client.send(&payload.with_origin(origin));
                         client.send(&PayloadOut::Ok.seq(seq))
@@ -149,8 +155,8 @@ impl Concierge {
                     // Only owners of a service are allowed to use this target.
                     if client_uuid != service.owner_uuid {
                         client.send(&PayloadOut::Bad.seq(seq))
-                    } else if let Some(target_client) = clients.get(&target_client_uuid) {
-                        let origin = client_info.to_origin().with_service(service.info());
+                    } else if let Some(target_client) = self.clients.get(&target_client_uuid) {
+                        let origin = client_origin.with_service(service.info());
                         target_client.send(&payload.with_origin(origin));
                         client.send(&PayloadOut::Ok.seq(seq))
                     } else {
@@ -161,7 +167,7 @@ impl Concierge {
                 }
             }
             Target::All => {
-                self.broadcast(&payload.with_origin(client_info.to_origin()));
+                self.broadcast(&payload.with_origin(client_origin));
                 client.send(&PayloadOut::Ok.seq(seq))
             }
         }
@@ -316,7 +322,7 @@ impl Handler<IdentifyPackage> for Concierge {
     type Result = MessageResult<IdentifyPackage>;
 
     fn handle(&mut self, msg: IdentifyPackage, _: &mut Context<Self>) -> Self::Result {
-        debug!("Client identifying as {:?}.", msg);
+        info!("Client identified. Payload: {:#?}", msg);
 
         if self.namespace.contains_key(&msg.name) {
             return MessageResult(None);
@@ -346,7 +352,7 @@ impl Handler<IdentifyPackage> for Concierge {
 
         self.clients.insert(uuid, client);
 
-        debug!("Client assigned with id {}", uuid);
+        debug!("Client (uuid: {}) registered.", uuid);
         MessageResult(Some(uuid))
     }
 }
@@ -355,9 +361,10 @@ impl Handler<Disconnect> for Concierge {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        debug!("{} disconnected.", msg.uuid);
-
+        debug!("Received disconnect command (uuid: {}).", msg.uuid);
         if let Some(client) = self.clients.remove(&msg.uuid) {
+            info!("Client (uuid: {}) disconnected.", msg.uuid);
+
             self.namespace.remove(&client.name);
 
             // Remove all services owned by this client.
@@ -404,6 +411,7 @@ impl Handler<IncomingMessage> for Concierge {
 
     fn handle(&mut self, msg: IncomingMessage, _: &mut Context<Self>) {
         let IncomingMessage { uuid, text } = msg;
+        trace!("Client (uuid: {}) sent message: {}", uuid, text);
 
         let seq = self.clients.get(&uuid).unwrap().seq;
 
@@ -431,6 +439,7 @@ impl Handler<QueryUuid> for Concierge {
     type Result = Option<String>;
 
     fn handle(&mut self, msg: QueryUuid, _: &mut Context<Self>) -> Self::Result {
+        trace!("Concierge queried (uuid: {}).", msg.uuid);
         self.clients.get(&msg.uuid).map(|c| c.name.to_string())
     }
 }

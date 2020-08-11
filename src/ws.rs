@@ -1,5 +1,6 @@
 use crate::concierge::{self, Concierge};
 use actix::prelude::*;
+use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws::{CloseCode, CloseReason, Message, ProtocolError, WebsocketContext};
 use concierge::{Disconnect, IdentifyPackage, IncomingMessage};
 use concierge_api_rs::{CloseReason as ConciergeCloseReason, PayloadIn};
@@ -7,11 +8,10 @@ use log::{error, warn};
 use semver::Version;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
-use actix_web::{web, HttpRequest, HttpResponse, Error};
 
-/// How often heartbeat pings are sent
+/// How often heartbeat pings are sent.
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
-/// How long before lack of client response causes a timeout
+/// How long before lack of client response causes a timeout.
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub const SUBPROTOCOL: &str = "ert-concierge";
@@ -44,7 +44,29 @@ impl Actor for WsConnection {
     type Context = WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        self.hb(ctx);
+        ctx.run_later(HEARTBEAT_INTERVAL, |ws, ws_ctx| {
+            // If the UUID is still nil after 5 seconds, then the client failed to identify.
+            if ws.uuid.is_nil() {
+                ws_ctx.close(convert(ConciergeCloseReason::AUTH_FAILED));
+                ws_ctx.stop();
+                return;
+            }
+        });
+        ctx.run_interval(HEARTBEAT_INTERVAL, |ws, ws_ctx| {
+            // If the duration between the current moment and last heartbeat is greater
+            // than the timeout threshold, then initiate disconnect.
+            if Instant::now().duration_since(ws.last_hb) > CLIENT_TIMEOUT {
+                warn!("WS client {} failed heartbeat. Dropping.", ws.uuid);
+                // Disconnect the connection from the concierge.
+                ws.c_addr.do_send(Disconnect { uuid: ws.uuid });
+                // Close the actor.
+                ws_ctx.close(convert(ConciergeCloseReason::HB_FAILED));
+                ws_ctx.stop();
+            } else {
+                // Send a ping.
+                ws_ctx.ping(&[]);
+            }
+        });
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
@@ -62,6 +84,7 @@ impl Handler<concierge::OutgoingMessage> for WsConnection {
     }
 }
 
+/// Verify that a name has only alphanumeric or underscores characters.
 fn verify_name(name: &str) -> bool {
     name.chars().all(|c| c.is_alphanumeric() || c == '_')
 }
@@ -78,7 +101,8 @@ impl StreamHandler<Result<Message, ProtocolError>> for WsConnection {
     fn handle(&mut self, msg: Result<Message, ProtocolError>, ctx: &mut Self::Context) {
         let msg = match msg {
             Err(err) => {
-                error!("Dropping session: {}", err);
+                error!("Dropping a session due to protocol error. Error: {}", err);
+                ctx.close(Some(CloseReason::from(CloseCode::Protocol)));
                 ctx.stop();
                 return;
             }
@@ -139,9 +163,11 @@ impl StreamHandler<Result<Message, ProtocolError>> for WsConnection {
                     }
                     Ok(_) => {
                         ctx.close(convert(ConciergeCloseReason::NO_AUTH));
+                        ctx.stop();
                     }
                     Err(_) => {
                         ctx.close(convert(ConciergeCloseReason::UNKNOWN));
+                        ctx.stop();
                     }
                 }
             } else {
@@ -161,31 +187,17 @@ impl StreamHandler<Result<Message, ProtocolError>> for WsConnection {
                     uuid: self.uuid,
                     text,
                 }),
-                Message::Binary(_) => println!("Unexpected binary"),
+                Message::Binary(_) => warn!("Received binary message."),
                 Message::Close(reason) => {
                     ctx.close(reason);
                     ctx.stop();
                 }
                 Message::Continuation(_) => {
+                    ctx.close(Some(CloseReason::from(CloseCode::Size)));
                     ctx.stop();
                 }
                 Message::Nop => (),
             }
         }
-    }
-}
-
-impl WsConnection {
-    fn hb(&self, ctx: &mut WebsocketContext<Self>) {
-        ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
-            if Instant::now().duration_since(act.last_hb) > CLIENT_TIMEOUT {
-                warn!("WS client {} failed heartbeat. Dropping.", act.uuid);
-                act.c_addr.do_send(Disconnect { uuid: act.uuid });
-                ctx.close(convert(ConciergeCloseReason::HB_FAILED));
-                ctx.stop();
-                return;
-            }
-            ctx.ping(&[]);
-        });
     }
 }
