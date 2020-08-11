@@ -69,7 +69,7 @@ export default class Client {
     /**
      * UUID assigned to the client upon sending the identification payload.
      */
-    _uuid!: Uuid;
+    private _uuid!: Uuid;
     get uuid(): Uuid {
         return this._uuid;
     }
