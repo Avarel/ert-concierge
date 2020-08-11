@@ -7,7 +7,6 @@ edition = "2018"
 [dependencies]
 cs3_physics = { path = "physics" }
 physics_concierge_bot = { path = "concierge_bot" }
-sdl2 = { version = "0.34.1", features = ["gfx"] }
 tokio = { version = "0.2", default-features = false, features = ["macros", "rt-threaded"] }
-ctrlc = "3.1.4"
+ctrlc = "3.1"
 uuid = { version = "0.8", features = ["serde"] }

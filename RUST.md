@@ -9,6 +9,7 @@ The upload, download, and delete functions are pretty basic. They handle file ma
 ## Why Rust?
 Shamelessly stolen from [Nannou](https://nannou.cc/).
 * **Super fast**, as in [C and C++ fast](https://benchmarksgame-team.pages.debian.net/benchmarksgame/fastest/rust-gpp.html).
+* **Did I mention fast?** [Actix is one of the fastest web frameworks](https://www.techempower.com/benchmarks/#section=data-r18).
 * A **standard package manager** that makes it very easy to handle dependencies and share your own projects in seconds. In fact, running this project takes a `git clone` and a `cargo run --release`.
 * **Highly portable**. Easily build for MacOS, Linux, Windows, Android, iOS and so many others. Cross-compilation? No problem.
 * **No header files** and no weird linking errors.
