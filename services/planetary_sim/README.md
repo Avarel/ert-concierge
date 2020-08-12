@@ -21,7 +21,7 @@ This command will install the dependencies required globally.
 python3 -m pip install websockets asyncio requests
 ```
 
-## Running the Concierge Bot
+## Running the Service
 ### With Pipenv (recommended)
 ```bash
 pipenv run python3 concierge_bot.py [optional server address]

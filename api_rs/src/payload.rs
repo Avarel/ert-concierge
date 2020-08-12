@@ -83,7 +83,7 @@ pub enum PayloadIn<'a> {
     /// The client sends this to fetch information about another client by their UUID.
     ///
     /// ### Responses
-    /// * `CLIENT_FETCH_RESULT`: See `PayloadOut::SelfFetchResult`.
+    /// * `CLIENT_FETCH_RESULT`: See `PayloadOut::ClientFetchResult`.
     ClientFetch { uuid: Uuid } ,
     /// The client sends this to fetch information of all clients on the server.
     ///

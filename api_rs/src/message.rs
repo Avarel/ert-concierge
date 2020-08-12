@@ -33,10 +33,11 @@ pub enum Target<'a> {
     All,
 }
 
-/// Mimics a constant field for type safe deserialization.
+/// Constant field for type safe deserialization of messages.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 enum PayloadMessageType {
+    /// Message enum.
     Message,
 }
 

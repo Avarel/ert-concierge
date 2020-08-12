@@ -45,7 +45,8 @@ impl Actor for WsConnection {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.run_later(HEARTBEAT_INTERVAL, |ws, ws_ctx| {
-            // If the UUID is still nil after 5 seconds, then the client failed to identify.
+            // If the UUID is still nil after one heartbeat interval,
+            // then the client failed to identify.
             if ws.uuid.is_nil() {
                 ws_ctx.close(convert(ConciergeCloseReason::AUTH_FAILED));
                 ws_ctx.stop();
@@ -53,8 +54,8 @@ impl Actor for WsConnection {
             }
         });
         ctx.run_interval(HEARTBEAT_INTERVAL, |ws, ws_ctx| {
-            // If the duration between the current moment and last heartbeat is greater
-            // than the timeout threshold, then initiate disconnect.
+            // If the duration between the current moment and last heartbeat
+            // is greater than the timeout threshold, then initiate disconnect.
             if Instant::now().duration_since(ws.last_hb) > CLIENT_TIMEOUT {
                 warn!("WS client {} failed heartbeat. Dropping.", ws.uuid);
                 // Disconnect the connection from the concierge.

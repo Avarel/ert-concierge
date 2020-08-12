@@ -167,6 +167,18 @@ The client sends this to fetch information of all services on the server.
 ### Responses
 * `SERVICE_FETCH_ALL_RESULT`: See `PayloadOut::ServiceFetchAllResult`.
 
+## Client Fetch
+The client sends this to fetch information about another client by their UUID.
+### Structure
+```typescript
+{
+    "type": "CLIENT_FETCH"
+}
+```
+### Responses
+* `CLIENT_FETCH_RESULT`: See `PayloadOut::ClientFetchResult`.
+
+
 ## Client Fetch All
 The client sends this to fetch information of all clients on the server.
 ### Structure
@@ -365,6 +377,30 @@ The server sends this in response to `SERVICE_FETCH_ALL`.
 ```
 ### Notes
 The services are available as an array of service information objects.
+
+## Client Fetch Result
+The server sends this in response to `CLIENT_FETCH`.
+### Structure
+```typescript
+{
+    "type": "CLIENT_FETCH_RESULT",
+    "client": {
+        "name": string,
+        "nickname": string | undefined,
+        "uuid": string, // should be uuid structure
+        "tags": string[]
+    }
+    "subscriptions": {
+        "name": string,
+        "nickname": string | undefined,
+        "owner_uuid": string, // should be uuid structure
+        "subscribers": string[] // array of uuids
+    }[]
+}
+```
+### Notes
+The subscription of the client is available as an array of service
+information objects.
 
 ## Client Fetch All Result
 The server sends this in response to `CLIENT_FETCH_ALL`.
