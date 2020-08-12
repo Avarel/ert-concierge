@@ -20,8 +20,10 @@ pub struct Client {
     pub seq: usize,
     /// Client tags.
     pub tags: Vec<String>,
+    /// Actor address for a recipient that
+    /// receives messages from the central server.
     pub addr: Recipient<OutgoingMessage>,
-    /// Groups.
+    /// Subscriptions.
     pub subscriptions: HashSet<String>,
 }
 

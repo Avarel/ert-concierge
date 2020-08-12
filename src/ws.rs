@@ -176,24 +176,27 @@ impl StreamHandler<Result<Message, ProtocolError>> for WsConnection {
             }
         } else {
             match msg {
+                // Standard respond to ping with pong.
                 Message::Ping(msg) => {
                     self.last_hb = Instant::now();
                     ctx.pong(&msg);
                 }
-                Message::Pong(_) => {
-                    self.last_hb = Instant::now();
-                }
+                // Received a pong.
+                Message::Pong(_) => self.last_hb = Instant::now(),
+                // Relay the text message from the client to the server.
                 Message::Text(text) => self.c_addr.do_send(IncomingMessage {
                     uuid: self.uuid,
                     text,
                 }),
+                // We don't handle binary (yet!).
                 Message::Binary(_) => warn!("Received binary message."),
+                // The client socket closed on us. Stop the actor.
                 Message::Close(reason) => {
                     ctx.close(reason);
                     ctx.stop();
                 }
+                // We don't really know what to do with a continuation frame yet.
                 Message::Continuation(_) => {
-                    ctx.close(Some(CloseReason::from(CloseCode::Size)));
                     ctx.stop();
                 }
                 Message::Nop => (),

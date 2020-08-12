@@ -80,6 +80,11 @@ pub enum PayloadIn<'a> {
     /// ### Responses
     /// * `SERVICE_FETCH_ALL_RESULT`: See `PayloadOut::ServiceFetchAllResult`.
     ServiceFetchAll,
+    /// The client sends this to fetch information about another client by their UUID.
+    ///
+    /// ### Responses
+    /// * `CLIENT_FETCH_RESULT`: See `PayloadOut::SelfFetchResult`.
+    ClientFetch { uuid: Uuid } ,
     /// The client sends this to fetch information of all clients on the server.
     ///
     /// ### Responses
@@ -174,6 +179,17 @@ pub enum PayloadOut<'a> {
     ServiceFetchAllResult {
         #[serde(borrow)]
         services: Vec<Service<'a>>,
+    },
+    /// The server sends this in response to `CLIENT_FETCH`.
+    ///
+    /// ### Notes
+    /// The subscription of the client is available as an array of service
+    /// information objects.
+    ClientFetchResult {
+        #[serde(borrow)]
+        client: Client<'a>,
+        #[serde(borrow)]
+        subscriptions: Vec<Service<'a>>,
     },
     /// The server sends this in response to `CLIENT_FETCH_ALL`.
     ///

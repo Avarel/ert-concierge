@@ -15,6 +15,18 @@ use std::{collections::HashSet, fs::OpenOptions, path::PathBuf, str::FromStr};
 
 pub const FS_KEY_HEADER: &str = "x-fs-key";
 
+/// Extract the file key from the request's header.
+fn extract_header<T: FromStr>(req: &HttpRequest) -> Result<T, FsError> {
+    req.headers()
+        .get(FS_KEY_HEADER)
+        .ok_or(FsError::MissingAuthorization)?
+        .to_str()
+        .map_err(|_| FsError::Encoding)?
+        .parse()
+        .map_err(|_| FsError::Encoding)
+}
+
+/// File system errors.
 #[derive(thiserror::Error, Debug)]
 pub enum FsError {
     #[allow(dead_code)]
@@ -52,6 +64,7 @@ impl ResponseError for FsError {
     }
 }
 
+/// The base file path.
 pub fn base_path(name: &str) -> PathBuf {
     let mut buf = PathBuf::new();
     buf.push(".");
@@ -60,24 +73,28 @@ pub fn base_path(name: &str) -> PathBuf {
     buf
 }
 
+/// Handler for the /fs/{name}/{file_name} GET route.
 pub async fn get(
     path: web::Path<(String, String)>,
     req: HttpRequest,
     srv: web::Data<Addr<Concierge>>,
 ) -> Result<impl Responder, Error> {
+    // Get the file key.
     let uuid = extract_header(&req)?;
 
+    // Query the server that this UUID leads to a named client.
     let query = srv.send(QueryUuid { uuid }).await.unwrap().is_some();
 
     if !query {
+        // Reject if there is no name with that uuid.
         return Err(FsError::BadAuthorization.into());
     }
 
-    let name = &path.0;
-    let tail = sanitize_filename::sanitize(&path.1);
+    let path_name = &path.0;
+    let path_tail = sanitize_filename::sanitize(&path.1);
 
     // Construct the file path.
-    let file_path = base_path(&name).join(tail);
+    let file_path = base_path(&path_name).join(path_tail);
     let file = NamedFile::open(file_path)?;
 
     Ok(file
@@ -88,26 +105,31 @@ pub async fn get(
         }))
 }
 
+/// Handler for the /fs/{name}/{file_name} POST route.
 pub async fn multipart_upload_single(
     path: web::Path<(String, String)>,
     req: HttpRequest,
     srv: web::Data<Addr<Concierge>>,
     mut payload: Multipart,
 ) -> Result<impl Responder, Error> {
-    let name = path.0.to_string();
-    let tail = sanitize_filename::sanitize(&path.1);
-
+    // Get the file key.
     let uuid = extract_header(&req)?;
 
+    // Query the server that this UUID leads to a named client.
     let query: Option<String> = srv.send(QueryUuid { uuid }).await.unwrap();
 
     let client_name = query.ok_or(FsError::BadAuthorization)?;
-    if client_name != name {
+
+    let path_name = path.0.to_string();
+    let path_tail = sanitize_filename::sanitize(&path.1);
+
+    // Reject if the file key leads to a name thats not the path name.
+    if client_name != path_name {
         return Err(FsError::Forbidden.into());
     }
 
-    let base_path = base_path(&name);
-    let file_path = base_path.join(&tail);
+    let base_path = base_path(&path_name);
+    let file_path = base_path.join(&path_tail);
 
     // Submit blocking operations to threadpool
     let file_path_clone = file_path.clone();
@@ -149,31 +171,23 @@ pub async fn multipart_upload_single(
     Ok(HttpResponse::Created())
 }
 
-pub fn extract_header<T: FromStr>(req: &HttpRequest) -> Result<T, FsError> {
-    req
-        .headers()
-        .get(FS_KEY_HEADER)
-        .ok_or(FsError::MissingAuthorization)?
-        .to_str()
-        .map_err(|_| FsError::Encoding)?
-        .parse()
-        .map_err(|_| FsError::Encoding)
-}
-
+/// Handler for the /fs/{name} POST route.
 pub async fn multipart_upload_multi(
     path: web::Path<String>,
     req: HttpRequest,
     srv: web::Data<Addr<Concierge>>,
     mut payload: Multipart,
 ) -> Result<impl Responder, Error> {
-    let name = path.to_string();
-
+    // Get the file key.
     let uuid = extract_header(&req)?;
 
     let query: Option<String> = srv.send(QueryUuid { uuid }).await.unwrap();
 
     let client_name = query.ok_or(FsError::BadAuthorization)?;
-    if client_name != name {
+    let path_name = path.to_string();
+
+    // Reject if the file key leads to a name thats not the path name.
+    if client_name != path_name {
         return Err(FsError::Forbidden.into());
     }
 
@@ -188,7 +202,7 @@ pub async fn multipart_upload_multi(
             .get_filename()
             .ok_or(FsError::ContentDispositionFileNameMissing)?;
 
-        let file_path = base_path(&name).join(sanitize_filename::sanitize(&file_name));
+        let file_path = base_path(&path_name).join(sanitize_filename::sanitize(&file_name));
 
         let mut f = if file_list.contains(file_name) {
             web::block(|| OpenOptions::new().append(true).open(file_path)).await
@@ -214,31 +228,29 @@ pub async fn multipart_upload_multi(
     Ok(HttpResponse::Created())
 }
 
+/// Handler for the /fs/{name}/{file_name} DELETE route.
 pub async fn delete(
     path: web::Path<(String, String)>,
     req: HttpRequest,
     srv: web::Data<Addr<Concierge>>,
 ) -> Result<impl Responder, Error> {
-    let name = &path.0;
-    let tail = sanitize_filename::sanitize(&path.1);
+    // Get the file key.
+    let uuid = extract_header(&req)?;
 
-    let uuid = req
-        .headers()
-        .get(FS_KEY_HEADER)
-        .ok_or(FsError::MissingAuthorization)?
-        .to_str()
-        .map_err(|_| FsError::Encoding)?
-        .parse()
-        .map_err(|_| FsError::Encoding)?;
-
+    // Query the server that this UUID leads to a named client.
     let query: Option<String> = srv.send(QueryUuid { uuid }).await.unwrap();
 
     let client_name = query.ok_or(FsError::BadAuthorization)?;
-    if &client_name != name {
+    let path_name = &path.0;
+
+    // Reject if the file key leads to a name thats not the path name.
+    if &client_name != path_name {
         return Err(FsError::Forbidden.into());
     }
 
-    let file_path = base_path(&name).join(tail);
+    let tail = sanitize_filename::sanitize(&path.1);
+
+    let file_path = base_path(&path_name).join(tail);
 
     web::block(|| std::fs::remove_file(file_path)).await?;
 

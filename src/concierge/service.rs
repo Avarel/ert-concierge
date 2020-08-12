@@ -4,11 +4,16 @@ use serde::Serialize;
 use std::{borrow::Cow, collections::{HashMap, HashSet}};
 use uuid::Uuid;
 
+/// A struct containing group information.
 pub struct Service {
+    // Service name.
     pub name: String,
+    // Service nickname.
     pub nickname: Option<String>,
+    // UUID of the owner client.
     pub owner_uuid: Uuid,
-    pub clients: HashSet<Uuid>,
+    // Subscriber UUIDs.
+    pub subscribers: HashSet<Uuid>,
 }
 
 impl Service {
@@ -18,7 +23,7 @@ impl Service {
             name,
             nickname,
             owner_uuid,
-            clients: HashSet::new(),
+            subscribers: HashSet::new(),
         }
     }
 
@@ -28,18 +33,18 @@ impl Service {
             name: Cow::Borrowed(&self.name),
             nickname: self.nickname.as_deref().map(Cow::Borrowed),
             owner_uuid: self.owner_uuid,
-            subscribers: self.clients.iter().copied().collect::<Vec<_>>(),
+            subscribers: self.subscribers.iter().copied().collect::<Vec<_>>(),
         }
     }
 
     /// Add the client to the group.
     pub fn add_subscriber(&mut self, uuid: Uuid) -> bool {
-        self.clients.insert(uuid)
+        self.subscribers.insert(uuid)
     }
 
     /// Remove the client from the group.
     pub fn remove_subscriber(&mut self, uuid: Uuid) -> bool {
-        self.clients.remove(&uuid)
+        self.subscribers.remove(&uuid)
     }
 
     /// Broadcast a serialized payload between the intersection of the provided
@@ -52,7 +57,7 @@ impl Service {
     /// Broadcast a string message between the intersection of the provided
     /// client list and the service's client list.
     pub fn broadcast_string(&self, clients: &HashMap<Uuid, Client>, string: &str, to_owner: bool) {
-        self.clients
+        self.subscribers
             .iter()
             .filter(|client_uuid| to_owner || **client_uuid != self.owner_uuid)
             .filter_map(|client_uuid| clients.get(client_uuid))

@@ -1,7 +1,3 @@
-//! `ChatServer` is an actor. It maintains list of connection client session.
-//! And manages available rooms. Peers send messages to other peers in same
-//! room through `ChatServer`.
-
 mod client;
 mod service;
 
@@ -15,12 +11,14 @@ use service::Service;
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
+/// Messages sent to the socket connection.
 #[derive(Debug)]
 pub struct OutgoingMessage(pub WsMessage);
 impl Message for OutgoingMessage {
     type Result = ();
 }
 
+/// Identifying information sent from the socket connection.
 #[derive(Debug)]
 pub struct IdentifyPackage {
     pub name: String,
@@ -29,9 +27,12 @@ pub struct IdentifyPackage {
     pub addr: Recipient<OutgoingMessage>,
 }
 impl Message for IdentifyPackage {
+    /// * `Some(_)` represents a randomly assigned uuid from the server.
+    /// * `None` represents server rejection (hence no uuid assigned).
     type Result = Option<Uuid>;
 }
 
+/// Client command to the server to disconnect it.
 #[derive(Debug)]
 pub struct Disconnect {
     pub uuid: Uuid,
@@ -40,6 +41,7 @@ impl Message for Disconnect {
     type Result = ();
 }
 
+/// String messages sent from the socket connection.
 #[derive(Debug)]
 pub struct IncomingMessage {
     pub uuid: Uuid,
@@ -49,6 +51,8 @@ impl Message for IncomingMessage {
     type Result = ();
 }
 
+/// Query for a client name with the associated UUID.
+/// Often used by file routes.
 pub struct QueryUuid {
     pub uuid: Uuid,
 }
@@ -56,13 +60,20 @@ impl Message for QueryUuid {
     type Result = Option<String>;
 }
 
+/// Central struct that stores the concierge data.
 pub struct Concierge {
+    /// Services registered with the concierge.
     pub services: HashMap<String, Service>,
+    /// This is the namespace of clients connected to the concierge.
     pub namespace: HashMap<String, Uuid>,
+    /// This is the mapping between UUID and Clients.
+    /// Statistically, the 128-bit UUIDs generated will not collide.
     pub clients: HashMap<Uuid, Client>,
 }
 
 impl Actor for Concierge {
+    /// Using a simple Context, since we just need the ability
+    /// to communicate with other actors.
     type Context = Context<Self>;
 }
 
@@ -102,6 +113,7 @@ impl Concierge {
         let client_origin = client.info().to_origin();
         match payload.target {
             Target::Name { name } => {
+                // Obtain the UUID from the namespace and send the payload.
                 if let Some(target_client) = self
                     .namespace
                     .get(name)
@@ -114,6 +126,7 @@ impl Concierge {
                 }
             }
             Target::Uuid { uuid } => {
+                // Send the payload.
                 if let Some(target_client) = self.clients.get(&uuid) {
                     target_client.send(&payload.with_origin(client_origin));
                     client.send(&PayloadOut::Ok.seq(seq))
@@ -124,6 +137,7 @@ impl Concierge {
             Target::Service {
                 service: service_name,
             } => {
+                // Find the service.
                 if let Some(service) = self.services.get(service_name) {
                     let origin = client_origin.with_service(service.info());
                     if client_uuid == service.owner_uuid {
@@ -131,7 +145,7 @@ impl Concierge {
                         // They will not get an echo of their own message.
                         service.broadcast(&self.clients, &payload.with_origin(origin), false);
                         client.send(&PayloadOut::Ok.seq(seq))
-                    } else if !service.clients.contains(&client_uuid) {
+                    } else if !service.subscribers.contains(&client_uuid) {
                         // Client must be subscribed in order to send messages to the owner.
                         client.send(&PayloadOut::Bad.seq(seq))
                     } else if let Some(owner_client) = self.clients.get(&service.owner_uuid) {
@@ -151,6 +165,7 @@ impl Concierge {
                 service: service_name,
                 uuid: target_client_uuid,
             } => {
+                // Find the service.
                 if let Some(service) = self.services.get(service_name) {
                     // Only owners of a service are allowed to use this target.
                     if client_uuid != service.owner_uuid {
@@ -167,6 +182,7 @@ impl Concierge {
                 }
             }
             Target::All => {
+                // Broadcast to all clients.
                 self.broadcast(&payload.with_origin(client_origin));
                 client.send(&PayloadOut::Ok.seq(seq))
             }
@@ -185,10 +201,12 @@ impl Concierge {
                 if let Some((service_info, successful)) =
                     client.subscribe(&mut self.services, service_name)
                 {
+                    // Clients know they are subscribed before others.
                     client.send(
                         &PayloadOut::self_subscribe_result(successful, service_info).seq(seq),
                     );
                     if successful {
+                        // Notify others.
                         let client_info = client.info().owned();
                         let service = self.services.get(service_name).unwrap();
                         service.broadcast(
@@ -209,10 +227,12 @@ impl Concierge {
                 if let Some((service_info, successful)) =
                     client.unsubscribe(&mut self.services, service_name)
                 {
+                    // Clients know they are unsubscribed before others.
                     client.send(
                         &PayloadOut::self_unsubscribe_result(successful, service_info).seq(seq),
                     );
                     if successful {
+                        // Notify others.
                         let client_info = client.info().owned();
                         let service = self.services.get(service_name).unwrap();
                         service.broadcast(
@@ -226,8 +246,10 @@ impl Concierge {
                 }
             }
             PayloadIn::SelfSetSeq { seq } => {
+                // Set the client's sequence number.
                 let client = self.clients.get_mut(&client_uuid).unwrap();
                 client.seq = seq;
+                client.send(&PayloadOut::Ok.seq(client.seq));
             }
             PayloadIn::ServiceCreate {
                 service: service_name,
@@ -239,10 +261,13 @@ impl Concierge {
 
                 let created_result = PayloadOut::service_create_result(successful, service_info);
 
+                // Only broadcast service creation if successful. Client sees it also but
+                // it does not have a sequence number attached.
                 if successful {
                     self.broadcast(&created_result);
                 }
 
+                // Client gets to know the result.
                 client.send(&created_result.seq(seq));
             }
             PayloadIn::ServiceDelete {
@@ -252,6 +277,7 @@ impl Concierge {
                 if let Some(result) = client.try_remove_service(&mut self.services, service_name) {
                     match result {
                         Ok(service) => {
+                            // Broadcast successful deletion.
                             let delete_result = PayloadOut::service_delete_result(service.info());
                             self.broadcast(&delete_result);
                             client.send(&delete_result.seq(seq));
@@ -268,6 +294,7 @@ impl Concierge {
                 service: service_name,
             } => {
                 let client = self.clients.get(&client_uuid).unwrap();
+                // Get and respond with service info.
                 if let Some(service) = self.services.get(service_name) {
                     client.send(
                         &PayloadOut::ServiceFetchResult {
@@ -280,11 +307,13 @@ impl Concierge {
                 }
             }
             PayloadIn::ClientFetchAll => {
+                // Respond with all client info.
                 let client = self.clients.get(&client_uuid).unwrap();
                 let clients = self.clients.values().map(Client::info).collect::<Vec<_>>();
                 client.send(&PayloadOut::ClientFetchAllResult { clients }.seq(seq));
             }
             PayloadIn::ServiceFetchAll => {
+                // Respond with all service info.
                 let client = self.clients.get(&client_uuid).unwrap();
                 let service_infos = self.services.values().map(Service::info).collect();
                 client.send(
@@ -295,6 +324,7 @@ impl Concierge {
                 );
             }
             PayloadIn::SelfFetch => {
+                // Respond with self information.
                 let client = self.clients.get(&client_uuid).unwrap();
                 let service_infos = client
                     .subscriptions
@@ -310,6 +340,25 @@ impl Concierge {
                     .seq(seq),
                 )
             }
+            PayloadIn::ClientFetch { uuid: target_uuid } => {
+                // Respond with client information.
+                let client = self.clients.get(&client_uuid).unwrap();
+                if let Some(target_client) = self.clients.get(&target_uuid) {
+                    let service_infos = target_client
+                        .subscriptions
+                        .iter()
+                        .filter_map(|id| self.services.get(id))
+                        .map(Service::info)
+                        .collect::<Vec<_>>();
+                    client.send(
+                        &PayloadOut::ClientFetchResult {
+                            client: target_client.info(),
+                            subscriptions: service_infos,
+                        }
+                        .seq(seq),
+                    )
+                }
+            }
             _ => {
                 let client = self.clients.get(&client_uuid).unwrap();
                 client.send(&PayloadOut::ErrorUnsupported.seq(seq))
@@ -324,10 +373,12 @@ impl Handler<IdentifyPackage> for Concierge {
     fn handle(&mut self, msg: IdentifyPackage, _: &mut Context<Self>) -> Self::Result {
         info!("Client identified. Payload: {:#?}", msg);
 
+        // Reject if duplicate name.
         if self.namespace.contains_key(&msg.name) {
             return MessageResult(None);
         }
 
+        // Generate UUID and insert to namespace.
         let uuid = Uuid::new_v4();
         self.namespace.insert(msg.name.clone(), uuid);
 
@@ -341,10 +392,12 @@ impl Handler<IdentifyPackage> for Concierge {
             subscriptions: HashSet::default(),
         };
 
+        // Broadcast client join to everyone.
         self.broadcast(&PayloadOut::ClientJoined {
             client: client.info(),
         });
 
+        // Send the hello payload.
         client.send(&PayloadOut::Hello {
             uuid,
             version: crate::VERSION,
@@ -372,7 +425,8 @@ impl Handler<Disconnect> for Concierge {
                 .services
                 .iter()
                 .filter(|(_, group)| group.owner_uuid == client.uuid)
-                .map(|(name, _)| name.to_owned())
+                .map(|(name, _)| name)
+                .cloned()
                 .collect::<Vec<_>>();
             for service_name in removing_services {
                 // Safety: The service must exist since we have a write lock,
@@ -415,9 +469,11 @@ impl Handler<IncomingMessage> for Concierge {
 
         let seq = self.clients.get(&uuid).unwrap().seq;
 
+        // Prioritize trying to parse messages (since they are the primary form of function).
         if let Ok(payload) = serde_json::from_str(&text) {
             self.handle_message(uuid, seq, payload);
         } else {
+            // Parse other payloads.
             match serde_json::from_str(&text) {
                 Ok(payload) => {
                     self.handle_payload(uuid, payload);
