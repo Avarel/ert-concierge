@@ -116,12 +116,25 @@ async def handle_payload(payload: Dict[str, Any], socket: websockets.WebSocketCl
         output_name = client_nickname if client_nickname else client_name
 
         msg_data = payload["data"]
-        await send_msg(service_target, socket, {
-            "type": "TEXT",
-            "author": output_name,
-            "author_uuid": payload["origin"]["uuid"],
-            "text": msg_data["text"]
-        })
+
+        if msg_data["text"] == "/about":
+            await send_msg({
+                "type": "SERVICE_CLIENT_UUID",
+                "service": service_name,
+                "uuid": payload["origin"]["uuid"]
+            }, socket, {
+                "type": "TEXT",
+                "author": "System Message",
+                "author_uuid": "0",
+                "text": "(Only you can see this!)\nERT Chat Service\nVersion: 0.1"
+            })
+        else:
+            await send_msg(service_target, socket, {
+                "type": "TEXT",
+                "author": output_name,
+                "author_uuid": payload["origin"]["uuid"],
+                "text": msg_data["text"]
+            })
 
 signal.signal(signal.SIGINT, stop)
 

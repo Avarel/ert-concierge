@@ -19,8 +19,7 @@ export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
     private tab?: Tabbed.Tab;
 
     planetLock?: string;
-    hoveredPlanets: Set<string> = new Set();
-    litPlanet?: string;
+    planetHover?: string;
 
     constructor(
         client: Client,
@@ -72,8 +71,7 @@ export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
                 }
                 for (let obj of payload.objects) {
                     let location = new BABYLON.Vector3(obj.location[0], obj.location[1], obj.location[2])
-                        .scaleInPlace(1 / this.sysData.scale)
-                        .scaleInPlace(this.visualScale);
+                        .scaleInPlace(this.visualScale / this.sysData.scale);
 
                     if (this.planets.has(obj.name)) {
                         let planet = this.planets.get(obj.name)!;
@@ -81,23 +79,22 @@ export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
                         planet.data = obj;
                     } else {
                         if (this.view.scene) {
-                            let radius = obj.radius / this.sysData.scale * this.sysData.bodyScale * this.visualScale;
+                            let radius = obj.radius * this.sysData.bodyScale * this.visualScale / this.sysData.scale; 
 
                             let color = BABYLON.Color3.FromArray(obj.color);
                             if (obj.name == this.sysData.centralBodyName) {
                                 console.log("Found central body!")
                                 radius *= this.sysData.centralBodyScale;
-                                location.scaleInPlace(this.sysData.centralBodyScale);
                             }
 
-                            let planet = PlanetObject.create(
+                            let planet = new PlanetObject(
+                                this,
                                 obj.name,
                                 location,
                                 radius,
                                 this.view.scene,
                                 color
                             );
-                            planet.hookHover(this);
                             planet.data = obj;
 
                             this.planets.set(obj.name, planet);
@@ -127,28 +124,28 @@ export class PlanetaryService extends ServiceEventHandler<PlanetaryPayload> {
     }
 
     renderInformation(force: boolean = false) {
-        if (!this.planetLock && this.hoveredPlanets.size == 0) {
-            for (const planet of this.planets.values()) {
-                planet.unlit();
-            }
-            this.litPlanet = undefined;
-        } else {
-            let planet: PlanetObject | undefined;
-            if (this.planetLock) {
-                planet = this.planets.get(this.planetLock);
-            } else {
-                planet = this.planets.get(this.hoveredPlanets.values().next().value);
-            }
-            if (planet && planet.id != this.litPlanet) {
-                if (this.litPlanet) {
-                    let prevLitPlanet = this.planets.get(this.litPlanet);
-                    prevLitPlanet?.unlit();
-                }
+        // if (!this.planetLock && this.hoveredPlanets.size == 0) {
+        //     for (const planet of this.planets.values()) {
+        //         planet.unlit();
+        //     }
+        //     this.litPlanet = undefined;
+        // } else {
+        //     let planet: PlanetObject | undefined;
+        //     if (this.planetLock) {
+        //         planet = this.planets.get(this.planetLock);
+        //     } else {
+        //         planet = this.planets.get(this.hoveredPlanets.values().next().value);
+        //     }
+        //     if (planet && planet.id != this.litPlanet) {
+        //         if (this.litPlanet) {
+        //             let prevLitPlanet = this.planets.get(this.litPlanet);
+        //             prevLitPlanet?.unlit();
+        //         }
 
-                planet.lit();
-                this.litPlanet = planet.id;
-            }
-        }
+        //         planet.lit();
+        //         this.litPlanet = planet.id;
+        //     }
+        // }
 
         if (this.tab && (this.tab.isActive || force)) {
             this.tab!.reactContent = React.createElement(PlanetaryComponent, { handler: this });

@@ -165,6 +165,25 @@ export default class Client {
     }
 
     /**
+     * Asynchronously send a payload to the server.
+     * 
+     * @param payload A payload following the documented JSON format.
+     * @param timeout A time limit for the sever to respond. Default being 10s.
+     * @returns The payload result from the server.
+     */
+    sendPayloadAsync(payload: Readonly<Payload.In>, timeout: number = 10000): Promise<Readonly<Payload.Out>> {
+        return new Promise((resolve, reject) => {
+            let rejectTimeout = window.setTimeout(() => {
+                reject(new Error("Server did not respond to the payload in time."))
+            }, timeout);
+            this.sendPayload(payload, (result) => {
+                window.clearTimeout(rejectTimeout);
+                resolve(result);
+            })
+        })
+    }
+
+    /**
      * Close the socket connection and inform the server.
      * 
      * @param code Close code.

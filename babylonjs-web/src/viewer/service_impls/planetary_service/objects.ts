@@ -1,98 +1,87 @@
 import * as BABYLON from 'babylonjs';
+import * as GUI from 'babylonjs-gui';
 import { SystemObject } from './payloads';
 import { PlanetaryService } from './mod';
 
 export class PlanetObject {
-    private enterAction?: BABYLON.IAction;
-    private exitAction?: BABYLON.IAction;
-    private clickAction?: BABYLON.IAction;
     data!: SystemObject;
+    mesh: BABYLON.Mesh;
+    trailMesh: BABYLON.TrailMesh;
 
-    private constructor(
-        public readonly id: string,
+    constructor(
+        parent: PlanetaryService,
+        readonly id: string, 
         private centroid: BABYLON.Vector3,
-        public mesh: BABYLON.Mesh,
-        public trailMesh?: BABYLON.TrailMesh
-    ) { }
+        radius: number,
+        scene: BABYLON.Scene,
+        color: BABYLON.Color3
+    ) {
+        this.mesh = BABYLON.MeshBuilder.CreateSphere("sphere " + this.id, { diameter: radius * 2 }, scene);
+        this.mesh.position = centroid;
 
-    static create(id: string, centroid: BABYLON.Vector3, radius: number, scene: BABYLON.Scene, color: BABYLON.Color3, scale: number = 1): PlanetObject {
-        let mesh = BABYLON.MeshBuilder.CreateSphere("mySphere", { diameter: radius * 2 * scale }, scene);
-        mesh.position = centroid;
-
-        var mat = new BABYLON.StandardMaterial("myMaterial", scene);
+        const mat = new BABYLON.StandardMaterial("myMaterial", scene);
         mat.diffuseColor = color;
-        mesh.material = mat;
+        this.mesh.material = mat;
+        const originalMatColor = mat.emissiveColor;
 
-        mesh.actionManager = new BABYLON.ActionManager(scene);
+        this.mesh.actionManager = new BABYLON.ActionManager(scene);
 
-        let trailMesh = new BABYLON.TrailMesh("trail", mesh, scene, Math.min(0.02, radius * scale), 1000, true);
+        this.trailMesh = new BABYLON.TrailMesh("planet trail " + this.id, this.mesh, scene, Math.min(0.02, radius), 1000, true);
 
-        return new PlanetObject(id, centroid, mesh, trailMesh);
+        this.mesh.actionManager.registerAction(new BABYLON.ExecuteCodeAction(
+            BABYLON.ActionManager.OnPointerOverTrigger,
+            () => {
+                mat.emissiveColor = BABYLON.Color3.Red();
+                parent.planetHover = this.id;
+                parent.renderInformation();
+            }
+        ));
+        this.mesh.actionManager.registerAction(new BABYLON.ExecuteCodeAction(
+            BABYLON.ActionManager.OnPointerOutTrigger,
+            () => {
+                mat.emissiveColor = originalMatColor;
+                if (parent.planetHover == this.id) {
+                    parent.planetHover = undefined;
+                    parent.renderInformation();
+                }
+            }
+        ));
+        this.mesh.actionManager.registerAction(new BABYLON.ExecuteCodeAction(
+            BABYLON.ActionManager.OnPickTrigger,
+            () => {
+                if (parent.planetLock == this.id) {
+                    parent.planetLock = undefined;
+                } else {
+                    parent.planetLock = this.id;
+                }
+                parent.renderInformation();
+            }
+        ));
+
+        // this did not work as expected for some reason
+        // the GUI was drawn but not properly on the screen
+        
+        // const label = new GUI.Rectangle("label for " + this.id);
+        // label.background = "black"
+        // label.height = "30px";
+        // label.alpha = 0.5;
+        // label.width = "100px";
+        // label.cornerRadius = 20;
+        // label.thickness = 1;
+        // label.linkOffsetY = 30;
+        // parent.view.advancedTexture.addControl(label); 
+        // label.linkWithMesh(this.mesh);
+
+        // const text1 = new GUI.TextBlock();
+        // text1.text = this.id;
+        // text1.color = "white";
+        // label.addControl(text1);  
     }
 
     dispose() {
-        this.unhookHover();
+        this.mesh.actionManager?.dispose();
         this.trailMesh?.dispose();
         this.mesh.dispose();
-    }
-
-    hookHover(handler: PlanetaryService) {
-        if (this.mesh.actionManager) {
-            this.enterAction = new BABYLON.ExecuteCodeAction(
-                BABYLON.ActionManager.OnPointerOverTrigger,
-                () => {
-                    handler.hoveredPlanets.add(this.id);
-                    handler.renderInformation();
-                }
-            );
-            this.exitAction = new BABYLON.ExecuteCodeAction(
-                BABYLON.ActionManager.OnPointerOutTrigger,
-                () => {
-                    handler.hoveredPlanets.delete(this.id);
-                    handler.renderInformation();
-                }
-            );
-            this.clickAction = new BABYLON.ExecuteCodeAction(
-                BABYLON.ActionManager.OnPickTrigger,
-                () => {
-                    if (handler.planetLock == this.id) {
-                        handler.planetLock = undefined;
-                    } else {
-                        handler.planetLock = this.id;
-                    }
-                    handler.renderInformation();
-                }
-            );
-            this.mesh.actionManager.registerAction(this.enterAction);
-            this.mesh.actionManager.registerAction(this.exitAction);
-            this.mesh.actionManager.registerAction(this.clickAction);
-        }
-    }
-
-    unlit() {
-        (this.mesh.material as BABYLON.StandardMaterial).emissiveColor = BABYLON.Color3.Black();
-
-    }
-
-    lit() {
-        (this.mesh.material as BABYLON.StandardMaterial).emissiveColor = BABYLON.Color3.Red();
-    }
-
-    unhookHover() {
-        if (this.mesh.actionManager) {
-            if (this.enterAction) {
-                this.mesh.actionManager.unregisterAction(this.enterAction);
-                this.enterAction = undefined;
-            }
-            if (this.exitAction) {
-                this.mesh.actionManager.unregisterAction(this.exitAction);
-                this.exitAction = undefined;
-            }
-            if (this.clickAction) {
-                this.mesh.actionManager.unregisterAction(this.clickAction);
-                this.clickAction = undefined;
-            }
-        }
     }
 
     setColor(color: Readonly<BABYLON.Color3>) {

@@ -1,9 +1,11 @@
 import * as BABYLON from 'babylonjs';
+import * as GUI from 'babylonjs-gui';
 
 export class RendererView {
     isFocused: boolean = false;
 
     private camera?: BABYLON.Camera;
+    // advancedTexture = GUI.AdvancedDynamicTexture.CreateFullscreenUI("ui-planetary");
 
     constructor(
         readonly renderer: Renderer,
@@ -24,11 +26,12 @@ export class RendererView {
     }
 
     universalCamera() {
+        console.log("View: Using universal camera.");
         let camera = new BABYLON.UniversalCamera("UniversalCamera", new BABYLON.Vector3(0, 15, -15), this.scene);
         camera.setTarget(new BABYLON.Vector3(0, 0, 0));
         camera.speed = 0.5;                 // KEYS:
-        camera.keysDownward.push(17, 16);   // CTRL, SHIFT
-        camera.keysUpward.push(32);         // SPACE
+        camera.keysDownward.push(17, 16);   // CTRL, SHIFT  (as of time of writing, this is only available on preview babylon)
+        camera.keysUpward.push(32);         // SPACE        (as of time of writing, this is only available on preview babylon)
         camera.keysUp.push(87, 38);         // W, UP
         camera.keysDown.push(83, 40)        // D, DOWN
         camera.keysLeft.push(65, 37);       // A, LEFT
@@ -37,6 +40,7 @@ export class RendererView {
     }
 
     arcRotateCamera() {
+        console.log("View: Using arc roatate camera.");
         let camera = new BABYLON.ArcRotateCamera("ArcCamera", Math.PI, Math.PI, 15, BABYLON.Vector3.Zero(), this.scene);
         camera.setPosition(new BABYLON.Vector3(0, 5, 15));
         camera.speed = 0.25;                // KEYS:
@@ -61,7 +65,7 @@ export class RendererView {
     }
 
     attachControl() {
-        console.log("Attach")
+        console.log("View: Attaching controls.")
         this.renderer.engine.inputElement = this.canvas;
         this.scene.attachControl(true, true, true);
         if (this.camera) {
@@ -70,7 +74,7 @@ export class RendererView {
     }
 
     detachControl() {
-        console.log("Detach")
+        console.log("View: Detaching controls.")
         this.scene.detachControl();
         if (this.camera) {
             this.camera.detachControl(this.canvas);
@@ -84,8 +88,7 @@ export class Renderer {
 
     constructor() {
         let canvas = document.createElement("canvas");
-        let gl = canvas.getContext("webgl");
-        this.engine = new BABYLON.Engine(gl, true);
+        this.engine = new BABYLON.Engine(canvas, true);
     }
 
     createView(canvas: HTMLCanvasElement): RendererView {

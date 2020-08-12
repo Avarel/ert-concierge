@@ -4,6 +4,7 @@ import React from "react";
 import Tabbed from "../../overlay/tabbed/mod";
 import { UsersTabComponent } from "./components";
 
+/** Handles client counting. */
 export class ClientsHandler implements RawHandler {
     private static readonly TAB_ID = "clients";
     private tab?: Tabbed.Tab;

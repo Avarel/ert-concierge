@@ -44,7 +44,6 @@ export namespace Views {
 
         /** Turn the entry into props for rendering. */
         toProps() {
-            console.log("refz", this.ref);
             return {
                 id: this.id,
                 jsxContent: this.jsxContent,

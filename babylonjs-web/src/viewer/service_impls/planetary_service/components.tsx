@@ -80,16 +80,8 @@ class PlanetaryInfoComponent extends React.Component<PlanetaryComponentProps> {
 
     conditional() {
         let handler = this.props.handler;
-        if (handler.planetLock) {
-            let planet = handler.planets.get(handler.planetLock);
-            if (!planet) return null;
-            return <PlanetInfoComponent
-                data={planet.data}
-                onSubmit={(tag, value) => this.handleFieldUpdate(planet!.id, tag, value)}
-            />
-        } else if (handler.hoveredPlanets.size != 0) {
-            let first = handler.hoveredPlanets.values().next();
-            let planet = handler.planets.get(first.value);
+        if (handler.planetLock != undefined || handler.planetHover != undefined ) {
+            let planet = handler.planets.get((handler.planetLock || handler.planetHover)!);
             if (!planet) return null;
             return <PlanetInfoComponent
                 data={planet.data}

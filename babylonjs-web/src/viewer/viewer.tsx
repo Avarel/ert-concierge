@@ -12,6 +12,7 @@ import { ServicesHandler } from "./services/services_handler";
 import React from "react";
 
 export namespace Viewer {
+    /** Entry point function. Executed on script load. */
     export function start() {
         const queries = new URLSearchParams(window.location.search);
 
@@ -28,6 +29,7 @@ export namespace Viewer {
         setup(serverURL, name);
     }
 
+    /** Main function. */
     function setup(serverURL: string, name: string) {
         const leftTabComponent = new Tabbed.Instance("#left-controls", 500);
         const rightTabComponent = new Tabbed.Instance("#right-controls", 800, true);
