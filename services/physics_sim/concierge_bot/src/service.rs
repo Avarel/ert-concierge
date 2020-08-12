@@ -270,9 +270,6 @@ async fn handle_message(
             let x = rng.rand_float() * 500.0 + 250.0;
             let y = rng.rand_float() * 500.0 + 250.0;
 
-            let vx = rng.rand_float() - 0.5;
-            let vy = rng.rand_float() - 0.5;
-
             /* Create new entity. z*/
             let mut body = Polygon::new(vec![
                 Vec2f::new(0.0, 0.0),
@@ -281,6 +278,7 @@ async fn handle_message(
                 Vec2f::new(0.0, 50.0),
             ]);
             body.translate((x, y).into());
+            println!("{}", client.uuid.to_string());
             let color = color_from_string_hash(&client.uuid.to_string());
 
             let id = Id::random();
@@ -290,7 +288,7 @@ async fn handle_message(
                 .with(id)
                 .with(Pos(body.centroid()))
                 .with(Mass(500.0))
-                .with(Vel(Vec2f::new(vx, vy).normalize()))
+                .with(Vel((0.0, 0.0).into()))
                 .with(Owner(client.uuid))
                 .with(Shape(body.clone()))
                 .with(Rgb(color.0, color.1, color.2))
@@ -448,12 +446,20 @@ async fn handle_message(
 
                         let id = Id::random();
 
+                        let start = SystemTime::now();
+                        let since_the_epoch = start
+                            .duration_since(UNIX_EPOCH)
+                            .expect("Time went backwards");
+                        let mut rng = oorandom::Rand64::new(since_the_epoch.as_millis());
+                        let vx = rng.rand_float() - 0.5;
+                        let vy = rng.rand_float() - 0.5;
+
                         let entity = world
                             .create_entity()
                             .with(id)
                             .with(pos)
                             .with(mass)
-                            .with(Vel((0.0, 0.0).into()))
+                            .with(Vel(Vec2f::new(vx, vy).normalize() * 500.0))
                             .with(Owner(client.uuid))
                             .with(shape.clone())
                             .with(rgb)
