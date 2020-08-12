@@ -54,6 +54,6 @@ cargo run -p physics_sim --release ws://ADDRESS:64209/ws
 ```
 
 ## Documentation
-* [**Websocket**](./PAYLOAD.md) protocol for interacting with the concierge, the main method of data communication.
-* [**File system**](./FILESYSTEM.md) protocol for transferring files between clients connected to the Concierge.
-* [**Rust rundown**](./RUST.md) for future maintainers.
+* [**Websocket**](./docs/SOCKET.md) protocol for interacting with the concierge, the main method of data communication.
+* [**File system**](./docs/FILES.md) protocol for transferring files between clients connected to the Concierge.
+* [**Rust rundown**](./docs/RUST.md) for future maintainers.

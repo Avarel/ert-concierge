@@ -17,6 +17,11 @@ this period will also immediately drop the connection with either:
 -   `4005` DUPLICATE_AUTH: namespace conflict in the concierge (pick another `name`!).
 -   `4006` BAD_SECRET: expected secret does not match gateway secret.
 -   `4007` BAD_VERSION: expected version is not compatible with gateway version (update your client).
+    -   Version checking is currently done with semantic versioning.
+-   `4008` BAD_AUTH: Name must be alphanumeric.
+    -   Currently not enforced for services.
+-   `4009` HB_FAILED: Heartbeat failed.
+    -   Websocket client should send ping/keep-alives and respond to pongs every ~5 seconds.
 
 Successful identification will result in a `HELLO` payload being sent to the client, along with a UUID that acts as the [file server](./FILESYSTEM.md) key.
 
