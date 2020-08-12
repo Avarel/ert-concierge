@@ -270,7 +270,10 @@ async fn handle_message(
             let x = rng.rand_float() * 500.0 + 250.0;
             let y = rng.rand_float() * 500.0 + 250.0;
 
-            /* Create new entity. */
+            let vx = rng.rand_float() - 0.5;
+            let vy = rng.rand_float() - 0.5;
+
+            /* Create new entity. z*/
             let mut body = Polygon::new(vec![
                 Vec2f::new(0.0, 0.0),
                 Vec2f::new(50.0, 0.0),
@@ -287,7 +290,7 @@ async fn handle_message(
                 .with(id)
                 .with(Pos(body.centroid()))
                 .with(Mass(500.0))
-                .with(Vel((0.0, 0.0).into()))
+                .with(Vel(Vec2f::new(vx, vy).normalize()))
                 .with(Owner(client.uuid))
                 .with(Shape(body.clone()))
                 .with(Rgb(color.0, color.1, color.2))
