@@ -1,5 +1,16 @@
-# ERT Concierge
-Websocket protocol for connecting multiple client types and facilitating transfer of information between specific clients.
+# ERT / Concierge
+Websocket protocol for connecting multiple client types and facilitating transfer of information between specific clients. The server is based upon [Rust](https://www.rust-lang.org/), [actix-web](https://actix.rs/) and [serde+serde_json](https://serde.rs/).
+
+## Project Structure
+* `./` **Root:** The Rust central server `ert-concierge` code is located at `src/`.
+    * `./services/` **Services:** Contains code for various services that can be connected to the central server.
+        * `./services/chat_service` **Chat service:** Python service that facilitates very simple chat functions.
+        * `./services/planetary_sim` **Planetary simulation:** Python service that runs Alison Noyes's planetary simulation.
+        * `./services/physics_sim` **Physics simulation:** Rust service that runs a physics simulation/game.
+* `./concierge_api_rs` **Concierge API:** The working definition and serialization code (using `serde`) of the API as described in [this document](./PAYLOAD.md).
+* `./babylonjs-web` **BabylonJS front-end:** The web front-end that uses BabylonJS for rendering 3D objects.
+    * `./babylonjs-web/src` **Front-end source:** The front-end code is written using React and TypeScript, and managed using Webpack.
+    * `./babylonjs-web/dist` **Front-end compiled code:** This is the code compiled using Webpack. For more information on compilation, see the [README.md](./babylonjs-web/README.md).
 
 ## Compilation
 * Install [**Rust 1.44.1 or above**](https://www.rust-lang.org/).

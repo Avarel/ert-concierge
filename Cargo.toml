@@ -6,7 +6,7 @@ edition = "2018"
 
 [workspace]
 members = [
-    "concierge_api_rs",
+    "api_rs",
     "services/physics_sim",
     "services/physics_sim/physics",
     "services/physics_sim/concierge_bot"
@@ -38,7 +38,7 @@ uuid = { version = "0.8", features = ["v4", "serde"] }
 # Semantic versioning
 semver = "0.10.0"
 # Payloads
-concierge_api_rs = { path = "./concierge_api_rs" }
+concierge_api_rs = { path = "./api_rs" }
 
 # Developer dependences, not present in normal code
 [dev-dependencies]

@@ -27,6 +27,7 @@ python3 -m pip install websockets asyncio requests
 pipenv run python3 concierge_bot.py [optional server address]
 ```
 ### Without Pipenv
+You must have `websockets` `asyncio` `requests` installed as global packages to proceed.
 ```bash
-python3 concierge_bot.py [optional server address]
+python3 concierge_service.py [optional server address]
 ```

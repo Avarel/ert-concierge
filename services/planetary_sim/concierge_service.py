@@ -54,6 +54,8 @@ async def concierge_bot():
     print("Connecting to the concierge.")
     async with websockets.connect(uri, subprotocols="ert-concierge") as socket:
         global uuid
+
+        # Identify ourself.
         await socket.send(json.dumps({
             "type": "IDENTIFY",
             "name": name,
@@ -63,10 +65,12 @@ async def concierge_bot():
         }))
         hello = json.loads(await socket.recv())
 
+        # Expect that the first payload return to us is a HELLO payload.
         uuid = hello["uuid"]
         server_version = hello["version"]
         print(f"My uuid is {uuid}. The server version is {server_version}.")
 
+        # Create our service.
         print("Creating group.")
         await socket.send(json.dumps({
             "type": "SERVICE_CREATE",
@@ -76,6 +80,7 @@ async def concierge_bot():
 
         print("Starting simulation.")
 
+        # Start the loops.
         asyncio.create_task(recv_loop(socket))
         asyncio.create_task(system_loop(socket))
         await send_loop(socket)
@@ -148,7 +153,7 @@ async def recv_loop(socket: websockets.WebSocketClientProtocol):
 
     async for msg in socket:
         payload = json.loads(msg)
-        if payload.get("type") == "MESSAGE":
+        if payload.get("type") == "MESSAGE" and payload["origin"]["service"]["name"] == service_name:
             try:
                 await handle_message(payload, socket)
             except Exception as e:
@@ -156,7 +161,9 @@ async def recv_loop(socket: websockets.WebSocketClientProtocol):
 
 
 async def handle_message(message: Dict[str, Any], socket: websockets.WebSocketClientProtocol):
-    """This handles each message from the recv_loop"""
+    """
+    This handles each message from the recv_loop.
+    """
     global paused, simulation_interval, uuid, system, paused, service_target, service_name
     msg_type = message["data"].get("type")
     if msg_type == "PAUSE":

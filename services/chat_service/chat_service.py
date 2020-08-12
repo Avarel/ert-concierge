@@ -18,6 +18,8 @@ service_nickname = "Chat Service"
 
 # Runtime settings
 uuid = None
+
+# Target payload to the service.
 service_target = {
     "type": "SERVICE",
     "service": service_name
@@ -41,6 +43,8 @@ async def chat_service():
     print("Connecting to the concierge.")
     async with websockets.connect(uri, subprotocols="ert-concierge") as socket:
         global uuid
+
+        # Identify ourself.
         await socket.send(json.dumps({
             "type": "IDENTIFY",
             "name": name,
@@ -50,17 +54,22 @@ async def chat_service():
         }))
         hello = json.loads(await socket.recv())
 
+        # Expect that the first payload return to us is a HELLO payload.
         uuid = hello["uuid"]
         server_version = hello["version"]
         print(f"My uuid is {uuid}. The server version is {server_version}.")
 
         print("Creating group.")
+
+        # Create our service.
         await socket.send(json.dumps({
             "type": "SERVICE_CREATE",
             "service": service_name,
             "nickname": service_nickname
         }))
 
+        # Subscribe to our own service so we can receive the SERVICE_CLIENT_SUBSCRIBED
+        # and SERVICE_CLIENT_UNSUBSCRIBED event payload.
         await socket.send(json.dumps({
             "type": "SELF_SUBSCRIBE",
             "service": service_name
@@ -68,55 +77,54 @@ async def chat_service():
 
         print("Starting service.")
 
+        # Start the socket receiving loop.
         await recv_loop(socket)
 
         print("Disconnecting and stopping service.")
 
-def stop(signal: signal.Signals, frame: FrameType):
-    # I want pyright to stop being stupid
-    cast(FunctionType, exit)()
-    return None
 
 async def recv_loop(socket: websockets.WebSocketClientProtocol):
     """
     Incoming message loop. Nothing very special about it.
     """
-
     async for msg in socket:
         payload = json.loads(msg)
-        await handle_payload(payload, socket)
+        try:
+            await handle_payload(payload, socket)
+        except Exception as e:
+            print("Uncaught exception", e)
 
 
 async def handle_payload(payload: Dict[str, Any], socket: websockets.WebSocketClientProtocol):
+    """
+    Handle one payload.
+    """
     payload_type = payload.get("type")
-    if payload_type == "SERVICE_CLIENT_SUBSCRIBED": 
-        if payload["service"]["name"] != service_name:
-            return
+    
+    # Listens to when a client join this chat service.
+    if payload_type == "SERVICE_CLIENT_SUBSCRIBED" and payload["service"]["name"] == service_name:
         client_nickname = payload["client"].get("nickname")
         client_name = payload["client"]["name"]
         await send_msg(service_target, socket, {
             "type": "STATUS",
             "text": f"{client_nickname if client_nickname else client_name} joined the chat."
         })
-    elif payload_type == "SERVICE_CLIENT_UNSUBSCRIBED":
-        if payload["service"]["name"] != service_name:
-            return
+    # Listen to when a client leaves the chat service.
+    elif payload_type == "SERVICE_CLIENT_UNSUBSCRIBED" and payload["service"]["name"] == service_name:
         client_nickname = payload["client"].get("nickname")
         client_name = payload["client"]["name"]
         await send_msg(service_target, socket, {
             "type": "STATUS",
             "text": f"{client_nickname if client_nickname else client_name} left the chat."
         })
-    elif payload_type == "MESSAGE":
-        if payload["origin"]["service"]["name"] != service_name:
-            return
-
+    # Listen to messages to this service.
+    elif payload_type == "MESSAGE" and payload["origin"]["service"]["name"] == service_name:
         client_nickname = payload["origin"].get("nickname")
         client_name = payload["origin"]["name"]
         output_name = client_nickname if client_nickname else client_name
-
         msg_data = payload["data"]
 
+        # Intercept a `/about` message.
         if msg_data["text"] == "/about":
             await send_msg({
                 "type": "SERVICE_CLIENT_UUID",
@@ -128,6 +136,7 @@ async def handle_payload(payload: Dict[str, Any], socket: websockets.WebSocketCl
                 "author_uuid": "0",
                 "text": "(Only you can see this!)\nERT Chat Service\nVersion: 0.1"
             })
+        # Intercept other messages.
         else:
             await send_msg(service_target, socket, {
                 "type": "TEXT",
@@ -136,8 +145,14 @@ async def handle_payload(payload: Dict[str, Any], socket: websockets.WebSocketCl
                 "text": msg_data["text"]
             })
 
+
+def stop(signal: signal.Signals, frame: FrameType):
+    # I want pyright to stop being stupid
+    cast(FunctionType, exit)() # equivalent to exit()
+
 signal.signal(signal.SIGINT, stop)
 
+# Start the loop.
 asyncio.get_event_loop().run_until_complete(chat_service())
 
 exit(0)

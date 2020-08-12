@@ -1,15 +1,12 @@
 # Rust
 This document was made for future interns who will work on this project and have no idea where to start.
 
-Rust is a relatively new language that has been gaining quite a lot of traction in recent years. Major companies such as Microsoft, Dropbox, Discord, etc. are adopting Rust as the language of choice for high performance systems programming. This project picked Rust (1.44.1) as the tool of choice in order to deliver high performance networking.
-
-## Notes to Future Maintainers
-The upload, download, and delete functions are pretty basic. They handle file management correctly (AFAIK), but the uploading could use some work. In particular, multipart forms are a standard way of chopping up and uploading large files in parts, but they are not utilized in this project. Other low hanging fruits include compression using GZIP, etc.
+Rust is a relatively new language that has been gaining quite a lot of traction in recent years. Major companies such as Microsoft, Dropbox, Discord, etc. are adopting Rust as the language of choice for high performance systems programming. This project picked Rust (v1.44.1) as the tool of choice in order to deliver high performance networking.
 
 ## Why Rust?
 Shamelessly stolen from [Nannou](https://nannou.cc/).
 * **Super fast**, as in [C and C++ fast](https://benchmarksgame-team.pages.debian.net/benchmarksgame/fastest/rust-gpp.html).
-* **Did I mention fast?** [Actix is one of the fastest web frameworks](https://www.techempower.com/benchmarks/#section=data-r18).
+* One of the **fastest web frameworks** is [actix-rs](https://www.techempower.com/benchmarks/#section=data-r18).
 * A **standard package manager** that makes it very easy to handle dependencies and share your own projects in seconds. In fact, running this project takes a `git clone` and a `cargo run --release`.
 * **Highly portable**. Easily build for MacOS, Linux, Windows, Android, iOS and so many others. Cross-compilation? No problem.
 * **No header files** and no weird linking errors.
@@ -30,7 +27,7 @@ to ownership concepts extremely quickly.
 Installation instructions can be found [here](https://www.rust-lang.org/learn/get-started). This project uses the stable 1.44.1 version of Rust.
 
 For developing, I recommend using either:
-*  [VSCode](https://code.visualstudio.com/) with the [Rust Analyzer](https://rust-analyzer.github.io/) extension.
+*  [VSCode](https://code.visualstudio.com/) with the [Rust Analyzer](https://rust-analyzer.github.io/) extension. *(what I used to develop this project)*
 * [IntelliJ](https://www.jetbrains.com/) [IDEA](https://www.jetbrains.com/idea/) or [CLion](https://www.jetbrains.com/clion/) with the [Rust plugin](https://intellij-rust.github.io/).
 
 ### Ownership
@@ -53,7 +50,7 @@ The borrow checker is fickle, and will not allow compilation of programs that vi
 This all done without a runtime (definition pending), so your code is safe (as long as you don't use `unsafe`) and fast (in some cases, faster than C/C++) as it compiles down to regular machine code.
 
 Sometimes, you will want to "fight the borrow checker" because some ideas are
-impossible to statically verify. The Rust project maintainers knows this, and
+impossible to statically verify *(or you need to unlearn OOP)*. The Rust project maintainers knows this, and
 provided useful abstractions that express ownership rules at runtime (a small performance cost, but still less than if you used Java, etc.):
 * `Box<_>`: By default, values are allocated on the stack. Box values are allocated on the heap. `Box<usize>` *roughly* correspond to `size_t*`.
 * `Rc<_>`: Reference counting, not thread-safe. You can clone an `Rc` to allow
