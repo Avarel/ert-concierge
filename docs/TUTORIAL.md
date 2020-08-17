@@ -287,6 +287,39 @@ export class ChatService extends ServiceEventHandler<ChatPayload> {
 }
 ```
 
+What is `ChatPayload`? Since we use TypeScript, we want to have some type-checking for documentation and
+sanity checking. It is defined as follows:
+```typescript
+interface StatusPayload {
+    type: "STATUS",
+    text: string
+}
+
+interface TextPayload {
+    type: "TEXT",
+    author: string,
+    author_uuid: string,
+    text: string,
+}
+
+interface InputPayload {
+    type: "INPUT",
+    text: string
+}
+
+type ChatPayload = StatusPayload | TextPayload | InputPayload;
+```
+
+We can pass that type into the class signature as follows:
+```typescript
+export class ChatService extends ServiceEventHandler<ChatPayload> { /* omitted */ }
+```
+
+This will allow us to have the signature of `onServiceMessage` as
+```typescript
+protected onServiceMessage(payload: ChatPayload)
+```
+
 ### Handling Service Subscription
 
 Using this utility, we can have it so that we add a tab and create a React instance
